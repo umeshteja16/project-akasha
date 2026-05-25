@@ -1,0 +1,35 @@
+{
+  "version": "1.0.0",
+  "benchmarks": [
+    {
+      "id": "bench-001",
+      "query": "crashed background jobs recovery",
+      "expected_files": ["bullmq_resilience_eval.txt"],
+      "expected_keywords_in_snippet": ["background", "guidelines", "nodes", "failures"],
+      "must_not_match_files": ["deepmind_foundation_eval.txt"],
+      "minimum_top1_score": 0.35,
+      "minimum_mrr": 0.50,
+      "modes": ["keyword", "semantic", "hybrid"]
+    },
+    {
+      "id": "bench-002",
+      "query": "high-performance knowledge retrieval foundation",
+      "expected_files": ["deepmind_foundation_eval.txt"],
+      "expected_keywords_in_snippet": ["performance", "knowledge", "retrieval", "foundation"],
+      "must_not_match_files": ["bullmq_resilience_eval.txt"],
+      "minimum_top1_score": 0.35,
+      "minimum_mrr": 0.50,
+      "modes": ["keyword", "semantic", "hybrid"]
+    },
+    {
+      "id": "bench-003",
+      "query": "residual learning deep neural layers",
+      "expected_files": ["resnet_deeper_eval.txt"],
+      "expected_keywords_in_snippet": ["layers", "training", "deeper", "residual"],
+      "must_not_match_files": ["bullmq_resilience_eval.txt"],
+      "minimum_top1_score": 0.35,
+      "minimum_mrr": 0.50,
+      "modes": ["keyword", "semantic", "hybrid"]
+    }
+  ]
+}
