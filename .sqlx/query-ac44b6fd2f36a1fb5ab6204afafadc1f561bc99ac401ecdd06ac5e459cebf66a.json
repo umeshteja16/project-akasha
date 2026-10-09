@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE file_chunks c\n           SET embedding = (($3::real[])[(v.ord - 1) * $2 + 1 : v.ord * $2])::vector\n           FROM unnest($4::bigint[]) WITH ORDINALITY AS v(id, ord)\n           WHERE c.id = v.id AND c.embedding IS NULL\n             AND EXISTS (SELECT 1 FROM embedding_model m WHERE m.name = $1 AND m.dim = $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4",
+        "Float4Array",
+        "Int8Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ac44b6fd2f36a1fb5ab6204afafadc1f561bc99ac401ecdd06ac5e459cebf66a"
+}

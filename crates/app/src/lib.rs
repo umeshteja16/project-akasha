@@ -2,6 +2,7 @@
 //!
 //! `main.rs` only parses the command line; everything testable lives here.
 
+pub mod admin;
 pub mod auth;
 pub mod error;
 pub mod extract;
@@ -59,6 +60,7 @@ pub async fn run_serve(config: Config, with_worker: bool) -> anyhow::Result<()> 
         .await
         .context("connecting to database")?;
     akasha_db::migrate(&pool).await?;
+    admin::check_embedding_model(&pool, &config).await?;
     let storage = akasha_storage::Storage::from_config(&config).context("opening storage")?;
 
     let listener = tokio::net::TcpListener::bind(&config.bind_addr)
@@ -71,7 +73,9 @@ pub async fn run_serve(config: Config, with_worker: bool) -> anyhow::Result<()> 
     let stop = shutdown_trigger();
 
     let worker = if with_worker {
-        let worker = jobs::worker(jobs::JobContext::from(&state), &state.config)?;
+        let ctx = jobs::JobContext::from(&state);
+        warm_up(&ctx);
+        let worker = jobs::worker(ctx, &state.config)?;
         Some(tokio::spawn(worker.run(wait_for(stop.clone()))))
     } else {
         tracing::warn!("no worker in this process: run `akasha worker` (or `serve --with-worker`)");
@@ -99,12 +103,25 @@ pub async fn run_worker(config: Config) -> anyhow::Result<()> {
         .await
         .context("connecting to database")?;
     akasha_db::migrate(&pool).await?;
+    admin::check_embedding_model(&pool, &config).await?;
     let storage = akasha_storage::Storage::from_config(&config).context("opening storage")?;
     let ctx = jobs::JobContext::new(pool, storage, &config);
+    warm_up(&ctx);
     let stop = shutdown_trigger();
     jobs::worker(ctx, &config)?.run(wait_for(stop)).await?;
     tracing::info!("shut down cleanly");
     Ok(())
+}
+
+/// Load the embedding model in the background at start, so its first download
+/// happens now (not in the first upload's job) and problems show up in the log early.
+fn warm_up(ctx: &jobs::JobContext) {
+    let ml = std::sync::Arc::clone(&ctx.ml);
+    tokio::spawn(async move {
+        if let Err(err) = ml.embedder().await {
+            tracing::warn!(%err, "embedding model unavailable; embed jobs will retry");
+        }
+    });
 }
 
 /// A flag set once a shutdown signal arrives.

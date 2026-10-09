@@ -312,7 +312,7 @@ export interface components {
          * @enum {string}
          */
         FileCategory: "pdf" | "image" | "audio" | "video" | "text";
-        /** @description One file plus the state of its latest extraction job. */
+        /** @description One file plus the state of its latest processing job. */
         FileDetail: components["schemas"]["FileResponse"] & {
             processing?: null | components["schemas"]["ProcessingJob"];
         };
@@ -392,10 +392,16 @@ export interface components {
              * @description When it will next be tried (`queued` or `failed` only).
              */
             next_attempt_at?: string | null;
+            stage: components["schemas"]["ProcessingStage"];
             state: components["schemas"]["JobState"];
             /** Format: date-time */
             updated_at: string;
         };
+        /**
+         * @description Which processing step a job performs.
+         * @enum {string}
+         */
+        ProcessingStage: "extract" | "embed";
         RegisterRequest: {
             display_name?: string | null;
             email: string;

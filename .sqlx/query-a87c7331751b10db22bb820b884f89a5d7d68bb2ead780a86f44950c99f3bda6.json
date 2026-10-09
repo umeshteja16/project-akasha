@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT atttypmod AS \"dim!\" FROM pg_attribute\n           WHERE attrelid = 'file_chunks'::regclass AND attname = 'embedding'\n             AND NOT attisdropped",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "dim!",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a87c7331751b10db22bb820b884f89a5d7d68bb2ead780a86f44950c99f3bda6"
+}

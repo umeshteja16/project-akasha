@@ -1,4 +1,5 @@
-//! The `extract_file` handler: pending → processing → ready | failed.
+//! The `extract_file` handler: pending → processing, then `embed_file` (or
+//! straight to ready when there is no text) | failed.
 //!
 //! Idempotent: it re-reads the file (deleted → nothing to do), and replaces the
 //! extraction and all chunks in one transaction, so a repeated or concurrent run
@@ -19,7 +20,10 @@ use akasha_storage::{ContentHash, StorageError};
 use bytes::Bytes;
 use uuid::Uuid;
 
-use super::{JobContext, kinds::ExtractFile};
+use super::{
+    JobContext,
+    kinds::{EmbedFile, ExtractFile},
+};
 
 /// Why an extraction did not finish.
 struct Failure {
@@ -204,9 +208,15 @@ async fn store(
         tracing::debug!(file_id = %id, "file deleted during extraction; nothing stored");
         return Ok(());
     }
-    // Seam for the embeddings step (2.6): enqueue the embed job here instead of
-    // marking the file ready, in this same transaction.
-    extraction::mark_ready(&mut tx, id).await?;
+    if chunks.is_empty() {
+        // Nothing to embed (media, empty or text-less files).
+        extraction::mark_ready(&mut tx, id).await?;
+    } else {
+        // The file stays `processing` until its chunks have vectors.
+        akasha_jobs::enqueue(&mut tx, &EmbedFile { file_id: id })
+            .await
+            .map_err(Failure::retry)?;
+    }
     tx.commit().await?;
     tracing::info!(
         file_id = %id,

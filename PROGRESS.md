@@ -19,7 +19,7 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 |---|---|
 | **Current step** | Step 2: Files and ingestion |
 | **Last updated** | 2026-10-09 |
-| **`just check`** | passing (119 Rust tests + 3 ignored OCR tests, 1 web test) |
+| **`just check`** | passing (137 Rust tests + 3 ignored OCR + 2 ignored real-model tests, 1 web test) |
 | **Old code** | `legacy/` (read-only reference; deleted in step 7) |
 
 ## Next up
@@ -34,15 +34,15 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
    `akasha worker`, `serve --with-worker`, periodic jobs, blob deletion via jobs.
 5. ~~**Extraction.**~~ Done: `crates/ingest` (ADR 0008), migration `0006_extraction`
    (`file_extractions`, `file_chunks` with FTS), `extract_file` handler, `GET /files/{id}/extraction`.
-6. **Embeddings (do this next).** New `crates/ml` with `fastembed`; record model name +
-   dimension in the DB. Migration adds `file_chunks.embedding vector(N)` (nullable) plus an
-   HNSW index. Hook: in `crates/app/src/jobs/extract.rs::store`, replace the
-   `mark_ready` call with enqueueing an `EmbedFile` job in the same transaction; that
-   handler embeds chunks with `embedding IS NULL`, then marks the file `ready` (same
-   last-attempt failure rule via `akasha_jobs::current_attempt()`). Consider switching
-   `ChunkOptions` to the model's tokenizer (text-splitter `tokenizers` feature pulls in
-   `onig`, a C library: prefer a pure-Rust sizer or keep characters).
-7. Remaining file routes: thumbnail (CRUD, reindex, job status and extraction view are done).
+6. ~~**Embeddings.**~~ Done: `crates/ml` (ADR 0009), migration `0007_embeddings`,
+   `embed_file` job, `akasha models download|check`, `akasha reembed`, reranker interface.
+7. **Thumbnails (do this next).** Remaining file route: `GET /files/{id}/thumbnail`
+   (images via `image`, PDFs first page only if cheap without pdfium; else a type icon on
+   the client). Generate in a job after extraction, store as a derived blob.
+
+Then **step 3 (search)**: new `crates/search` using `file_chunks.tsv` + `embedding`
+(HNSW, `<=>`), RRF fusion, then `MlProvider::reranker()` (already loaded lazily in
+`AppState.ml`; queries go through `Embedder::embed_query`, which adds the model's prefix).
 
 ## Roadmap
 
@@ -76,12 +76,12 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 - [x] Blob ref-counting in SQL (with the `files` table; per-hash advisory lock)
 - [x] Postgres job queue (`SELECT … FOR UPDATE SKIP LOCKED`; retries, backoff, idempotent jobs), `akasha worker`
 - [x] New crate `crates/ingest`: PDF text (`pdf-extract`, ADR 0008), OCR (`ocrs`), plain text/markdown, chunking (`text-splitter`)
-- [ ] New crate `crates/ml`: embeddings via `fastembed` (bge-m3 or nomic-embed; dimension recorded in the DB)
+- [x] New crate `crates/ml`: embeddings via `fastembed` (multilingual-e5-small default, model + dimension recorded in the DB, `akasha reembed`)
 - [~] File CRUD: ~~list, get, rename, tags, pin, download, bulk delete, reindex, job status, extraction view~~ done; thumbnail left
 
 ### Step 3: Search
 - [ ] New crate `crates/search`: Postgres FTS + pgvector HNSW, fused with RRF (k=60)
-- [ ] Cross-encoder rerank (`fastembed` reranker)
+- [~] Cross-encoder rerank (`fastembed` reranker): `Reranker` trait + models done in `crates/ml`, not wired to search yet
 - [ ] Filters (type, date, collection), snippets/highlights, pagination, "similar files"
 - [ ] Port `legacy/apps/api/benchmark_queries.json` into an eval command (`akasha eval`) and a CI quality gate
 
@@ -126,7 +126,8 @@ See [`docs/adr/`](docs/adr). Summary:
 0001 Rust rewrite, TS frontend · 0002 Postgres is the only stateful service ·
 0003 ML runs in-process · 0004 Cookie sessions, not JWT · 0005 OpenAPI is the API contract ·
 0006 Server first, desktop later · 0007 Job queue design ·
-0008 Pure-Rust extraction (pdf-extract, ocrs, text-splitter).
+0008 Pure-Rust extraction (pdf-extract, ocrs, text-splitter) ·
+0009 Embeddings via fastembed on runtime-loaded ONNX Runtime.
 
 ## Known issues and gotchas
 
@@ -205,9 +206,31 @@ See [`docs/adr/`](docs/adr). Summary:
 - `file_chunks.tsv` uses the `english` config (legacy parity). Changing it means a new
   generated column + reindex, decide in the search step.
 
+- ML (ADR 0009): ONNX Runtime is **loaded at run time** (`ort` load-dynamic), never linked
+  or downloaded at build time. Real models need `AKASHA_ORT_DYLIB_PATH` (`just onnxruntime`
+  installs the pinned 1.28.0 into `./models/onnxruntime/`); the Docker image has it in
+  `/usr/local/lib`. Without it embed jobs fail retryably with a clear message. Tests use the
+  `hash-384` embedder / `overlap` reranker (`support::test_config()`); real-model tests:
+  `ORT_DYLIB_PATH=... cargo test -p akasha-ml --test real_models -- --ignored`
+  (`AKASHA_TEST_EMBED_MODEL`, `AKASHA_TEST_MODELS_DIR`, `AKASHA_TEST_MODELS_URL`).
+- Cloud sessions: the agent proxy blocks `huggingface.co` and `cdn.pyke.io` (403), so real
+  models cannot be downloaded here; GitHub release downloads and the chroma S3 bucket work
+  (all-MiniLM-L6-v2 from `chroma-onnx-models.s3.amazonaws.com/all-MiniLM-L6-v2/onnx.tar.gz`
+  unpacked into `<models>/hf/Qdrant--all-MiniLM-L6-v2-onnx/` runs offline).
+- `file_chunks.embedding` is `vector(384)` from migration 0007, but `akasha reembed` can
+  re-type it to another dimension: never assume 384 in later migrations. The column dim is
+  read from `pg_attribute.atttypmod` (`akasha_db::embeddings::column_dim`). Startup refuses
+  a configured model different from `embedding_model`; tests insert there to simulate it.
+- Pass vectors to SQL as `real[]` and cast (`$1::real[]::vector`); the checked macros do
+  not know the `vector` type. Read them back with `embedding::real[]`.
+- File status now stays `processing` until `embed_file` finishes; `run_jobs()` returns 2 for
+  a text upload (extract + embed). `GET /files/{id}` `processing.stage` is `extract`|`embed`.
+
 ## Session log
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
+
+- 2026-10-09 · Claude (cloud) · Step 2.6: embeddings. `crates/ml` (Embedder/Reranker traits, catalog with per-model prefixes, HF downloader, hash/overlap fakes, fastembed on runtime-loaded ONNX Runtime), `0007_embeddings` (`embedding vector(384)` + HNSW, `embedding_model`), `embed_file` job (batched, resumable, model-guarded), startup model guard, `akasha reembed`, `akasha models download|check`, ORT 1.28 in the Docker image + CI smoke test, `just onnxruntime`, ADR 0009. Real-model test run locally with all-MiniLM-L6-v2 (HF blocked here; e5/jina defaults unverified locally, CI smoke test covers MiniLM).
 
 - 2026-10-09 · Claude (cloud) · Step 2.5: extraction. `crates/ingest` (text/Markdown/CSV/JSON normalisation, per-page PDF text via pdf-extract with panic guards, scanned-page detection + OCR of embedded JPEG/bitmap scans, image OCR with ocrs and checksummed download-on-first-use models, character chunking with overlap and page/char offsets), `0006_extraction`, `extract_file` handler (idempotent replace, last-attempt failure via new `akasha_jobs::current_attempt()`), `GET /files/{id}/extraction`, ADR 0008, `AKASHA_OCR_ENABLED`/`AKASHA_MODELS_DIR`/`AKASHA_OCR_MODELS_URL`, models volume in Docker.
 - 2026-10-09 · Claude (cloud) · Step 2.4: job queue. `0005_jobs` (jobs + job_schedules, NOTIFY trigger), `crates/jobs` (claim with SKIP LOCKED, heartbeat/visibility timeout, backoff with jitter, dead-lettering, typed jobs, LISTEN wake-up, graceful drain), `akasha worker` + `serve --with-worker` (Docker default), periodic session/staging/job pruning + orphan-blob sweep, blob deletion moved into a job enqueued in the delete transaction, `extract_file` enqueued on upload (no handler until 2.5), `GET /files/{id}` shows `processing`, `POST /files/{id}/reindex`.

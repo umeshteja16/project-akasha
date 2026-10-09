@@ -57,7 +57,7 @@ async fn text_upload_is_extracted_chunked_and_ready(pool: PgPool) {
     let fid = id(&f);
     assert_eq!(file(&app, &ada, &fid).await["status"], "pending");
 
-    assert_eq!(app.run_jobs().await, 1);
+    assert_eq!(app.run_jobs().await, 2, "extract, then embed");
     let detail = file(&app, &ada, &fid).await;
     assert_eq!(detail["status"], "ready");
     assert_eq!(detail["error"], Value::Null);

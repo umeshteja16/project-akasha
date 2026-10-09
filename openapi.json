@@ -1238,14 +1238,14 @@
                   },
                   {
                     "$ref": "#/components/schemas/ProcessingJob",
-                    "description": "Latest extraction job, if one was ever queued."
+                    "description": "Latest processing job (extraction or embedding), if one was ever queued."
                   }
                 ]
               }
             }
           }
         ],
-        "description": "One file plus the state of its latest extraction job."
+        "description": "One file plus the state of its latest processing job."
       },
       "FileList": {
         "type": "object",
@@ -1428,6 +1428,7 @@
       "ProcessingJob": {
         "type": "object",
         "required": [
+          "stage",
           "state",
           "attempts",
           "max_attempts",
@@ -1451,6 +1452,9 @@
             "format": "date-time",
             "description": "When it will next be tried (`queued` or `failed` only)."
           },
+          "stage": {
+            "$ref": "#/components/schemas/ProcessingStage"
+          },
           "state": {
             "$ref": "#/components/schemas/JobState"
           },
@@ -1459,6 +1463,14 @@
             "format": "date-time"
           }
         }
+      },
+      "ProcessingStage": {
+        "type": "string",
+        "description": "Which processing step a job performs.",
+        "enum": [
+          "extract",
+          "embed"
+        ]
       },
       "RegisterRequest": {
         "type": "object",

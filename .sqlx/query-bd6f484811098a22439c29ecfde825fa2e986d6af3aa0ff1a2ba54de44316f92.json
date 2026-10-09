@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO embedding_model (name, dim) VALUES ($1, $2)\n         ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, dim = EXCLUDED.dim, updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bd6f484811098a22439c29ecfde825fa2e986d6af3aa0ff1a2ba54de44316f92"
+}

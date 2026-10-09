@@ -60,11 +60,25 @@ pub struct Config {
     /// Recognise text in images and scanned PDF pages. Off: such files are stored
     /// and marked as needing OCR, with no text.
     pub ocr_enabled: bool,
-    /// Directory for ML model files (OCR models are downloaded here on first use).
+    /// Directory for ML model files (OCR, embedding and rerank models are downloaded
+    /// here on first use, or ahead of time with `akasha models download`).
     pub models_dir: String,
     /// Base URL OCR models are downloaded from. Empty: never download (offline
     /// installs put the files into `models_dir` themselves).
     pub ocr_models_url: String,
+    /// Embedding model for semantic search (see `akasha_ml::catalog`). Changing it
+    /// later needs `akasha reembed`.
+    pub embed_model: String,
+    /// Cross-encoder reranker for search results; empty or `none` disables it.
+    pub rerank_model: String,
+    /// Hugging Face compatible endpoint embedding/rerank models are downloaded from.
+    /// Empty: never download (offline installs copy `models_dir` from elsewhere).
+    pub ml_models_url: String,
+    /// ONNX Runtime shared library. Empty: `ORT_DYLIB_PATH`, else `libonnxruntime.so`
+    /// next to the binary or on the library search path.
+    pub ort_dylib_path: String,
+    /// CPU threads per model for inference; 0 uses every core.
+    pub ml_threads: u32,
 }
 
 /// Blob storage backend.
@@ -135,6 +149,11 @@ impl Default for Config {
             ocr_enabled: true,
             models_dir: "./models".into(),
             ocr_models_url: "https://ocrs-models.s3-accelerate.amazonaws.com".into(),
+            embed_model: "multilingual-e5-small".into(),
+            rerank_model: "jina-reranker-v1-turbo-en".into(),
+            ml_models_url: "https://huggingface.co".into(),
+            ort_dylib_path: String::new(),
+            ml_threads: 0,
         }
     }
 }

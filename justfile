@@ -28,6 +28,14 @@ serve:
 worker:
     cargo run -p akasha -- worker
 
+# Download the ONNX Runtime library (embeddings/reranking) into ./models/onnxruntime.
+onnxruntime:
+    ./scripts/install-onnxruntime.sh
+
+# Fetch every configured ML model into AKASHA_MODELS_DIR (offline installs).
+models:
+    cargo run -p akasha -- models download
+
 # Run the web dev server (proxies /api to the Rust server).
 web:
     cd web && pnpm dev

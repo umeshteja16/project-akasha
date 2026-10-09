@@ -9,11 +9,17 @@ publish.workspace = true
 name = "akasha"
 path = "src/main.rs"
 
+[features]
+default = ["onnx"]
+# Real embedding/rerank models through ONNX Runtime (loaded at run time).
+onnx = ["akasha-ml/onnx"]
+
 [dependencies]
 akasha-core.workspace = true
 akasha-db.workspace = true
 akasha-ingest.workspace = true
 akasha-jobs.workspace = true
+akasha-ml.workspace = true
 akasha-storage.workspace = true
 anyhow.workspace = true
 argon2.workspace = true

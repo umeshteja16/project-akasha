@@ -25,6 +25,10 @@ pub const PDF: &[u8] = b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\ne
 pub fn test_config() -> Config {
     Config {
         ocr_enabled: false,
+        // Deterministic built-in models: no downloads, no ONNX Runtime.
+        embed_model: akasha_ml::catalog::HASH_EMBED_MODEL.into(),
+        rerank_model: akasha_ml::catalog::OVERLAP_RERANK_MODEL.into(),
+        ml_models_url: String::new(),
         ..Config::default()
     }
 }
@@ -68,7 +72,7 @@ pub fn multipart(filename: &str, bytes: &[u8]) -> Vec<u8> {
 }
 
 impl TestApp {
-    /// OCR is off: tests never download models.
+    /// OCR is off and models are the built-in fakes: tests never download.
     pub fn new(pool: PgPool) -> Self {
         Self::with_config(pool, test_config())
     }

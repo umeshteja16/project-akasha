@@ -83,5 +83,13 @@ jobs:
         with:
           context: .
           push: false
+          load: true
+          tags: akasha:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      # The image must really run inference: loads ONNX Runtime from the image and a
+      # small model (~90 MB) from Hugging Face.
+      - name: Smoke test (ONNX Runtime + embedding model)
+        run: |
+          docker run --rm -e AKASHA_EMBED_MODEL=all-minilm-l6-v2 -e AKASHA_RERANK_MODEL=none \
+            akasha:ci models check

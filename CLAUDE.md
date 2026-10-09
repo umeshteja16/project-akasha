@@ -16,6 +16,8 @@ crates/db     sqlx pool, migrations (crates/db/migrations), query functions
 crates/storage content-addressed blob store (object_store: local dir or S3)
 crates/jobs   Postgres job queue + worker runtime (domain-agnostic, ADR 0007)
 crates/ingest text extraction (text/Markdown/PDF/OCR) + chunking; pure, blocking (ADR 0008)
+crates/ml     embeddings + reranking (fastembed on runtime-loaded ONNX Runtime, ADR 0009);
+              blocking traits, model catalog, downloader, deterministic fakes for tests
 crates/app    the `akasha` binary: axum routes (src/routes/*), auth/, jobs/ (job kinds +
               handlers), state, telemetry
 .sqlx/        offline cache of checked SQL queries (`just sqlx-prepare`)
@@ -24,7 +26,7 @@ legacy/       old TypeScript implementation: read-only reference, do not edit
 docs/adr/     architecture decisions
 openapi.json  generated API contract (`just openapi`), checked in CI
 ```
-New crates planned (create them when their step starts, not before): `ml`, `search`.
+New crates planned (create them when their step starts, not before): `search`.
 
 ## Commands
 `just` lists everything. Common: `just serve`, `just web`, `just check`, `just fmt`,
@@ -54,7 +56,8 @@ jobs with `TestApp::run_jobs()`.
   `JobError::permanent` when retrying cannot help. Never delete blobs in a request: enqueue
   `DeleteBlobIfUnreferenced`. Never rename a job kind that may still be queued.
 - **Tests**: DB tests use `#[sqlx::test]` (fresh database per test). HTTP tests drive the router
-  with `tower::ServiceExt::oneshot` (see `crates/app/tests/http.rs`).
+  with `tower::ServiceExt::oneshot` (see `crates/app/tests/http.rs`). Tests never download
+  models: `support::test_config()` uses the `hash-384` embedder and `overlap` reranker.
 - **Small files**: split a file once it passes ~300 lines.
 - **Frontend**: TS strict, no `any`, server state via TanStack Query, generated API types only.
 - **Dependencies**: add to `[workspace.dependencies]` in the root `Cargo.toml`; `cargo-deny`

@@ -1,4 +1,4 @@
-//! Processing (extraction) state of a file: shown on `GET /api/v1/files/{id}` and
+//! Processing (extraction, then embedding) state of a file: shown on `GET /api/v1/files/{id}` and
 //! restarted by `POST /api/v1/files/{id}/reindex`.
 
 use akasha_jobs::{Job, JobInfo, queue};
@@ -16,17 +16,17 @@ use crate::{
     auth::AuthUser,
     error::{ApiError, ErrorBody},
     extract::Json,
-    jobs::kinds::ExtractFile,
+    jobs::kinds::{EmbedFile, ExtractFile},
     state::AppState,
 };
 use akasha_db::{PgPool, files};
 
-/// One file plus the state of its latest extraction job.
+/// One file plus the state of its latest processing job.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct FileDetail {
     #[serde(flatten)]
     pub file: FileResponse,
-    /// Latest extraction job, if one was ever queued.
+    /// Latest processing job (extraction or embedding), if one was ever queued.
     pub processing: Option<ProcessingJob>,
 }
 
@@ -57,8 +57,19 @@ impl JobState {
     }
 }
 
+/// Which processing step a job performs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum ProcessingStage {
+    /// Text extraction and chunking.
+    Extract,
+    /// Computing chunk embeddings for semantic search.
+    Embed,
+}
+
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ProcessingJob {
+    pub stage: ProcessingStage,
     pub state: JobState,
     /// Attempts started so far.
     pub attempts: i32,
@@ -71,7 +82,13 @@ pub struct ProcessingJob {
 impl From<JobInfo> for ProcessingJob {
     fn from(job: JobInfo) -> Self {
         let state = JobState::from_db(&job.status);
+        let stage = if job.kind == EmbedFile::KIND {
+            ProcessingStage::Embed
+        } else {
+            ProcessingStage::Extract
+        };
         Self {
+            stage,
             state,
             attempts: job.attempts,
             max_attempts: job.max_attempts,
@@ -82,9 +99,17 @@ impl From<JobInfo> for ProcessingJob {
     }
 }
 
-/// The latest extraction job for `file_id`. Callers must have checked ownership.
+/// The latest processing job for `file_id`: the embed job once extraction queued
+/// one, else the extraction job. Callers must have checked ownership.
 pub async fn latest(db: &PgPool, file_id: Uuid) -> Result<Option<ProcessingJob>, ApiError> {
-    let job = queue::latest_by_key(db, ExtractFile::KIND, &file_id.to_string()).await?;
+    let key = file_id.to_string();
+    let extract = queue::latest_by_key(db, ExtractFile::KIND, &key).await?;
+    let embed = queue::latest_by_key(db, EmbedFile::KIND, &key).await?;
+    let job = match (extract, embed) {
+        // A reindex queues a new extraction after the old embedding.
+        (Some(x), Some(e)) => Some(if e.created_at >= x.created_at { e } else { x }),
+        (x, e) => x.or(e),
+    };
     Ok(job.map(Into::into))
 }
 

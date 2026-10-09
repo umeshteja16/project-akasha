@@ -5,9 +5,11 @@
 //! database, never trust that a payload still describes reality.
 
 pub mod blobs;
+mod embed;
 mod extract;
 pub mod kinds;
 mod maintenance;
+pub mod ml;
 pub mod ocr;
 
 use std::{sync::Arc, time::Duration};
@@ -18,7 +20,7 @@ use akasha_jobs::{QueueError, Registry, Schedule, Worker, WorkerConfig};
 use akasha_storage::Storage;
 
 use self::kinds::{PruneJobs, PruneSessions, PruneStaging, SweepOrphanBlobs};
-use self::ocr::OcrProvider;
+use self::{ml::MlProvider, ocr::OcrProvider};
 use crate::state::AppState;
 
 const HOUR: Duration = Duration::from_secs(60 * 60);
@@ -31,6 +33,8 @@ pub struct JobContext {
     pub storage: Storage,
     /// The OCR engine, loaded on first use (shared by all handlers of a worker).
     pub ocr: Arc<OcrProvider>,
+    /// Embedding model and reranker, loaded on first use (shared with the API).
+    pub ml: Arc<MlProvider>,
 }
 
 impl JobContext {
@@ -39,13 +43,17 @@ impl JobContext {
             db,
             storage,
             ocr: Arc::new(OcrProvider::from_config(config)),
+            ml: Arc::new(MlProvider::from_config(config)),
         }
     }
 }
 
 impl From<&AppState> for JobContext {
     fn from(state: &AppState) -> Self {
-        Self::new(state.db.clone(), state.storage.clone(), &state.config)
+        Self {
+            ml: Arc::clone(&state.ml),
+            ..Self::new(state.db.clone(), state.storage.clone(), &state.config)
+        }
     }
 }
 
@@ -53,6 +61,7 @@ impl From<&AppState> for JobContext {
 pub fn registry() -> Registry<JobContext> {
     Registry::new()
         .register(extract::extract_file)
+        .register(embed::embed_file)
         .register(blobs::delete_if_unreferenced)
         .register(blobs::sweep_orphans)
         .register(maintenance::prune_sessions)

@@ -6,6 +6,9 @@ ignore = [
   # PDF parser under pdf-extract (ADR 0008), with no maintained alternative there yet.
   # Revisit when lopdf moves to skrifa.
   { id = "RUSTSEC-2026-0192", reason = "unmaintained only; required by lopdf (ADR 0008)" },
+  # paste (proc-macro) is unmaintained, not vulnerable; it comes in through
+  # tokenizers, under fastembed (ADR 0009). Revisit when tokenizers drops it.
+  { id = "RUSTSEC-2024-0436", reason = "unmaintained only; required by tokenizers (ADR 0009)" },
 ]
 
 [bans]

@@ -38,6 +38,21 @@ impl Job for ExtractFile {
     }
 }
 
+/// Embed the chunks of an extracted file that have no vector yet, then mark the
+/// file `ready` (see `jobs::embed`). Enqueued by extraction and `akasha reembed`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EmbedFile {
+    pub file_id: Uuid,
+}
+
+impl Job for EmbedFile {
+    const KIND: &'static str = "embed_file";
+
+    fn dedupe_key(&self) -> Option<String> {
+        Some(self.file_id.to_string())
+    }
+}
+
 /// Delete expired login sessions (hourly).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PruneSessions {}
