@@ -8,6 +8,8 @@ cd "$CLAUDE_PROJECT_DIR"
 command -v just >/dev/null || cargo install just --locked -q
 command -v sqlx >/dev/null || cargo install sqlx-cli --version "~0.8" --no-default-features --features postgres,rustls --locked -q
 ./scripts/local-postgres.sh >/dev/null || echo "warning: could not start local postgres" >&2
+DATABASE_URL=postgres://akasha:akasha@localhost:5432/akasha \
+  sqlx migrate run --source crates/db/migrations >/dev/null || echo "warning: migrations failed" >&2
 cargo fetch -q
 (cd web && pnpm install --frozen-lockfile --silent)
 echo "export DATABASE_URL=postgres://akasha:akasha@localhost:5432/akasha" >> "${CLAUDE_ENV_FILE:-/dev/null}"

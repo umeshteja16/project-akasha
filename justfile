@@ -28,6 +28,10 @@ serve:
 web:
     cd web && pnpm dev
 
+# Apply migrations with sqlx-cli (no app build needed; the SQL macros require the schema).
+db-migrate:
+    sqlx migrate run --source crates/db/migrations
+
 # Apply migrations only.
 migrate:
     cargo run -p akasha -- migrate
@@ -51,7 +55,7 @@ openapi:
     cd web && pnpm gen:api
 
 # The gate: everything CI runs. Needs Postgres (just db-up or just db-local).
-check: check-rust check-sqlx check-web check-openapi
+check: db-migrate check-rust check-sqlx check-web check-openapi
 
 check-rust:
     cargo fmt --all --check
