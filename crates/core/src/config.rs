@@ -22,6 +22,12 @@ pub struct Config {
     pub db_max_connections: u32,
     /// Log output format.
     pub log_format: LogFormat,
+    /// Mark the session cookie `Secure` (HTTPS only). Turn on in production.
+    pub cookie_secure: bool,
+    /// Allow anyone who can reach the server to create an account.
+    pub allow_registration: bool,
+    /// How long a login session lasts, in days.
+    pub session_ttl_days: u32,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -40,6 +46,9 @@ impl Default for Config {
             bind_addr: "0.0.0.0:8080".into(),
             db_max_connections: 10,
             log_format: LogFormat::Pretty,
+            cookie_secure: false,
+            allow_registration: true,
+            session_ttl_days: 30,
         }
     }
 }

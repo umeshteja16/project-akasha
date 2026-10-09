@@ -36,6 +36,10 @@ migrate:
 migration name:
     sqlx migrate add -r {{name}} --source crates/db/migrations
 
+# Refresh the offline SQL query cache (.sqlx/). Run after changing any sqlx::query! macro.
+sqlx-prepare:
+    cargo sqlx prepare --workspace -- --all-targets
+
 # Format everything.
 fmt:
     cargo fmt --all
@@ -47,12 +51,16 @@ openapi:
     cd web && pnpm gen:api
 
 # The gate: everything CI runs. Needs Postgres (just db-up or just db-local).
-check: check-rust check-web check-openapi
+check: check-rust check-sqlx check-web check-openapi
 
 check-rust:
     cargo fmt --all --check
     cargo clippy --workspace --all-targets -- -D warnings
     cargo test --workspace
+
+# Fails if .sqlx/ is stale (run `just sqlx-prepare`).
+check-sqlx:
+    cargo sqlx prepare --workspace --check -- --all-targets
 
 check-web:
     cd web && pnpm lint && pnpm typecheck && pnpm test && pnpm build

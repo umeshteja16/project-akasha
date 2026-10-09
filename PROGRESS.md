@@ -17,27 +17,30 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 
 | | |
 |---|---|
-| **Current step** | Step 1: Auth and users |
+| **Current step** | Step 2: Files and ingestion |
 | **Last updated** | 2026-10-09 |
-| **`just check`** | passing |
+| **`just check`** | passing (25 Rust tests, 1 web test) |
 | **Old code** | `legacy/` (read-only reference; deleted in step 7) |
 
 ## Next up
 
-**Step 1: Auth and users.** Concretely:
+**Step 2: Files and ingestion.** Do it in this order, one commit per bullet, `just check` green each time:
 
-1. Migration `0002_users_sessions`: `users` (uuid id, citext email unique, argon2 `password_hash`,
-   `display_name`, timestamps with `set_updated_at` trigger) and a session table for
-   `tower-sessions` (`tower-sessions-sqlx-store`).
-2. Code goes in `crates/db/src/users.rs` (queries) and `crates/app/src/routes/auth.rs` (HTTP).
-   Only split into a separate crate if it grows past ~300 lines.
-3. Routes under `/api/v1/auth`: `POST register`, `POST login`, `POST logout`, `GET /api/v1/me`.
-   Cookie sessions (HttpOnly, SameSite=Lax, Secure in prod), not JWT. See ADR 0004.
-4. Rate-limit auth routes (`tower_governor`).
-5. An `AuthUser` extractor that returns `unauthorized` in the standard error shape.
-6. Tests: `#[sqlx::test]` for the repo functions; HTTP tests for register → login → me → logout,
-   wrong password, duplicate email.
-7. `just openapi`, tick the boxes below, add a session-log line.
+1. **pgvector everywhere.** Docker/CI images already ship it; make `scripts/local-postgres.sh`
+   install it for the system Postgres (build from source or package), then add migration
+   `0003_files` with `CREATE EXTENSION vector`.
+2. **Storage.** Add `object_store` behind a small `Storage` trait in a new `crates/storage`
+   (local disk default, `AKASHA_STORAGE_*` config). Content-addressed by SHA-256, deduplicated.
+3. **Upload.** `POST /api/v1/files` (streaming multipart, `AKASHA_MAX_UPLOAD_MB`, magic-byte
+   check with `infer`, filename sanitising), `files` table, ownership checks on every query.
+   Port the attack cases from `legacy/scratch/test_magic_bytes.sh` into Rust tests.
+4. **Job queue.** `jobs` table + `FOR UPDATE SKIP LOCKED` worker loop, retries with backoff,
+   idempotent handlers, `akasha worker` subcommand (and `serve --with-worker` for single-box).
+   Move session pruning onto it.
+5. **Extraction.** New `crates/ingest`: plain text/markdown first, then PDF (`pdfium-render`),
+   then OCR (`ocrs`); chunking with `text-splitter`. Store chunks in `file_chunks`.
+6. **Embeddings.** New `crates/ml` with `fastembed`; record model name + dimension in the DB.
+7. File CRUD routes (list/get/rename/tags/pin/download/delete/bulk-delete/reindex/status).
 
 ## Roadmap
 
@@ -54,11 +57,15 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 - [x] CI: fmt, clippy, tests with Postgres, openapi drift, web checks, cargo-deny, Docker build
 - [x] `PROGRESS.md`, `CLAUDE.md`, ADRs, cloud-session hook
 
-### Step 1: Auth and users
-- [ ] users + sessions migration
-- [ ] register / login / logout / me, argon2, cookie sessions
-- [ ] `AuthUser` extractor, rate limiting
-- [ ] Profile: display name, change password, delete account
+### Step 1: Auth and users ✅
+- [x] `users` + `sessions` migration (citext emails, SHA-256 token hashes, cascade delete)
+- [x] register / login / logout / me; argon2id on the blocking pool; HttpOnly SameSite=Lax cookie
+- [x] `AuthUser` extractor; per-IP rate limit on credential endpoints (burst 10, then 1 per 6 s)
+- [x] Profile: display name, change password (revokes other sessions), delete account
+- [x] Timing-safe login (dummy hash for unknown emails), identical errors for wrong email/password
+- [x] `AKASHA_ALLOW_REGISTRATION`, `AKASHA_COOKIE_SECURE`, `AKASHA_SESSION_TTL_DAYS`
+- [x] Compile-time-checked SQL with an offline cache (`.sqlx/`), checked in CI
+- [x] Hourly expired-session pruning (moves to the job queue in step 2)
 
 ### Step 2: Files and ingestion
 - [ ] Add `pgvector` (also teach `scripts/local-postgres.sh` to install it; the Docker image already has it)
@@ -124,9 +131,19 @@ See [`docs/adr/`](docs/adr). Summary:
 - `scripts/local-postgres.sh` uses the system Postgres (16 in cloud sessions), which lacks
   pgvector. Fix that in step 2 (build pgvector or download it).
 - First `cargo build` takes ~3 minutes; dependencies are compiled with `opt-level = 2`.
+- Changing any `sqlx::query!` needs a running database and then `just sqlx-prepare`; commit
+  the `.sqlx/` changes. Without `DATABASE_URL`, builds use the cache (that is how Docker builds).
+- The rate limiter keys on the TCP peer IP. Behind a reverse proxy all clients share one bucket.
+  Add a `trust_proxy` option (use `SmartIpKeyExtractor`) before deploying behind a proxy.
+- The router must be served with `into_make_service_with_connect_info::<SocketAddr>()`
+  (`run_serve` does this); without it rate-limited routes return 500. Tests inject
+  `Extension(ConnectInfo(..))`, see `crates/app/tests/auth.rs`.
+- No CSRF token: protection relies on SameSite=Lax plus JSON-only bodies (forms cannot send
+  `application/json` cross-site). Revisit if any endpoint ever accepts form data.
 
 ## Session log
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
 
+- 2026-10-09 · Claude (cloud) · Step 1 complete: auth, sessions, profile routes, rate limiting, sqlx offline cache. Merged step 0 to `master`.
 - 2026-10-09 · Claude (cloud) · Step 0 complete: workspace, tooling, CI, docs. Legacy moved to `legacy/`.

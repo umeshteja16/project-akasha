@@ -21,6 +21,14 @@ impl From<Error> for ApiError {
     }
 }
 
+/// Database failures are never shown to clients; they are logged and reported as `internal`.
+impl From<sqlx::Error> for ApiError {
+    fn from(err: sqlx::Error) -> Self {
+        tracing::error!(%err, "database error");
+        Self(Error::internal("internal error"))
+    }
+}
+
 #[derive(Serialize, ToSchema)]
 pub struct ErrorBody {
     pub error: ErrorDetail,
@@ -40,6 +48,7 @@ fn status_for(code: ErrorCode) -> StatusCode {
         ErrorCode::Forbidden => StatusCode::FORBIDDEN,
         ErrorCode::NotFound => StatusCode::NOT_FOUND,
         ErrorCode::Conflict => StatusCode::CONFLICT,
+        ErrorCode::RateLimited => StatusCode::TOO_MANY_REQUESTS,
         ErrorCode::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
         ErrorCode::Internal => StatusCode::INTERNAL_SERVER_ERROR,
     }

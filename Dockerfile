@@ -3,6 +3,8 @@
 
 FROM rust:1.97-bookworm AS build
 WORKDIR /src
+# Compile SQL macros against the checked-in .sqlx cache; no database at build time.
+ENV SQLX_OFFLINE=true
 COPY . .
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/target \

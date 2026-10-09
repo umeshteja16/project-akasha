@@ -23,6 +23,8 @@ services:
     environment:
       DATABASE_URL: postgres://akasha:${POSTGRES_PASSWORD:-akasha}@postgres:5432/akasha
       AKASHA_LOG_FORMAT: json
+      # Set to true once the server is behind HTTPS.
+      AKASHA_COOKIE_SECURE: ${AKASHA_COOKIE_SECURE:-false}
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:

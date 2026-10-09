@@ -4,6 +4,9 @@
 //! `sqlx migrate add -r <name> --source crates/db/migrations`). Never alter the
 //! schema from application code.
 
+pub mod sessions;
+pub mod users;
+
 use std::time::Duration;
 
 pub use sqlx::PgPool;

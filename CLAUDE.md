@@ -13,7 +13,8 @@ Guidance for AI agents and humans working in this repo. Keep it short and true.
 ```
 crates/core   config + error types (no I/O frameworks)
 crates/db     sqlx pool, migrations (crates/db/migrations), query functions
-crates/app    the `akasha` binary: axum routes (src/routes/*), state, telemetry
+crates/app    the `akasha` binary: axum routes (src/routes/*), auth/, state, telemetry
+.sqlx/        offline cache of checked SQL queries (`just sqlx-prepare`)
 web/          React + TS frontend (Vite, Biome, Vitest)
 legacy/       old TypeScript implementation: read-only reference, do not edit
 docs/adr/     architecture decisions
@@ -28,6 +29,11 @@ New crates planned (create them when their step starts, not before): `ingest`, `
 ## Rules
 - **Schema** changes only via `just migration <name>` (reversible up/down files). Never alter
   the schema from application code.
+- **SQL**: use the checked macros (`sqlx::query!`, `query_as!`) in `crates/db`. After changing
+  one, run `just sqlx-prepare` and commit `.sqlx/`. CI fails if the cache is stale.
+- **Auth**: take `AuthUser` as a handler argument to require sign-in, and always filter queries
+  by `auth.user_id` (ownership). Credential-checking routes go in the rate-limited group in
+  `routes.rs`. Request bodies use `crate::extract::Json` (errors in the standard shape).
 - **Errors**: return `akasha_core::Error` (code + message); the HTTP layer renders
   `{ "error": { "code", "message" } }`. Success bodies are plain JSON objects.
 - **Routes**: one module per feature in `crates/app/src/routes/`, annotated with

@@ -13,6 +13,7 @@ pub enum ErrorCode {
     Forbidden,
     NotFound,
     Conflict,
+    RateLimited,
     Unavailable,
     Internal,
 }
@@ -30,6 +31,22 @@ impl Error {
             code,
             message: message.into(),
         }
+    }
+
+    pub fn bad_request(message: impl Into<String>) -> Self {
+        Self::new(ErrorCode::BadRequest, message)
+    }
+
+    pub fn unauthorized(message: impl Into<String>) -> Self {
+        Self::new(ErrorCode::Unauthorized, message)
+    }
+
+    pub fn forbidden(message: impl Into<String>) -> Self {
+        Self::new(ErrorCode::Forbidden, message)
+    }
+
+    pub fn conflict(message: impl Into<String>) -> Self {
+        Self::new(ErrorCode::Conflict, message)
     }
 
     pub fn not_found(message: impl Into<String>) -> Self {

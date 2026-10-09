@@ -6,6 +6,7 @@ set -euo pipefail
 
 cd "$CLAUDE_PROJECT_DIR"
 command -v just >/dev/null || cargo install just --locked -q
+command -v sqlx >/dev/null || cargo install sqlx-cli --version "~0.8" --no-default-features --features postgres,rustls --locked -q
 ./scripts/local-postgres.sh >/dev/null || echo "warning: could not start local postgres" >&2
 cargo fetch -q
 (cd web && pnpm install --frozen-lockfile --silent)
