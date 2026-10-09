@@ -50,4 +50,23 @@ mod tests {
                 .expect("migration table");
         assert!(version >= 1);
     }
+
+    #[sqlx::test(migrator = "MIGRATOR")]
+    async fn pgvector_is_available(pool: PgPool) {
+        sqlx::query("CREATE TABLE vec_probe (embedding vector(3) NOT NULL)")
+            .execute(&pool)
+            .await
+            .expect("create vector column");
+        sqlx::query("INSERT INTO vec_probe VALUES ('[1,2,3]'), ('[3,2,1]')")
+            .execute(&pool)
+            .await
+            .expect("insert vectors");
+        let (distance,): (f64,) = sqlx::query_as(
+            "SELECT (embedding <-> '[1,2,3]')::float8 FROM vec_probe ORDER BY embedding <-> '[1,2,3]' LIMIT 1",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("nearest neighbour");
+        assert_eq!(distance, 0.0);
+    }
 }

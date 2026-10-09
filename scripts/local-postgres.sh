@@ -15,6 +15,36 @@ if [ -z "$PGBIN" ]; then
   exit 1
 fi
 
+# pgvector: Docker/CI images ship it; the distro Postgres usually does not.
+# Fast no-op when the extension is already installed.
+PGMAJOR="$(basename "$(dirname "$PGBIN")")"
+PGSHARE="/usr/share/postgresql/$PGMAJOR/extension"
+install_pgvector() {
+  [ -f "$PGSHARE/vector.control" ] && return 0
+  echo "installing pgvector for postgres $PGMAJOR..."
+  local SUDO=()
+  [ "$(id -u)" != 0 ] && SUDO=(sudo)
+  if command -v apt-get >/dev/null 2>&1; then
+    if "${SUDO[@]}" apt-get install -y -qq "postgresql-$PGMAJOR-pgvector" >/dev/null 2>&1 \
+      || { "${SUDO[@]}" apt-get update -qq >/dev/null 2>&1 \
+        && "${SUDO[@]}" apt-get install -y -qq "postgresql-$PGMAJOR-pgvector" >/dev/null 2>&1; }; then
+      [ -f "$PGSHARE/vector.control" ] && return 0
+    fi
+    # No package: build from source.
+    "${SUDO[@]}" apt-get install -y -qq build-essential git "postgresql-server-dev-$PGMAJOR" >/dev/null 2>&1 || true
+  fi
+  local SRC PGCONFIG="$PGBIN/pg_config"
+  [ -x "$PGCONFIG" ] || PGCONFIG="$(command -v pg_config)"
+  SRC="$(mktemp -d)"
+  git clone -q --depth 1 --branch "${PGVECTOR_VERSION:-v0.8.0}" https://github.com/pgvector/pgvector.git "$SRC"
+  make -s -C "$SRC" PG_CONFIG="$PGCONFIG"
+  "${SUDO[@]}" make -s -C "$SRC" PG_CONFIG="$PGCONFIG" install
+  rm -rf "$SRC"
+}
+if ! install_pgvector || [ ! -f "$PGSHARE/vector.control" ]; then
+  echo "warning: pgvector is not installed; migrations needing it will fail" >&2
+fi
+
 if "${RUN_AS[@]}" "$PGBIN/pg_ctl" -D "$DATA" status >/dev/null 2>&1; then
   echo "postgres already running ($DATA)"
 else

@@ -19,16 +19,14 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 |---|---|
 | **Current step** | Step 2: Files and ingestion |
 | **Last updated** | 2026-10-09 |
-| **`just check`** | passing (25 Rust tests, 1 web test) |
+| **`just check`** | passing (26 Rust tests, 1 web test) |
 | **Old code** | `legacy/` (read-only reference; deleted in step 7) |
 
 ## Next up
 
 **Step 2: Files and ingestion.** Do it in this order, one commit per bullet, `just check` green each time:
 
-1. **pgvector everywhere.** Docker/CI images already ship it; make `scripts/local-postgres.sh`
-   install it for the system Postgres (build from source or package), then add migration
-   `0003_files` with `CREATE EXTENSION vector`.
+1. ~~**pgvector everywhere.**~~ Done: migration `0003_vector`, `local-postgres.sh` installs it.
 2. **Storage.** Add `object_store` behind a small `Storage` trait in a new `crates/storage`
    (local disk default, `AKASHA_STORAGE_*` config). Content-addressed by SHA-256, deduplicated.
 3. **Upload.** `POST /api/v1/files` (streaming multipart, `AKASHA_MAX_UPLOAD_MB`, magic-byte
@@ -68,7 +66,7 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 - [x] Hourly expired-session pruning (moves to the job queue in step 2)
 
 ### Step 2: Files and ingestion
-- [ ] Add `pgvector` (also teach `scripts/local-postgres.sh` to install it; the Docker image already has it)
+- [x] Add `pgvector` (also teach `scripts/local-postgres.sh` to install it; the Docker image already has it)
 - [ ] Upload (streaming multipart, size limit, magic-byte check via `infer`, filename sanitising)
 - [ ] Content-addressed storage (SHA-256, dedupe, ref-counting) behind `object_store` (local disk / S3)
 - [ ] Postgres job queue (`SELECT … FOR UPDATE SKIP LOCKED`; retries, backoff, idempotent jobs), `akasha worker`
@@ -128,8 +126,11 @@ See [`docs/adr/`](docs/adr). Summary:
 
 - The workspace has no license yet. Pick one before the first public release (`cargo-deny`
   already restricts *dependencies* to permissive licenses).
-- `scripts/local-postgres.sh` uses the system Postgres (16 in cloud sessions), which lacks
-  pgvector. Fix that in step 2 (build pgvector or download it).
+- `scripts/local-postgres.sh` uses the system Postgres (16 in cloud sessions) and installs
+  pgvector for it (apt `postgresql-16-pgvector`, 0.6.x; falls back to building v0.8.0 from
+  source). Docker/CI run pgvector 0.8 on Postgres 17, so do not rely on features newer than 0.6
+  (HNSW is fine) without bumping the local install.
+- Never edit an applied migration (even a comment): sqlx checksums it and refuses to run.
 - First `cargo build` takes ~3 minutes; dependencies are compiled with `opt-level = 2`.
 - Changing any `sqlx::query!` needs a running database and then `just sqlx-prepare`; commit
   the `.sqlx/` changes. Without `DATABASE_URL`, builds use the cache (that is how Docker builds).
@@ -144,6 +145,8 @@ See [`docs/adr/`](docs/adr). Summary:
 ## Session log
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
+
+- 2026-10-09 · Claude (cloud) · Step 2.1: pgvector in `local-postgres.sh`, migration `0003_vector`, vector column test.
 
 - 2026-10-09 · Claude (cloud) · Step 1 complete: auth, sessions, profile routes, rate limiting, sqlx offline cache. Merged step 0 to `master`.
 - 2026-10-09 · Claude (cloud) · Step 0 complete: workspace, tooling, CI, docs. Legacy moved to `legacy/`.
