@@ -46,6 +46,17 @@ pub struct Config {
     pub storage_s3_secret_access_key: Option<Secret>,
     /// Allow plain-HTTP endpoints (local MinIO). Never enable for remote services.
     pub storage_s3_allow_http: bool,
+    /// `akasha serve` also runs the background worker (single-box installs).
+    /// Same as `akasha serve --with-worker`.
+    pub serve_with_worker: bool,
+    /// Background jobs a worker runs at the same time.
+    pub worker_concurrency: u32,
+    /// Seconds between checks for due jobs; new jobs wake workers at once (LISTEN/NOTIFY).
+    pub worker_poll_secs: u64,
+    /// Seconds without a heartbeat after which a running job is presumed lost and retried.
+    pub worker_visibility_timeout_secs: u64,
+    /// Seconds in-flight jobs get to finish on shutdown before they are handed back.
+    pub worker_shutdown_grace_secs: u64,
 }
 
 /// Blob storage backend.
@@ -108,6 +119,11 @@ impl Default for Config {
             storage_s3_access_key_id: None,
             storage_s3_secret_access_key: None,
             storage_s3_allow_http: false,
+            serve_with_worker: false,
+            worker_concurrency: 4,
+            worker_poll_secs: 5,
+            worker_visibility_timeout_secs: 300,
+            worker_shutdown_grace_secs: 30,
         }
     }
 }

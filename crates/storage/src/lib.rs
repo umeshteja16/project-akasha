@@ -179,6 +179,23 @@ impl Storage {
         }
     }
 
+    /// The hash of every stored blob (for the orphan sweep). Objects under `blobs/`
+    /// that are not valid blob keys are skipped.
+    pub fn list_blobs(&self) -> BoxStream<'static, Result<ContentHash>> {
+        self.store
+            .list(Some(&Path::from(hash::BLOB_PREFIX)))
+            .filter_map(|meta| async move {
+                match meta {
+                    Err(err) => Some(Err(StorageError::from(err))),
+                    Ok(meta) => {
+                        let hash: ContentHash = meta.location.filename()?.parse().ok()?;
+                        (hash.key() == meta.location).then_some(Ok(hash))
+                    }
+                }
+            })
+            .boxed()
+    }
+
     /// Remove staged uploads older than `older_than` (left behind by crashes or
     /// dropped [`StagedBlob`]s). Returns how many were removed.
     pub async fn prune_staging(&self, older_than: Duration) -> Result<usize> {

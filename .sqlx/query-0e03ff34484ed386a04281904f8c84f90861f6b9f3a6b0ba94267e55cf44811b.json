@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH due AS (\n               UPDATE job_schedules\n               SET next_run_at = now() + make_interval(secs => interval_secs)\n               WHERE next_run_at <= now() AND name = ANY($1)\n               RETURNING name, kind, payload\n           )\n           INSERT INTO jobs (kind, payload, dedupe_key)\n           SELECT kind, payload, 'schedule:' || name FROM due\n           ON CONFLICT (kind, dedupe_key) WHERE dedupe_key IS NOT NULL AND status = 'queued'\n           DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0e03ff34484ed386a04281904f8c84f90861f6b9f3a6b0ba94267e55cf44811b"
+}

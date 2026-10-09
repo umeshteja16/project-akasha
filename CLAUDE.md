@@ -14,7 +14,9 @@ Guidance for AI agents and humans working in this repo. Keep it short and true.
 crates/core   config + error types (no I/O frameworks)
 crates/db     sqlx pool, migrations (crates/db/migrations), query functions
 crates/storage content-addressed blob store (object_store: local dir or S3)
-crates/app    the `akasha` binary: axum routes (src/routes/*), auth/, state, telemetry
+crates/jobs   Postgres job queue + worker runtime (domain-agnostic, ADR 0007)
+crates/app    the `akasha` binary: axum routes (src/routes/*), auth/, jobs/ (job kinds +
+              handlers), state, telemetry
 .sqlx/        offline cache of checked SQL queries (`just sqlx-prepare`)
 web/          React + TS frontend (Vite, Biome, Vitest)
 legacy/       old TypeScript implementation: read-only reference, do not edit
@@ -25,7 +27,9 @@ New crates planned (create them when their step starts, not before): `ingest`, `
 
 ## Commands
 `just` lists everything. Common: `just serve`, `just web`, `just check`, `just fmt`,
-`just openapi`, `just migration <name>`, `just migrate`.
+`just openapi`, `just migration <name>`, `just migrate`. `just serve` runs the API and the
+background worker in one process; `just worker` runs a worker alone. HTTP tests run queued
+jobs with `TestApp::run_jobs()`.
 
 ## Rules
 - **Schema** changes only via `just migration <name>` (reversible up/down files). Never alter
@@ -41,6 +45,13 @@ New crates planned (create them when their step starts, not before): `ingest`, `
   `#[utoipa::path]` and registered in `ApiDoc`. Then run `just openapi` and commit `openapi.json`
   and `web/src/api/schema.d.ts`.
 - **No `unwrap()`/`expect()` in non-test code** (clippy warns; CI denies warnings). `unsafe` is forbidden.
+- **Background work** goes through the job queue: define a `Job` in
+  `crates/app/src/jobs/kinds.rs`, register its handler in `jobs::registry()`, and enqueue it
+  inside the same transaction as the change that needs it (`akasha_jobs::enqueue(&mut tx, ..)`).
+  **Handlers must be idempotent**: delivery is at least once (crash, lost heartbeat,
+  duplicate enqueue), so re-check state in the database and make repeat runs harmless. Return
+  `JobError::permanent` when retrying cannot help. Never delete blobs in a request: enqueue
+  `DeleteBlobIfUnreferenced`. Never rename a job kind that may still be queued.
 - **Tests**: DB tests use `#[sqlx::test]` (fresh database per test). HTTP tests drive the router
   with `tower::ServiceExt::oneshot` (see `crates/app/tests/http.rs`).
 - **Small files**: split a file once it passes ~300 lines.

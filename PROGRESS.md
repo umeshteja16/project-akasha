@@ -19,7 +19,7 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 |---|---|
 | **Current step** | Step 2: Files and ingestion |
 | **Last updated** | 2026-10-09 |
-| **`just check`** | passing (65 Rust tests, 1 web test) |
+| **`just check`** | passing (85 Rust tests, 1 web test) |
 | **Old code** | `legacy/` (read-only reference; deleted in step 7) |
 
 ## Next up
@@ -30,17 +30,19 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 2. ~~**Storage.**~~ Done: `crates/storage` (`akasha-storage`), `AppState.storage`.
 3. ~~**Upload.**~~ Done: migration `0004_files`, `POST /api/v1/files`, blob ref-counting,
    plus the basic file CRUD routes (list/get/patch/delete/bulk-delete/download).
-4. **Job queue (do this next).** `jobs` table + `FOR UPDATE SKIP LOCKED` worker loop, retries
-   with backoff, idempotent handlers, `akasha worker` subcommand (and `serve --with-worker` for
-   single-box). Move session pruning onto it, and schedule `Storage::prune_staging(1 h)`.
-   Hook: the `TODO(step 2.4)` in `crates/app/src/routes/files/upload.rs`: enqueue an ingest job
-   for `Saved::Created` files (ideally in the same transaction as the insert, inside
-   `files::store::save`). The handler should move `files.status` pending → processing →
-   ready/failed (with `error`).
-5. **Extraction.** New `crates/ingest`: plain text/markdown first, then PDF (`pdfium-render`),
-   then OCR (`ocrs`); chunking with `text-splitter`. Store chunks in `file_chunks`.
+4. ~~**Job queue.**~~ Done: migration `0005_jobs`, `crates/jobs` (`akasha-jobs`, ADR 0007),
+   `akasha worker`, `serve --with-worker`, periodic jobs, blob deletion via jobs.
+5. **Extraction (do this next).** New `crates/ingest`: plain text/markdown first, then PDF
+   (`pdfium-render`), then OCR (`ocrs`); chunking with `text-splitter`. Store chunks in
+   `file_chunks`. Hook: register a handler for `ExtractFile` (`crates/app/src/jobs/kinds.rs`)
+   in `jobs::registry()`. Uploads and `POST /files/{id}/reindex` already enqueue it; until a
+   handler is registered those jobs wait in `queued` and files stay `pending`. The handler
+   must be idempotent: re-read the file row (it may be deleted → succeed as a no-op), set
+   `processing`, replace (not append) chunks, then `ready`, or `failed` + `error` on a
+   permanent error (`JobError::permanent`). Set `failed` only on the last attempt for
+   retryable errors.
 6. **Embeddings.** New `crates/ml` with `fastembed`; record model name + dimension in the DB.
-7. Remaining file routes: thumbnail, reindex, status/extraction view (basic CRUD is done).
+7. Remaining file routes: thumbnail, extraction view (CRUD, reindex and job status are done).
 
 ## Roadmap
 
@@ -65,17 +67,17 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 - [x] Timing-safe login (dummy hash for unknown emails), identical errors for wrong email/password
 - [x] `AKASHA_ALLOW_REGISTRATION`, `AKASHA_COOKIE_SECURE`, `AKASHA_SESSION_TTL_DAYS`
 - [x] Compile-time-checked SQL with an offline cache (`.sqlx/`), checked in CI
-- [x] Hourly expired-session pruning (moves to the job queue in step 2)
+- [x] Hourly expired-session pruning (a periodic job since step 2.4)
 
 ### Step 2: Files and ingestion
 - [x] Add `pgvector` (also teach `scripts/local-postgres.sh` to install it; the Docker image already has it)
 - [x] Upload (streaming multipart, size limit, magic-byte check via `infer`, filename sanitising), per-user storage quota
 - [x] Content-addressed storage (SHA-256, dedupe) behind `object_store` (local disk / S3), `crates/storage`
 - [x] Blob ref-counting in SQL (with the `files` table; per-hash advisory lock)
-- [ ] Postgres job queue (`SELECT … FOR UPDATE SKIP LOCKED`; retries, backoff, idempotent jobs), `akasha worker`
+- [x] Postgres job queue (`SELECT … FOR UPDATE SKIP LOCKED`; retries, backoff, idempotent jobs), `akasha worker`
 - [ ] New crate `crates/ingest`: PDF text (`pdfium-render`), OCR (`ocrs`), plain text/markdown, chunking (`text-splitter`)
 - [ ] New crate `crates/ml`: embeddings via `fastembed` (bge-m3 or nomic-embed; dimension recorded in the DB)
-- [~] File CRUD: ~~list, get, rename, tags, pin, download, bulk delete~~ done; thumbnail, reindex, status left
+- [~] File CRUD: ~~list, get, rename, tags, pin, download, bulk delete, reindex, job status~~ done; thumbnail left
 
 ### Step 3: Search
 - [ ] New crate `crates/search`: Postgres FTS + pgvector HNSW, fused with RRF (k=60)
@@ -123,7 +125,7 @@ citations and conversations · activity timeline · audit log · strict offline 
 See [`docs/adr/`](docs/adr). Summary:
 0001 Rust rewrite, TS frontend · 0002 Postgres is the only stateful service ·
 0003 ML runs in-process · 0004 Cookie sessions, not JWT · 0005 OpenAPI is the API contract ·
-0006 Server first, desktop later.
+0006 Server first, desktop later · 0007 Job queue design.
 
 ## Known issues and gotchas
 
@@ -169,9 +171,26 @@ See [`docs/adr/`](docs/adr). Summary:
   `routes.rs`). Uploads are not rate-limited yet; add a per-user limiter if abuse shows up.
 - Another user's file is always 404 (never 403). Every `akasha_db::files` query takes `owner_id`.
 
+- Jobs (`crates/jobs`, ADR 0007): delivery is at least once, so handlers must be idempotent.
+  Workers only claim kinds they have a handler for; others wait in `queued` (logged once at
+  start). Status flow: queued → running → succeeded | failed (retry at `run_at`) | dead.
+  Dedupe (`Job::dedupe_key`) only blocks a second *queued* job; running/retrying ones do not.
+  `make_interval(secs => ...)` takes `float8`: pass `Duration::as_secs_f64()`.
+- Periodic jobs live in `job_schedules` (`jobs::schedules()` in the app): prune-sessions and
+  prune-staging hourly (staging max age 2 h, above the 1 h upload timeout), sweep-orphan-blobs
+  and prune-jobs daily (succeeded kept 7 d, dead 30 d). Without a running worker none of this
+  happens: `serve` warns when started without `--with-worker`.
+- File deletion (single, bulk, account) never touches storage: it enqueues
+  `delete_blob_if_unreferenced` in the same transaction; the handler re-checks under the hash
+  lock. HTTP tests must call `app.run_jobs().await` before asserting a blob is gone.
+- The worker needs `concurrency + 2` pool connections (claims, heartbeats, `LISTEN`); with
+  `serve --with-worker` they share `AKASHA_DB_MAX_CONNECTIONS` with the API.
+
 ## Session log
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
+
+- 2026-10-09 · Claude (cloud) · Step 2.4: job queue. `0005_jobs` (jobs + job_schedules, NOTIFY trigger), `crates/jobs` (claim with SKIP LOCKED, heartbeat/visibility timeout, backoff with jitter, dead-lettering, typed jobs, LISTEN wake-up, graceful drain), `akasha worker` + `serve --with-worker` (Docker default), periodic session/staging/job pruning + orphan-blob sweep, blob deletion moved into a job enqueued in the delete transaction, `extract_file` enqueued on upload (no handler until 2.5), `GET /files/{id}` shows `processing`, `POST /files/{id}/reindex`.
 
 - 2026-10-09 · Claude (cloud) · Step 2.3: `0004_files` (+ `users.storage_quota_bytes`), streaming upload with magic-byte allow-list, filename sanitising, dedupe, quota, blob ref-counting with per-hash advisory locks, file list/get/patch/delete/bulk-delete/download, legacy attack cases ported. New files stay `pending` until the job queue (2.4).
 - 2026-10-09 · Claude (cloud) · Step 2.2: `crates/storage` (content-addressed, local/S3, streaming staging, prune), `AKASHA_STORAGE_*` config with redacted secrets, `AppState.storage`.

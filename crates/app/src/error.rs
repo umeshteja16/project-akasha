@@ -29,6 +29,13 @@ impl From<sqlx::Error> for ApiError {
     }
 }
 
+impl From<akasha_jobs::QueueError> for ApiError {
+    fn from(err: akasha_jobs::QueueError) -> Self {
+        tracing::error!(%err, "job queue error");
+        Self(Error::internal("internal error"))
+    }
+}
+
 #[derive(Serialize, ToSchema)]
 pub struct ErrorBody {
     pub error: ErrorDetail,

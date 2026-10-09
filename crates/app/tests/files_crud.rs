@@ -199,6 +199,7 @@ async fn blobs_are_deleted_only_when_unreferenced(pool: PgPool) {
         )
         .await;
     assert_eq!(del.status, StatusCode::NO_CONTENT);
+    app.run_jobs().await;
     assert!(app.blob_exists(&hash).await, "bob still uses the blob");
     let dl = format!("/api/v1/files/{}/download", b["id"].as_str().expect("id"));
     assert_eq!(app.send("GET", &dl, &bob, None).await.bytes, PDF);
@@ -212,6 +213,11 @@ async fn blobs_are_deleted_only_when_unreferenced(pool: PgPool) {
         )
         .await;
     assert_eq!(bulk.json()["deleted"], json!([b["id"]]));
+    assert!(
+        app.blob_exists(&hash).await,
+        "blobs are only deleted by the job, after the commit"
+    );
+    app.run_jobs().await;
     assert!(!app.blob_exists(&hash).await, "last reference gone");
 
     let gone = app
@@ -243,6 +249,7 @@ async fn deleting_the_account_releases_blobs(pool: PgPool) {
         )
         .await;
     assert_eq!(res.status, StatusCode::NO_CONTENT);
+    app.run_jobs().await;
     assert!(
         !app.blob_exists(mine["content_hash"].as_str().expect("hash"))
             .await

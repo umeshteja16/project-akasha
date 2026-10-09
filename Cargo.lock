@@ -17,6 +17,7 @@ version = "0.1.0"
 dependencies = [
  "akasha-core",
  "akasha-db",
+ "akasha-jobs",
  "akasha-storage",
  "anyhow",
  "argon2",
@@ -60,6 +61,22 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "sqlx",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "akasha-jobs"
+version = "0.1.0"
+dependencies = [
+ "akasha-db",
+ "chrono",
+ "futures-util",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.21",
  "tokio",
  "tracing",
  "uuid",

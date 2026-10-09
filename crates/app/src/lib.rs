@@ -6,12 +6,13 @@ pub mod auth;
 pub mod error;
 pub mod extract;
 pub mod files;
+pub mod jobs;
 pub mod rate_limit;
 pub mod routes;
 pub mod state;
 pub mod telemetry;
 
-use std::{net::SocketAddr, time::Duration};
+use std::net::SocketAddr;
 
 use akasha_core::Config;
 use anyhow::Context;
@@ -50,7 +51,10 @@ pub async fn run_migrate(config: Config) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn run_serve(config: Config) -> anyhow::Result<()> {
+/// Serve the HTTP API; with `with_worker`, also run the background worker in this
+/// process (single-box installs). Both stop on SIGINT/SIGTERM: the server drains
+/// requests, the worker finishes in-flight jobs within its grace period.
+pub async fn run_serve(config: Config, with_worker: bool) -> anyhow::Result<()> {
     let pool = akasha_db::connect(&config.database_url, config.db_max_connections)
         .await
         .context("connecting to database")?;
@@ -60,34 +64,64 @@ pub async fn run_serve(config: Config) -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(&config.bind_addr)
         .await
         .with_context(|| format!("binding {}", config.bind_addr))?;
-    tracing::info!(addr = %config.bind_addr, "listening");
+    tracing::info!(addr = %config.bind_addr, with_worker, "listening");
 
     let state = AppState::new(pool, config, storage);
     rate_limit::spawn_cleanup(state.auth_limiter.clone());
-    spawn_session_pruning(state.db.clone());
+    let stop = shutdown_trigger();
+
+    let worker = if with_worker {
+        let worker = jobs::worker(jobs::JobContext::from(&state), &state.config)?;
+        Some(tokio::spawn(worker.run(wait_for(stop.clone()))))
+    } else {
+        tracing::warn!("no worker in this process: run `akasha worker` (or `serve --with-worker`)");
+        None
+    };
 
     // Connect info gives handlers and the rate limiter the client's address.
     let service = app(state).into_make_service_with_connect_info::<SocketAddr>();
-    axum::serve(listener, service)
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    let served = axum::serve(listener, service)
+        .with_graceful_shutdown(wait_for(stop.clone()))
+        .await;
+    if let Some(worker) = worker {
+        // The server may have failed without a signal; stop the worker either way.
+        let _ = stop.send(true);
+        worker.await.context("worker task")??;
+    }
+    served?;
     tracing::info!("shut down cleanly");
     Ok(())
 }
 
-/// Delete expired sessions hourly. Moves to the job queue once it exists (step 2).
-fn spawn_session_pruning(db: akasha_db::PgPool) {
+/// Run only the background worker (scale it separately from the API).
+pub async fn run_worker(config: Config) -> anyhow::Result<()> {
+    let pool = akasha_db::connect(&config.database_url, config.db_max_connections)
+        .await
+        .context("connecting to database")?;
+    akasha_db::migrate(&pool).await?;
+    let storage = akasha_storage::Storage::from_config(&config).context("opening storage")?;
+    let ctx = jobs::JobContext { db: pool, storage };
+    let stop = shutdown_trigger();
+    jobs::worker(ctx, &config)?.run(wait_for(stop)).await?;
+    tracing::info!("shut down cleanly");
+    Ok(())
+}
+
+/// A flag set once a shutdown signal arrives.
+fn shutdown_trigger() -> tokio::sync::watch::Sender<bool> {
+    let (tx, _) = tokio::sync::watch::channel(false);
+    let signal = tx.clone();
     tokio::spawn(async move {
-        let mut tick = tokio::time::interval(Duration::from_secs(3600));
-        loop {
-            tick.tick().await;
-            match akasha_db::sessions::delete_expired(&db).await {
-                Ok(0) => {}
-                Ok(n) => tracing::info!(count = n, "pruned expired sessions"),
-                Err(err) => tracing::warn!(%err, "session pruning failed"),
-            }
-        }
+        shutdown_signal().await;
+        let _ = signal.send(true);
     });
+    tx
+}
+
+/// Resolves once the flag is set.
+async fn wait_for(stop: tokio::sync::watch::Sender<bool>) {
+    let mut rx = stop.subscribe();
+    let _ = rx.wait_for(|stopped| *stopped).await;
 }
 
 async fn shutdown_signal() {

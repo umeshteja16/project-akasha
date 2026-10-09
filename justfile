@@ -20,9 +20,13 @@ db-down:
 db-local:
     ./scripts/local-postgres.sh
 
-# Run the API server (applies migrations first).
+# Run the API server and background worker in one process (applies migrations first).
 serve:
-    cargo run -p akasha -- serve
+    cargo run -p akasha -- serve --with-worker
+
+# Run only the background job worker.
+worker:
+    cargo run -p akasha -- worker
 
 # Run the web dev server (proxies /api to the Rust server).
 web:

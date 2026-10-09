@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT content_hash FROM files WHERE owner_id = $1",
+  "query": "SELECT DISTINCT content_hash FROM files WHERE owner_id = $1",
   "describe": {
     "columns": [
       {
@@ -18,5 +18,5 @@
       false
     ]
   },
-  "hash": "7b499ba717a9e65bd4bf6800fc68e21352deb14e314e018b52c46e15af5eac3a"
+  "hash": "3e0261060bd0ea6b6239d225279aa0c66b5af9a2bf88f19586d00f4e0c988db3"
 }

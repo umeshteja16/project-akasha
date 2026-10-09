@@ -2,6 +2,7 @@
 //! Every query is filtered by the signed-in owner; other users' files are 404.
 
 pub mod download;
+pub mod processing;
 pub mod types;
 pub mod upload;
 
@@ -11,6 +12,7 @@ use axum::{
 };
 use uuid::Uuid;
 
+use self::processing::FileDetail;
 use self::types::{
     BulkDeleteRequest, BulkDeleteResponse, FileList, FileResponse, ListQuery, UpdateFileRequest,
     decode_cursor, encode_cursor, normalize_tags,
@@ -29,7 +31,7 @@ const DEFAULT_PAGE: i64 = 50;
 const MAX_PAGE: i64 = 200;
 const MAX_BULK: usize = 100;
 
-fn not_found() -> ApiError {
+pub(super) fn not_found() -> ApiError {
     Error::not_found("file not found").into()
 }
 
@@ -76,12 +78,12 @@ pub async fn list(
     }))
 }
 
-/// One of your files.
+/// One of your files, with the state of its extraction job.
 #[utoipa::path(
     get, path = "/api/v1/files/{id}", tag = "files",
     params(("id" = Uuid, Path, description = "File id")),
     responses(
-        (status = 200, body = FileResponse),
+        (status = 200, body = FileDetail),
         (status = 401, body = ErrorBody), (status = 404, body = ErrorBody),
     ),
     security(("session_cookie" = []))
@@ -90,11 +92,15 @@ pub async fn get(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(id): Path<Uuid>,
-) -> Result<Json<FileResponse>, ApiError> {
+) -> Result<Json<FileDetail>, ApiError> {
     let file = files::get(&state.db, auth.user_id, id)
         .await?
         .ok_or_else(not_found)?;
-    Ok(Json(file.into()))
+    let processing = processing::latest(&state.db, file.id).await?;
+    Ok(Json(FileDetail {
+        file: file.into(),
+        processing,
+    }))
 }
 
 /// Rename, pin/unpin or retag a file.
@@ -173,11 +179,6 @@ pub async fn bulk_delete(
     if req.ids.len() > MAX_BULK {
         return Err(Error::bad_request(format!("at most {MAX_BULK} ids per request")).into());
     }
-    let mut deleted = Vec::with_capacity(req.ids.len());
-    for id in req.ids {
-        if !deleted.contains(&id) && store::delete(&state, auth.user_id, id).await? {
-            deleted.push(id);
-        }
-    }
+    let deleted = store::delete_many(&state, auth.user_id, &req.ids).await?;
     Ok(Json(BulkDeleteResponse { deleted }))
 }

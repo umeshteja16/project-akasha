@@ -1,26 +1,31 @@
 //! Keeping `files` rows and blobs consistent.
 //!
-//! Blobs are shared by content hash, across users. Both paths that touch a blob's
-//! existence run inside one transaction holding the per-hash advisory lock
-//! ([`files::lock_hash`]):
+//! Blobs are shared by content hash, across users.
 //!
-//! - **save**: lock → move the staged bytes to their content-addressed key → insert
-//!   the row → commit.
-//! - **delete**: lock → delete the row → if no row references the hash any more,
-//!   delete the blob → commit.
+//! - **save**: takes the per-hash advisory lock ([`files::lock_hash`]), moves the
+//!   staged bytes to their content-addressed key, inserts the row and enqueues the
+//!   extraction job, all in one transaction.
+//! - **delete** (single, bulk, account): deletes the rows and enqueues a
+//!   `delete_blob_if_unreferenced` job per hash *in the same transaction*. Storage is
+//!   never touched before the commit, so a failed commit cannot lose bytes that a
+//!   surviving row still points at.
+//! - the **job** ([`crate::jobs::blobs::delete_if_unreferenced`]) takes the hash
+//!   lock, re-checks that no row references the hash, and only then deletes the blob.
 //!
-//! So a delete can never remove a blob that a concurrent upload has just pointed a
-//! row at: whichever transaction takes the lock second sees the other's result
-//! (a deleted blob is re-created from the upload's staged copy; a new row keeps the
-//! blob alive). Failure modes only ever leak an unreferenced blob, never lose a
-//! referenced one, except if the commit itself fails after a blob was deleted
-//! (then the delete is rolled back but the bytes are gone; downloads return 404).
+//! An upload racing the job either commits first (the job sees the row and keeps the
+//! blob) or waits for the lock and re-creates the blob from its staged copy. Failure
+//! modes only ever leak an unreferenced blob (collected by the daily orphan sweep),
+//! never lose a referenced one.
 
 use akasha_db::files::{self, File, NewFile};
-use akasha_storage::{ContentHash, FinishedBlob, Storage};
+use akasha_storage::FinishedBlob;
 use uuid::Uuid;
 
-use crate::{error::ApiError, state::AppState};
+use crate::{
+    error::ApiError,
+    jobs::{blobs, kinds::ExtractFile},
+    state::AppState,
+};
 use akasha_core::Error;
 
 /// Result of [`save`].
@@ -68,49 +73,34 @@ pub async fn save(
     let file = files::insert(&mut tx, &new)
         .await?
         .ok_or_else(|| Error::conflict("file was uploaded concurrently; retry"))?;
+    akasha_jobs::enqueue(&mut tx, &ExtractFile { file_id: file.id }).await?;
     tx.commit().await?;
     Ok(Saved::Created(file))
 }
 
-/// Delete one of `owner`'s files and its blob if nothing else uses it.
-/// Returns `false` if there was no such file.
+/// Delete one of `owner`'s files. Returns `false` if there was no such file.
 pub async fn delete(state: &AppState, owner: Uuid, id: Uuid) -> Result<bool, ApiError> {
-    let mut tx = state.db.begin().await?;
-    let Some(hash) = files::hash_of(&mut tx, owner, id).await? else {
-        return Ok(false);
-    };
-    files::lock_hash(&mut tx, &hash).await?;
-    if files::delete(&mut tx, owner, id).await?.is_none() {
-        // Deleted concurrently.
-        return Ok(false);
-    }
-    remove_blob_if_unreferenced(&mut tx, &state.storage, &hash).await?;
-    tx.commit().await?;
-    Ok(true)
+    Ok(!delete_many(state, owner, &[id]).await?.is_empty())
 }
 
-/// Delete the blob for `hash` if no file references it (e.g. after the owning rows
-/// were removed by a cascade).
-pub async fn release(state: &AppState, hash: &str) -> Result<(), ApiError> {
+/// Delete several of `owner`'s files in one transaction; blobs are released by a
+/// job enqueued in that transaction. Returns the ids that existed, in request order
+/// without duplicates.
+pub async fn delete_many(
+    state: &AppState,
+    owner: Uuid,
+    ids: &[Uuid],
+) -> Result<Vec<Uuid>, ApiError> {
     let mut tx = state.db.begin().await?;
-    files::lock_hash(&mut tx, hash).await?;
-    remove_blob_if_unreferenced(&mut tx, &state.storage, hash).await?;
+    let rows = files::delete_many(&mut tx, owner, ids).await?;
+    let hashes: Vec<String> = rows.iter().map(|(_, hash)| hash.clone()).collect();
+    blobs::release(&mut tx, &hashes).await?;
     tx.commit().await?;
-    Ok(())
-}
-
-async fn remove_blob_if_unreferenced(
-    conn: &mut sqlx::PgConnection,
-    storage: &Storage,
-    hash: &str,
-) -> Result<(), ApiError> {
-    if files::is_referenced(conn, hash).await? {
-        return Ok(());
+    let mut deleted: Vec<Uuid> = Vec::with_capacity(rows.len());
+    for id in ids {
+        if !deleted.contains(id) && rows.iter().any(|(row, _)| row == id) {
+            deleted.push(*id);
+        }
     }
-    let parsed: ContentHash = hash.parse().map_err(Error::from)?;
-    // A failed blob delete only leaks bytes; it must not keep the row alive.
-    if let Err(err) = storage.delete(&parsed).await {
-        tracing::warn!(%err, %hash, "failed to delete unreferenced blob");
-    }
-    Ok(())
+    Ok(deleted)
 }

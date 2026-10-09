@@ -239,3 +239,22 @@ async fn finish_defers_visibility_until_commit() {
         );
     }
 }
+
+#[tokio::test]
+async fn list_blobs_returns_stored_hashes_only() {
+    for (name, storage, _dir) in backends() {
+        let a = storage.put_bytes(&b"alpha"[..]).await.expect(name).hash;
+        let b = storage.put_bytes(&b"beta"[..]).await.expect(name).hash;
+        let mut staged = storage.stage().await.expect(name);
+        staged
+            .write(Bytes::from_static(b"not yet"))
+            .await
+            .expect(name);
+        let mut listed: Vec<ContentHash> = storage.list_blobs().try_collect().await.expect(name);
+        listed.sort();
+        let mut want = vec![a, b];
+        want.sort();
+        assert_eq!(listed, want, "{name}");
+        staged.abort().await.expect(name);
+    }
+}

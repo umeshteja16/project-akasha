@@ -70,7 +70,7 @@ export interface paths {
          * @description The body is streamed to storage, never held in memory. The type is detected from
          *     the bytes and must be on the allow-list; it must also agree with the filename's
          *     extension. Re-uploading bytes you already have returns the existing file with
-         *     `200` instead of `201`. New files start as `pending`.
+         *     `200` instead of `201`. New files start as `pending` with an extraction job queued.
          */
         post: operations["upload"];
         delete?: never;
@@ -103,7 +103,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** One of your files. */
+        /** One of your files, with the state of its extraction job. */
         get: operations["get"];
         put?: never;
         post?: never;
@@ -126,6 +126,23 @@ export interface paths {
         get: operations["download"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/files/{id}/reindex": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Extract a file again (e.g. after a failure). Puts it back to `pending`. */
+        post: operations["reindex"];
         delete?: never;
         options?: never;
         head?: never;
@@ -235,6 +252,10 @@ export interface components {
          * @enum {string}
          */
         FileCategory: "pdf" | "image" | "audio" | "video" | "text";
+        /** @description One file plus the state of its latest extraction job. */
+        FileDetail: components["schemas"]["FileResponse"] & {
+            processing?: null | components["schemas"]["ProcessingJob"];
+        };
         FileList: {
             /** @description Newest first. */
             items: components["schemas"]["FileResponse"][];
@@ -271,9 +292,31 @@ export interface components {
             status: string;
             version: string;
         };
+        /**
+         * @description State of a background job.
+         * @enum {string}
+         */
+        JobState: "queued" | "running" | "succeeded" | "failed" | "dead";
         LoginRequest: {
             email: string;
             password: string;
+        };
+        ProcessingJob: {
+            /**
+             * Format: int32
+             * @description Attempts started so far.
+             */
+            attempts: number;
+            /** Format: int32 */
+            max_attempts: number;
+            /**
+             * Format: date-time
+             * @description When it will next be tried (`queued` or `failed` only).
+             */
+            next_attempt_at?: string | null;
+            state: components["schemas"]["JobState"];
+            /** Format: date-time */
+            updated_at: string;
         };
         RegisterRequest: {
             display_name?: string | null;
@@ -614,7 +657,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FileResponse"];
+                    "application/json": components["schemas"]["FileDetail"];
                 };
             };
             401: {
@@ -741,6 +784,45 @@ export interface operations {
                 };
                 content: {
                     "application/octet-stream": unknown;
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reindex: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description File id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Extraction queued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileDetail"];
                 };
             };
             401: {

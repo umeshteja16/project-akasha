@@ -63,19 +63,6 @@ pub struct ListFilter {
     pub limit: i64,
 }
 
-/// Serialise every writer of one content hash until the transaction ends.
-pub async fn lock_hash(conn: &mut PgConnection, content_hash: &str) -> Result<(), sqlx::Error> {
-    sqlx::query!(
-        r#"SELECT 1 AS "locked!" FROM (
-               SELECT pg_advisory_xact_lock(('x' || substr($1, 1, 16))::bit(64)::bigint)
-           ) AS l"#,
-        content_hash,
-    )
-    .fetch_one(conn)
-    .await?;
-    Ok(())
-}
-
 /// Quota and usage. With `lock`, the user row is locked until the transaction ends,
 /// so concurrent uploads by one user cannot both squeeze under the quota.
 /// `None` if the user no longer exists.
@@ -247,6 +234,7 @@ pub async fn hash_of(
 }
 
 /// Delete one of the owner's files. Returns its content hash if it existed.
+/// The blob is not touched: enqueue a blob-release job in the same transaction.
 pub async fn delete(
     conn: &mut PgConnection,
     owner_id: Uuid,
@@ -261,28 +249,43 @@ pub async fn delete(
     .await
 }
 
-/// Does any file (of any user) still use this blob?
-pub async fn is_referenced(
+/// Delete several of the owner's files. Returns `(id, content_hash)` of each one
+/// that existed.
+pub async fn delete_many(
     conn: &mut PgConnection,
-    content_hash: &str,
-) -> Result<bool, sqlx::Error> {
-    sqlx::query_scalar!(
-        r#"SELECT EXISTS (SELECT 1 FROM files WHERE content_hash = $1) AS "exists!""#,
-        content_hash
+    owner_id: Uuid,
+    ids: &[Uuid],
+) -> Result<Vec<(Uuid, String)>, sqlx::Error> {
+    let rows = sqlx::query!(
+        "DELETE FROM files WHERE owner_id = $1 AND id = ANY($2) RETURNING id, content_hash",
+        owner_id,
+        ids
     )
-    .fetch_one(conn)
+    .fetch_all(conn)
+    .await?;
+    Ok(rows.into_iter().map(|r| (r.id, r.content_hash)).collect())
+}
+
+/// Put a file back to `pending` (before re-running extraction).
+pub async fn mark_pending(
+    conn: &mut PgConnection,
+    owner_id: Uuid,
+    id: Uuid,
+) -> Result<Option<File>, sqlx::Error> {
+    sqlx::query_as!(
+        File,
+        r#"UPDATE files SET status = 'pending', error = NULL
+           WHERE owner_id = $1 AND id = $2
+           RETURNING *"#,
+        owner_id,
+        id
+    )
+    .fetch_optional(conn)
     .await
 }
 
-/// Content hashes of every file the user owns (to clean up blobs on account deletion).
-pub async fn hashes_owned_by(pool: &PgPool, owner_id: Uuid) -> Result<Vec<String>, sqlx::Error> {
-    sqlx::query_scalar!(
-        "SELECT content_hash FROM files WHERE owner_id = $1",
-        owner_id
-    )
-    .fetch_all(pool)
-    .await
-}
+mod refs;
+pub use refs::{hashes_owned_by, is_referenced, lock_hash, unreferenced};
 
 #[cfg(test)]
 mod tests;

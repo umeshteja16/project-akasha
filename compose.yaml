@@ -23,6 +23,8 @@ services:
     environment:
       DATABASE_URL: postgres://akasha:${POSTGRES_PASSWORD:-akasha}@postgres:5432/akasha
       AKASHA_LOG_FORMAT: json
+      # API and background worker in one process (the image default too).
+      AKASHA_SERVE_WITH_WORKER: "true"
       # Set to true once the server is behind HTTPS.
       AKASHA_COOKIE_SECURE: ${AKASHA_COOKIE_SECURE:-false}
     ports:

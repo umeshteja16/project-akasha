@@ -32,7 +32,7 @@ const FILE_FIELD: &str = "file";
 /// The body is streamed to storage, never held in memory. The type is detected from
 /// the bytes and must be on the allow-list; it must also agree with the filename's
 /// extension. Re-uploading bytes you already have returns the existing file with
-/// `200` instead of `201`. New files start as `pending`.
+/// `200` instead of `201`. New files start as `pending` with an extraction job queued.
 #[utoipa::path(
     post, path = "/api/v1/files", tag = "files",
     request_body(content = UploadForm, content_type = "multipart/form-data"),
@@ -62,8 +62,7 @@ pub async fn upload(
         }
         let name = name::sanitize(field.file_name().unwrap_or_default());
         let (blob, detected) = receive(&state, field, &name, limit).await?;
-        // TODO(step 2.4): enqueue the ingestion job for `Saved::Created` files once the
-        // job queue exists; until then new files stay `pending`.
+        // `save` enqueues the extraction job in the same transaction as the insert.
         return Ok(
             match store::save(&state, auth.user_id, blob, &name, detected.mime).await? {
                 Saved::Created(file) => (StatusCode::CREATED, Json(file.into())),

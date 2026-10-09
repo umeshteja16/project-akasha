@@ -100,9 +100,9 @@ pub async fn update_password_hash(
 }
 
 /// Deletes the user; sessions go with it (`ON DELETE CASCADE`).
-pub async fn delete(pool: &PgPool, id: Uuid) -> Result<(), sqlx::Error> {
+pub async fn delete<'e>(db: impl sqlx::PgExecutor<'e>, id: Uuid) -> Result<(), sqlx::Error> {
     sqlx::query!("DELETE FROM users WHERE id = $1", id)
-        .execute(pool)
+        .execute(db)
         .await?;
     Ok(())
 }

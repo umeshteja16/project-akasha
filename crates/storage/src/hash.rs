@@ -7,6 +7,9 @@ use sha2::{Digest, Sha256};
 
 use crate::StorageError;
 
+/// Top-level prefix of every blob key.
+pub(crate) const BLOB_PREFIX: &str = "blobs";
+
 /// The SHA-256 of a blob's contents: its identity in storage.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ContentHash([u8; 32]);
@@ -33,7 +36,7 @@ impl ContentHash {
     /// The object key: `blobs/ab/cd/abcd…` (two shard levels keep directories small).
     pub(crate) fn key(&self) -> Path {
         let hex = self.to_hex();
-        Path::from_iter(["blobs", &hex[0..2], &hex[2..4], &hex])
+        Path::from_iter([BLOB_PREFIX, &hex[0..2], &hex[2..4], &hex])
     }
 }
 

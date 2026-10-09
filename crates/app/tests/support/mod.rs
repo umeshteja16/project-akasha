@@ -3,7 +3,7 @@
 
 use std::net::SocketAddr;
 
-use akasha::{AppState, app};
+use akasha::{AppState, app, jobs::JobContext};
 use akasha_core::Config;
 use akasha_storage::{ContentHash, Storage};
 use axum::{
@@ -24,6 +24,7 @@ pub const PDF: &[u8] = b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\ne
 pub struct TestApp {
     pub router: Router,
     pub storage: Storage,
+    pub db: PgPool,
 }
 
 pub struct Reply {
@@ -66,9 +67,13 @@ impl TestApp {
     pub fn with_config(pool: PgPool, config: Config) -> Self {
         let storage = Storage::in_memory();
         let addr = SocketAddr::from(([127, 0, 0, 1], 40000));
-        let router =
-            app(AppState::new(pool, config, storage.clone())).layer(Extension(ConnectInfo(addr)));
-        Self { router, storage }
+        let router = app(AppState::new(pool.clone(), config, storage.clone()))
+            .layer(Extension(ConnectInfo(addr)));
+        Self {
+            router,
+            storage,
+            db: pool,
+        }
     }
 
     pub async fn request(&self, req: Request<Body>) -> Reply {
@@ -121,6 +126,19 @@ impl TestApp {
         assert_eq!(reply.status, StatusCode::CREATED);
         let raw = reply.headers[header::SET_COOKIE].to_str().expect("cookie");
         raw.split(';').next().expect("pair").to_owned()
+    }
+
+    /// Run every due background job (as a worker would); returns how many ran.
+    pub async fn run_jobs(&self) -> usize {
+        let ctx = JobContext {
+            db: self.db.clone(),
+            storage: self.storage.clone(),
+        };
+        akasha::jobs::worker(ctx, &Config::default())
+            .expect("worker")
+            .run_until_idle()
+            .await
+            .expect("run jobs")
     }
 
     pub async fn blob_exists(&self, hex: &str) -> bool {

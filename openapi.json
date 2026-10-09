@@ -274,7 +274,7 @@
           "files"
         ],
         "summary": "Upload a file.",
-        "description": "The body is streamed to storage, never held in memory. The type is detected from\nthe bytes and must be on the allow-list; it must also agree with the filename's\nextension. Re-uploading bytes you already have returns the existing file with\n`200` instead of `201`. New files start as `pending`.",
+        "description": "The body is streamed to storage, never held in memory. The type is detected from\nthe bytes and must be on the allow-list; it must also agree with the filename's\nextension. Re-uploading bytes you already have returns the existing file with\n`200` instead of `201`. New files start as `pending` with an extraction job queued.",
         "operationId": "upload",
         "requestBody": {
           "content": {
@@ -416,7 +416,7 @@
         "tags": [
           "files"
         ],
-        "summary": "One of your files.",
+        "summary": "One of your files, with the state of its extraction job.",
         "operationId": "get",
         "parameters": [
           {
@@ -436,7 +436,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FileResponse"
+                  "$ref": "#/components/schemas/FileDetail"
                 }
               }
             }
@@ -618,6 +618,64 @@
             "description": "The file's bytes, with its detected `Content-Type`",
             "content": {
               "application/octet-stream": {}
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/files/{id}/reindex": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Extract a file again (e.g. after a failure). Puts it back to `pending`.",
+        "operationId": "reindex",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "File id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Extraction queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileDetail"
+                }
+              }
             }
           },
           "401": {
@@ -996,6 +1054,30 @@
           "text"
         ]
       },
+      "FileDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/FileResponse"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "processing": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ProcessingJob",
+                    "description": "Latest extraction job, if one was ever queued."
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        "description": "One file plus the state of its latest extraction job."
+      },
       "FileList": {
         "type": "object",
         "required": [
@@ -1107,6 +1189,17 @@
           }
         }
       },
+      "JobState": {
+        "type": "string",
+        "description": "State of a background job.",
+        "enum": [
+          "queued",
+          "running",
+          "succeeded",
+          "failed",
+          "dead"
+        ]
+      },
       "LoginRequest": {
         "type": "object",
         "required": [
@@ -1119,6 +1212,41 @@
           },
           "password": {
             "type": "string"
+          }
+        }
+      },
+      "ProcessingJob": {
+        "type": "object",
+        "required": [
+          "state",
+          "attempts",
+          "max_attempts",
+          "updated_at"
+        ],
+        "properties": {
+          "attempts": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Attempts started so far."
+          },
+          "max_attempts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "next_attempt_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When it will next be tried (`queued` or `failed` only)."
+          },
+          "state": {
+            "$ref": "#/components/schemas/JobState"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },

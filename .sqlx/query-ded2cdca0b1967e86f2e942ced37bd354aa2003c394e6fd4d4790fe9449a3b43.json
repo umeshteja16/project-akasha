@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT kind, count(*) AS \"count!\" FROM jobs\n           WHERE status IN ('queued', 'failed') AND kind <> ALL($1)\n           GROUP BY kind ORDER BY kind",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "ded2cdca0b1967e86f2e942ced37bd354aa2003c394e6fd4d4790fe9449a3b43"
+}

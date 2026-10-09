@@ -19,4 +19,5 @@ ENV AKASHA_BIND_ADDR=0.0.0.0:8080 AKASHA_LOG_FORMAT=json AKASHA_STORAGE_DIR=/var
 VOLUME ["/var/lib/akasha/storage"]
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/akasha"]
-CMD ["serve"]
+# API and background worker in one process; run `akasha worker` separately to scale.
+CMD ["serve", "--with-worker"]
