@@ -11,6 +11,7 @@ publish = false
 [workspace.dependencies]
 akasha-core = { path = "crates/core" }
 akasha-db = { path = "crates/db" }
+akasha-storage = { path = "crates/storage" }
 
 anyhow = "1"
 argon2 = { version = "0.5", features = ["std"] }
@@ -36,6 +37,11 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 utoipa = { version = "5", features = ["axum_extras", "uuid", "chrono"] }
 http-body-util = "0.1"
+bytes = "1"
+futures-util = "0.3"
+hex = "0.4"
+object_store = { version = "0.14", features = ["aws"] }
+tempfile = "3"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

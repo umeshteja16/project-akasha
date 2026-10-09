@@ -1,0 +1,24 @@
+[package]
+name = "akasha-storage"
+description = "Content-addressed blob storage for Akasha (local disk or S3-compatible)."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+akasha-core.workspace = true
+bytes.workspace = true
+futures-util.workspace = true
+hex.workspace = true
+object_store.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

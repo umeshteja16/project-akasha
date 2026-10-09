@@ -27,6 +27,8 @@ services:
       AKASHA_COOKIE_SECURE: ${AKASHA_COOKIE_SECURE:-false}
     ports:
       - "127.0.0.1:8080:8080"
+    volumes:
+      - storage:/var/lib/akasha/storage
     depends_on:
       postgres:
         condition: service_healthy
@@ -36,3 +38,4 @@ services:
 
 volumes:
   pgdata:
+  storage:

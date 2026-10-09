@@ -4,6 +4,7 @@ use std::net::SocketAddr;
 
 use akasha::{AppState, app};
 use akasha_core::Config;
+use akasha_storage::Storage;
 use axum::{
     Extension, Router,
     body::Body,
@@ -41,7 +42,8 @@ impl TestApp {
     fn with_config(pool: PgPool, config: Config) -> Self {
         // What `into_make_service_with_connect_info` provides in production.
         let addr = SocketAddr::from(([127, 0, 0, 1], 40000));
-        let router = app(AppState::new(pool, config)).layer(Extension(ConnectInfo(addr)));
+        let router = app(AppState::new(pool, config, Storage::in_memory()))
+            .layer(Extension(ConnectInfo(addr)));
         Self { router }
     }
 

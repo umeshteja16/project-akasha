@@ -62,13 +62,14 @@ pub async fn run_serve(config: Config) -> anyhow::Result<()> {
         .await
         .context("connecting to database")?;
     akasha_db::migrate(&pool).await?;
+    let storage = akasha_storage::Storage::from_config(&config).context("opening storage")?;
 
     let listener = tokio::net::TcpListener::bind(&config.bind_addr)
         .await
         .with_context(|| format!("binding {}", config.bind_addr))?;
     tracing::info!(addr = %config.bind_addr, "listening");
 
-    let state = AppState::new(pool, config);
+    let state = AppState::new(pool, config, storage);
     rate_limit::spawn_cleanup(state.auth_limiter.clone());
     spawn_session_pruning(state.db.clone());
 

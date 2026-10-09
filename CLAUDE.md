@@ -13,6 +13,7 @@ Guidance for AI agents and humans working in this repo. Keep it short and true.
 ```
 crates/core   config + error types (no I/O frameworks)
 crates/db     sqlx pool, migrations (crates/db/migrations), query functions
+crates/storage content-addressed blob store (object_store: local dir or S3)
 crates/app    the `akasha` binary: axum routes (src/routes/*), auth/, state, telemetry
 .sqlx/        offline cache of checked SQL queries (`just sqlx-prepare`)
 web/          React + TS frontend (Vite, Biome, Vitest)

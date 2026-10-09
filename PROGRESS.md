@@ -19,7 +19,7 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 |---|---|
 | **Current step** | Step 2: Files and ingestion |
 | **Last updated** | 2026-10-09 |
-| **`just check`** | passing (26 Rust tests, 1 web test) |
+| **`just check`** | passing (38 Rust tests, 1 web test) |
 | **Old code** | `legacy/` (read-only reference; deleted in step 7) |
 
 ## Next up
@@ -27,11 +27,15 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 **Step 2: Files and ingestion.** Do it in this order, one commit per bullet, `just check` green each time:
 
 1. ~~**pgvector everywhere.**~~ Done: migration `0003_vector`, `local-postgres.sh` installs it.
-2. **Storage.** Add `object_store` behind a small `Storage` trait in a new `crates/storage`
-   (local disk default, `AKASHA_STORAGE_*` config). Content-addressed by SHA-256, deduplicated.
+2. ~~**Storage.**~~ Done: `crates/storage` (`akasha-storage`), `AppState.storage`.
 3. **Upload.** `POST /api/v1/files` (streaming multipart, `AKASHA_MAX_UPLOAD_MB`, magic-byte
    check with `infer`, filename sanitising), `files` table, ownership checks on every query.
    Port the attack cases from `legacy/scratch/test_magic_bytes.sh` into Rust tests.
+   Use `state.storage.stage()` → `StagedBlob::write` per multipart chunk (check `size()` against
+   the limit and sniff magic bytes from the first chunk; `abort()` on rejection) → `commit()`
+   gives `{hash, size, deduplicated}`. Store `hash.to_hex()` in `files.content_hash` and
+   reference-count blobs in SQL (delete the blob only when the last row referencing it goes).
+   Schedule `Storage::prune_staging(1 h)` once the job queue exists.
 4. **Job queue.** `jobs` table + `FOR UPDATE SKIP LOCKED` worker loop, retries with backoff,
    idempotent handlers, `akasha worker` subcommand (and `serve --with-worker` for single-box).
    Move session pruning onto it.
@@ -68,7 +72,8 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 ### Step 2: Files and ingestion
 - [x] Add `pgvector` (also teach `scripts/local-postgres.sh` to install it; the Docker image already has it)
 - [ ] Upload (streaming multipart, size limit, magic-byte check via `infer`, filename sanitising)
-- [ ] Content-addressed storage (SHA-256, dedupe, ref-counting) behind `object_store` (local disk / S3)
+- [x] Content-addressed storage (SHA-256, dedupe) behind `object_store` (local disk / S3), `crates/storage`
+- [ ] Blob ref-counting in SQL (with the `files` table)
 - [ ] Postgres job queue (`SELECT … FOR UPDATE SKIP LOCKED`; retries, backoff, idempotent jobs), `akasha worker`
 - [ ] New crate `crates/ingest`: PDF text (`pdfium-render`), OCR (`ocrs`), plain text/markdown, chunking (`text-splitter`)
 - [ ] New crate `crates/ml`: embeddings via `fastembed` (bge-m3 or nomic-embed; dimension recorded in the DB)
@@ -130,6 +135,13 @@ See [`docs/adr/`](docs/adr). Summary:
   pgvector for it (apt `postgresql-16-pgvector`, 0.6.x; falls back to building v0.8.0 from
   source). Docker/CI run pgvector 0.8 on Postgres 17, so do not rely on features newer than 0.6
   (HNSW is fine) without bumping the local install.
+- Storage: `Storage` is a concrete struct over `Arc<dyn ObjectStore>` (object_store already is
+  the backend trait; tests use `Storage::in_memory()`). Keys: `blobs/ab/cd/<sha256>` and
+  `staging/<uuid>`. Commit = `head` + `rename` (copy+delete on S3); overwriting identical content
+  is harmless, so racing uploads of the same file are safe without conditional writes.
+- `object_store` `aws` feature pulls in `aws-lc-rs` (C build via `cc`, no cmake needed). Docker
+  image stores blobs in `/var/lib/akasha/storage` (volume `storage` in `compose.yaml`).
+- S3 multipart parts are 5 MiB, so a streaming upload buffers up to ~5 parts (25 MiB) in memory per upload.
 - Never edit an applied migration (even a comment): sqlx checksums it and refuses to run.
 - First `cargo build` takes ~3 minutes; dependencies are compiled with `opt-level = 2`.
 - Changing any `sqlx::query!` needs a running database and then `just sqlx-prepare`; commit
@@ -146,6 +158,7 @@ See [`docs/adr/`](docs/adr). Summary:
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
 
+- 2026-10-09 · Claude (cloud) · Step 2.2: `crates/storage` (content-addressed, local/S3, streaming staging, prune), `AKASHA_STORAGE_*` config with redacted secrets, `AppState.storage`.
 - 2026-10-09 · Claude (cloud) · Step 2.1: pgvector in `local-postgres.sh`, migration `0003_vector`, vector column test.
 
 - 2026-10-09 · Claude (cloud) · Step 1 complete: auth, sessions, profile routes, rate limiting, sqlx offline cache. Merged step 0 to `master`.

@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use akasha::{AppState, app};
 use akasha_core::Config;
+use akasha_storage::Storage;
 use axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -19,7 +20,7 @@ fn unreachable_state() -> AppState {
         .acquire_timeout(Duration::from_millis(200))
         .connect_lazy("postgres://nobody@127.0.0.1:1/none")
         .expect("lazy pool");
-    AppState::new(pool, Config::default())
+    AppState::new(pool, Config::default(), Storage::in_memory())
 }
 
 async fn get(path: &str) -> (StatusCode, Option<String>, Value) {
