@@ -100,7 +100,7 @@ pub async fn run_worker(config: Config) -> anyhow::Result<()> {
         .context("connecting to database")?;
     akasha_db::migrate(&pool).await?;
     let storage = akasha_storage::Storage::from_config(&config).context("opening storage")?;
-    let ctx = jobs::JobContext { db: pool, storage };
+    let ctx = jobs::JobContext::new(pool, storage, &config);
     let stop = shutdown_trigger();
     jobs::worker(ctx, &config)?.run(wait_for(stop)).await?;
     tracing::info!("shut down cleanly");

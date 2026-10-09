@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO file_extractions\n               (file_id, extractor, extractor_version, page_count, char_count, text, pages, notes)\n           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)\n           ON CONFLICT (file_id) DO UPDATE SET\n               extractor = EXCLUDED.extractor,\n               extractor_version = EXCLUDED.extractor_version,\n               page_count = EXCLUDED.page_count,\n               char_count = EXCLUDED.char_count,\n               text = EXCLUDED.text,\n               pages = EXCLUDED.pages,\n               notes = EXCLUDED.notes,\n               created_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Int4",
+        "Int4",
+        "Text",
+        "Jsonb",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "361e1c30d91de1bba2132a3470b42b19d7a9dd4d284192f02208059df1cc94bb"
+}

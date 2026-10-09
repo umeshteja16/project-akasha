@@ -5,10 +5,12 @@
 //! database, never trust that a payload still describes reality.
 
 pub mod blobs;
+mod extract;
 pub mod kinds;
 mod maintenance;
+pub mod ocr;
 
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use akasha_core::Config;
 use akasha_db::PgPool;
@@ -16,6 +18,7 @@ use akasha_jobs::{QueueError, Registry, Schedule, Worker, WorkerConfig};
 use akasha_storage::Storage;
 
 use self::kinds::{PruneJobs, PruneSessions, PruneStaging, SweepOrphanBlobs};
+use self::ocr::OcrProvider;
 use crate::state::AppState;
 
 const HOUR: Duration = Duration::from_secs(60 * 60);
@@ -26,21 +29,30 @@ const DAY: Duration = Duration::from_secs(24 * 60 * 60);
 pub struct JobContext {
     pub db: PgPool,
     pub storage: Storage,
+    /// The OCR engine, loaded on first use (shared by all handlers of a worker).
+    pub ocr: Arc<OcrProvider>,
 }
 
-impl From<&AppState> for JobContext {
-    fn from(state: &AppState) -> Self {
+impl JobContext {
+    pub fn new(db: PgPool, storage: Storage, config: &Config) -> Self {
         Self {
-            db: state.db.clone(),
-            storage: state.storage.clone(),
+            db,
+            storage,
+            ocr: Arc::new(OcrProvider::from_config(config)),
         }
     }
 }
 
-/// Every kind this binary can run. `extract_file` is deliberately absent until
-/// extraction exists (see [`kinds::ExtractFile`]).
+impl From<&AppState> for JobContext {
+    fn from(state: &AppState) -> Self {
+        Self::new(state.db.clone(), state.storage.clone(), &state.config)
+    }
+}
+
+/// Every kind this binary can run.
 pub fn registry() -> Registry<JobContext> {
     Registry::new()
+        .register(extract::extract_file)
         .register(blobs::delete_if_unreferenced)
         .register(blobs::sweep_orphans)
         .register(maintenance::prune_sessions)

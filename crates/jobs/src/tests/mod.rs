@@ -23,6 +23,8 @@ use akasha_db::MIGRATOR;
 #[derive(Clone, Default)]
 struct Ctx {
     runs: Arc<AtomicUsize>,
+    /// `(number, is_last)` of each Flaky attempt.
+    attempts: Arc<std::sync::Mutex<Vec<(i32, bool)>>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -83,6 +85,11 @@ fn registry() -> Registry<Ctx> {
         })
         .register(|ctx: Ctx, _job: Flaky| async move {
             ctx.runs.fetch_add(1, Ordering::SeqCst);
+            let attempt = crate::current_attempt().expect("inside a worker");
+            ctx.attempts
+                .lock()
+                .expect("lock")
+                .push((attempt.number, attempt.is_last()));
             Err(JobError::retry("flaky"))
         })
         .register(|_ctx: Ctx, _job: Doomed| async { Err(JobError::permanent("never")) })

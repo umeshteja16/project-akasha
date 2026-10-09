@@ -1,0 +1,30 @@
+[package]
+name = "akasha-ingest"
+description = "Text extraction (plain text, Markdown, PDF, OCR) and chunking for Akasha."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+hex.workspace = true
+image.workspace = true
+lopdf.workspace = true
+ocrs.workspace = true
+pdf-extract.workspace = true
+pulldown-cmark.workspace = true
+reqwest.workspace = true
+rten.workspace = true
+serde.workspace = true
+sha2.workspace = true
+text-splitter.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+unicode-normalization.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

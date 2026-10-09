@@ -12,6 +12,7 @@ path = "src/main.rs"
 [dependencies]
 akasha-core.workspace = true
 akasha-db.workspace = true
+akasha-ingest.workspace = true
 akasha-jobs.workspace = true
 akasha-storage.workspace = true
 anyhow.workspace = true
@@ -40,6 +41,7 @@ uuid.workspace = true
 
 [dev-dependencies]
 http-body-util.workspace = true
+tempfile.workspace = true
 tower.workspace = true
 
 [lints]

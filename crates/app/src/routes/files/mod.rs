@@ -2,6 +2,7 @@
 //! Every query is filtered by the signed-in owner; other users' files are 404.
 
 pub mod download;
+pub mod extraction;
 pub mod processing;
 pub mod types;
 pub mod upload;

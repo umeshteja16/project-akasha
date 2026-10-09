@@ -1,0 +1,5 @@
+{
+  "service": "akasha",
+  "features": ["search", "chat"],
+  "limits": { "upload_mb": 512 }
+}

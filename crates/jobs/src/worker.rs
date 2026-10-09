@@ -18,7 +18,7 @@ use tokio::{
 use tracing::Instrument;
 
 use crate::{
-    CHANNEL, JobError, QueueError, Registry, Schedule,
+    Attempt, CHANNEL, JobError, QueueError, Registry, Schedule,
     outcome::{panic_message, record},
     queue::{self, ClaimedJob},
     schedule,
@@ -185,6 +185,10 @@ impl<C: Clone + Send + Sync + 'static> Worker<C> {
             .start(&job.kind, self.ctx.clone(), job.payload.clone());
         let span =
             tracing::info_span!("job", kind = %job.kind, id = %job.id, attempt = job.attempts);
+        let attempt = Attempt {
+            number: job.attempts,
+            max: job.max_attempts,
+        };
         async move {
             let clock = Instant::now();
             let outcome = match started {
@@ -193,7 +197,7 @@ impl<C: Clone + Send + Sync + 'static> Worker<C> {
                     job.kind
                 ))),
                 Some(Err(err)) => Err(JobError::Permanent(format!("invalid payload: {err}"))),
-                Some(Ok(fut)) => match AssertUnwindSafe(fut).catch_unwind().await {
+                Some(Ok(fut)) => match AssertUnwindSafe(attempt.scope(fut)).catch_unwind().await {
                     Ok(result) => result,
                     Err(panic) => Err(JobError::Retry(format!(
                         "handler panicked: {}",

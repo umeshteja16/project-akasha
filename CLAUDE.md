@@ -15,6 +15,7 @@ crates/core   config + error types (no I/O frameworks)
 crates/db     sqlx pool, migrations (crates/db/migrations), query functions
 crates/storage content-addressed blob store (object_store: local dir or S3)
 crates/jobs   Postgres job queue + worker runtime (domain-agnostic, ADR 0007)
+crates/ingest text extraction (text/Markdown/PDF/OCR) + chunking; pure, blocking (ADR 0008)
 crates/app    the `akasha` binary: axum routes (src/routes/*), auth/, jobs/ (job kinds +
               handlers), state, telemetry
 .sqlx/        offline cache of checked SQL queries (`just sqlx-prepare`)
@@ -23,7 +24,7 @@ legacy/       old TypeScript implementation: read-only reference, do not edit
 docs/adr/     architecture decisions
 openapi.json  generated API contract (`just openapi`), checked in CI
 ```
-New crates planned (create them when their step starts, not before): `ingest`, `ml`, `search`.
+New crates planned (create them when their step starts, not before): `ml`, `search`.
 
 ## Commands
 `just` lists everything. Common: `just serve`, `just web`, `just check`, `just fmt`,

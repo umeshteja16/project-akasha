@@ -31,6 +31,7 @@ services:
       - "127.0.0.1:8080:8080"
     volumes:
       - storage:/var/lib/akasha/storage
+      - models:/var/lib/akasha/models
     depends_on:
       postgres:
         condition: service_healthy
@@ -41,3 +42,4 @@ services:
 volumes:
   pgdata:
   storage:
+  models:

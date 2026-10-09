@@ -32,7 +32,7 @@ fn id(v: &Value) -> &str {
 }
 
 #[sqlx::test(migrator = "akasha_db::MIGRATOR")]
-async fn uploads_queue_extraction_and_files_stay_pending(pool: PgPool) {
+async fn uploads_queue_extraction_once(pool: PgPool) {
     let app = TestApp::new(pool.clone());
     let ada = app.user("ada@example.com").await;
     let file = app.upload(&ada, "a.pdf", PDF).await.json();
@@ -41,9 +41,6 @@ async fn uploads_queue_extraction_and_files_stay_pending(pool: PgPool) {
 
     let queued = jobs_of(&pool, ExtractFile::KIND).await;
     assert_eq!(queued, vec![(id(&file).to_owned(), "queued".to_owned())]);
-
-    // No extraction handler yet: the worker leaves the job alone.
-    app.run_jobs().await;
     let detail = app
         .send("GET", &format!("/api/v1/files/{}", id(&file)), &ada, None)
         .await
@@ -51,7 +48,7 @@ async fn uploads_queue_extraction_and_files_stay_pending(pool: PgPool) {
     assert_eq!(detail["status"], "pending");
     assert_eq!(detail["processing"]["state"], "queued");
     assert_eq!(detail["processing"]["attempts"], 0);
-    assert_eq!(jobs_of(&pool, ExtractFile::KIND).await[0].1, "queued");
+    // What the worker then does is covered in `extraction.rs`.
 }
 
 #[sqlx::test(migrator = "akasha_db::MIGRATOR")]

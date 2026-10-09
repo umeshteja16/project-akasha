@@ -21,6 +21,14 @@ pub const PW: &str = "correct horse battery";
 pub const BOUNDARY: &str = "akasha-test-boundary-7d1f";
 pub const PDF: &[u8] = b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n";
 
+/// Defaults, minus anything that would reach the network.
+pub fn test_config() -> Config {
+    Config {
+        ocr_enabled: false,
+        ..Config::default()
+    }
+}
+
 pub struct TestApp {
     pub router: Router,
     pub storage: Storage,
@@ -60,8 +68,9 @@ pub fn multipart(filename: &str, bytes: &[u8]) -> Vec<u8> {
 }
 
 impl TestApp {
+    /// OCR is off: tests never download models.
     pub fn new(pool: PgPool) -> Self {
-        Self::with_config(pool, Config::default())
+        Self::with_config(pool, test_config())
     }
 
     pub fn with_config(pool: PgPool, config: Config) -> Self {
@@ -130,11 +139,14 @@ impl TestApp {
 
     /// Run every due background job (as a worker would); returns how many ran.
     pub async fn run_jobs(&self) -> usize {
-        let ctx = JobContext {
-            db: self.db.clone(),
-            storage: self.storage.clone(),
-        };
-        akasha::jobs::worker(ctx, &Config::default())
+        self.run_jobs_with(&test_config()).await
+    }
+
+    /// [`Self::run_jobs`] with a worker built from `config`.
+    pub async fn run_jobs_with(&self, config: &Config) -> usize {
+        let config = config.clone();
+        let ctx = JobContext::new(self.db.clone(), self.storage.clone(), &config);
+        akasha::jobs::worker(ctx, &config)
             .expect("worker")
             .run_until_idle()
             .await

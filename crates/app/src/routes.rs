@@ -37,6 +37,7 @@ use akasha_core::Error;
         me::get_me, me::update_me, me::change_password, me::delete_me,
         files::upload::upload, files::list, files::get, files::update, files::delete,
         files::bulk_delete, files::download::download, files::processing::reindex,
+        files::extraction::get,
     ),
     components(schemas(ErrorBody, health::Health, files::types::FileCategory)),
     modifiers(&SessionCookie)
@@ -100,6 +101,7 @@ pub fn router(state: &AppState) -> Router<AppState> {
         .route("/api/v1/me", get(me::get_me).patch(me::update_me))
         .route("/api/v1/files", get(files::list))
         .route("/api/v1/files/bulk-delete", post(files::bulk_delete))
+        .route("/api/v1/files/{id}/extraction", get(files::extraction::get))
         .route(
             "/api/v1/files/{id}/reindex",
             post(files::processing::reindex),

@@ -45,6 +45,13 @@ async fn failures_back_off_then_dead_letter(pool: PgPool) {
     make_due(&pool, id).await;
     assert_eq!(worker.run_until_idle().await.expect("run"), 0);
     assert_eq!(ctx.runs.load(Ordering::SeqCst), 3);
+    let attempts = ctx.attempts.lock().expect("lock").clone();
+    assert_eq!(attempts, vec![(1, false), (2, false), (3, true)]);
+    assert_eq!(
+        crate::current_attempt(),
+        None,
+        "no attempt outside a handler"
+    );
 }
 
 #[sqlx::test(migrator = "MIGRATOR")]

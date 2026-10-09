@@ -57,6 +57,14 @@ pub struct Config {
     pub worker_visibility_timeout_secs: u64,
     /// Seconds in-flight jobs get to finish on shutdown before they are handed back.
     pub worker_shutdown_grace_secs: u64,
+    /// Recognise text in images and scanned PDF pages. Off: such files are stored
+    /// and marked as needing OCR, with no text.
+    pub ocr_enabled: bool,
+    /// Directory for ML model files (OCR models are downloaded here on first use).
+    pub models_dir: String,
+    /// Base URL OCR models are downloaded from. Empty: never download (offline
+    /// installs put the files into `models_dir` themselves).
+    pub ocr_models_url: String,
 }
 
 /// Blob storage backend.
@@ -124,6 +132,9 @@ impl Default for Config {
             worker_poll_secs: 5,
             worker_visibility_timeout_secs: 300,
             worker_shutdown_grace_secs: 30,
+            ocr_enabled: true,
+            models_dir: "./models".into(),
+            ocr_models_url: "https://ocrs-models.s3-accelerate.amazonaws.com".into(),
         }
     }
 }

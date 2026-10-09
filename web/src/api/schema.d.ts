@@ -132,6 +132,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/files/{id}/extraction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The text extracted from one of your files, a window at a time. */
+        get: operations["get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/files/{id}/reindex": {
         parameters: {
             query?: never;
@@ -247,6 +264,49 @@ export interface components {
             code: string;
             message: string;
         };
+        ExtractionResponse: {
+            /**
+             * Format: int32
+             * @description Length of the whole text in characters.
+             */
+            char_count: number;
+            /**
+             * Format: int64
+             * @description Chunks indexed for search.
+             */
+            chunk_count: number;
+            /** Format: date-time */
+            created_at: string;
+            /**
+             * @description `text`, `markdown`, `csv`, `json`, `pdf`, `ocr`, or `none` when nothing could be
+             *     extracted (e.g. audio and video, which are not transcribed yet).
+             */
+            extractor: string;
+            extractor_version: string;
+            /** Format: uuid */
+            file_id: string;
+            /**
+             * Format: int32
+             * @description Pass as `offset` to read on; `null` at the end.
+             */
+            next_offset?: number | null;
+            /** @description Remarks such as "OCR is disabled" or "truncated". */
+            notes: string[];
+            /**
+             * Format: int32
+             * @description Character offset of `text` in the whole text.
+             */
+            offset: number;
+            /**
+             * Format: int32
+             * @description Pages in the document; `null` for formats without pages.
+             */
+            page_count?: number | null;
+            /** @description Page spans, in order (PDFs only). */
+            pages: components["schemas"]["PageSpan"][];
+            /** @description The requested window of the text. */
+            text: string;
+        };
         /**
          * @description Broad file kind, for filtering.
          * @enum {string}
@@ -300,6 +360,24 @@ export interface components {
         LoginRequest: {
             email: string;
             password: string;
+        };
+        /**
+         * @description Where a PDF page's text came from.
+         * @enum {string}
+         */
+        PageSource: "text" | "ocr" | "needs_ocr" | "unreadable";
+        /** @description A PDF page's span in the full text (`char_start..char_end`, in characters). */
+        PageSpan: {
+            /** Format: int64 */
+            char_end: number;
+            /** Format: int64 */
+            char_start: number;
+            /**
+             * Format: int32
+             * @description 1-based page number.
+             */
+            number: number;
+            source: components["schemas"]["PageSource"];
         };
         ProcessingJob: {
             /**
@@ -794,6 +872,58 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get: {
+        parameters: {
+            query?: {
+                /** @description First character to return (0-based, in Unicode characters). Default 0. */
+                offset?: number;
+                /** @description Characters to return, 1-1000000. Default 100000. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description File id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExtractionResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No such file, or not extracted yet */
             404: {
                 headers: {
                     [name: string]: unknown;

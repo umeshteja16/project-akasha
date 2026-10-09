@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM file_chunks WHERE file_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d008a73fcedaca16fc00d91fbec6a47a78a1c460eda6d68b8ac44c0ffc2e202e"
+}

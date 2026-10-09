@@ -23,13 +23,8 @@ impl Job for DeleteBlobIfUnreferenced {
     }
 }
 
-/// Extract text from a newly uploaded (or reindexed) file and move its status
-/// pending → processing → ready/failed.
-///
-/// **No handler is registered yet** (extraction is step 2.5). Workers never claim
-/// kinds they have no handler for, so these jobs wait safely in `queued` and the
-/// files stay `pending` until a worker that can extract starts. A no-op handler
-/// would have marked them done without extracting anything.
+/// Extract text from a newly uploaded (or reindexed) file, store its chunks and
+/// move its status pending → processing → ready/failed (see `jobs::extract`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExtractFile {
     pub file_id: Uuid,

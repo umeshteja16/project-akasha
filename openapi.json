@@ -648,6 +648,94 @@
         ]
       }
     },
+    "/api/v1/files/{id}/extraction": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "The text extracted from one of your files, a window at a time.",
+        "operationId": "get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "File id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "First character to return (0-based, in Unicode characters). Default 0.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Characters to return, 1-1000000. Default 100000.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such file, or not extracted yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
     "/api/v1/files/{id}/reindex": {
       "post": {
         "tags": [
@@ -1043,6 +1131,87 @@
           }
         }
       },
+      "ExtractionResponse": {
+        "type": "object",
+        "required": [
+          "file_id",
+          "extractor",
+          "extractor_version",
+          "char_count",
+          "chunk_count",
+          "pages",
+          "notes",
+          "offset",
+          "text",
+          "created_at"
+        ],
+        "properties": {
+          "char_count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Length of the whole text in characters."
+          },
+          "chunk_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Chunks indexed for search."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "extractor": {
+            "type": "string",
+            "description": "`text`, `markdown`, `csv`, `json`, `pdf`, `ocr`, or `none` when nothing could be\nextracted (e.g. audio and video, which are not transcribed yet)."
+          },
+          "extractor_version": {
+            "type": "string"
+          },
+          "file_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "next_offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Pass as `offset` to read on; `null` at the end."
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Remarks such as \"OCR is disabled\" or \"truncated\"."
+          },
+          "offset": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Character offset of `text` in the whole text."
+          },
+          "page_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Pages in the document; `null` for formats without pages."
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PageSpan"
+            },
+            "description": "Page spans, in order (PDFs only)."
+          },
+          "text": {
+            "type": "string",
+            "description": "The requested window of the text."
+          }
+        }
+      },
       "FileCategory": {
         "type": "string",
         "description": "Broad file kind, for filtering.",
@@ -1212,6 +1381,47 @@
           },
           "password": {
             "type": "string"
+          }
+        }
+      },
+      "PageSource": {
+        "type": "string",
+        "description": "Where a PDF page's text came from.",
+        "enum": [
+          "text",
+          "ocr",
+          "needs_ocr",
+          "unreadable"
+        ]
+      },
+      "PageSpan": {
+        "type": "object",
+        "description": "A PDF page's span in the full text (`char_start..char_end`, in characters).",
+        "required": [
+          "number",
+          "char_start",
+          "char_end",
+          "source"
+        ],
+        "properties": {
+          "char_end": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "char_start": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1-based page number.",
+            "minimum": 0
+          },
+          "source": {
+            "$ref": "#/components/schemas/PageSource"
           }
         }
       },

@@ -15,8 +15,11 @@ FROM gcr.io/distroless/cc-debian12:nonroot
 COPY --from=build /akasha /usr/local/bin/akasha
 # Uploaded file contents (local storage backend). Mount a volume here.
 COPY --from=build --chown=nonroot:nonroot /empty-dir /var/lib/akasha/storage
-ENV AKASHA_BIND_ADDR=0.0.0.0:8080 AKASHA_LOG_FORMAT=json AKASHA_STORAGE_DIR=/var/lib/akasha/storage
-VOLUME ["/var/lib/akasha/storage"]
+# ML models (OCR models are downloaded here on first use). Mount a volume to keep them.
+COPY --from=build --chown=nonroot:nonroot /empty-dir /var/lib/akasha/models
+ENV AKASHA_BIND_ADDR=0.0.0.0:8080 AKASHA_LOG_FORMAT=json AKASHA_STORAGE_DIR=/var/lib/akasha/storage \
+    AKASHA_MODELS_DIR=/var/lib/akasha/models
+VOLUME ["/var/lib/akasha/storage", "/var/lib/akasha/models"]
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/akasha"]
 # API and background worker in one process; run `akasha worker` separately to scale.

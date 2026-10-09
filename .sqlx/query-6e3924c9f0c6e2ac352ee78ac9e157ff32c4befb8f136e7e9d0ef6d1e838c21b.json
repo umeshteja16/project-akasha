@@ -1,0 +1,73 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT e.extractor, e.extractor_version, e.page_count, e.char_count, e.pages,\n                  e.notes, e.created_at,\n                  substr(e.text, $3 + 1, $4) AS \"text!\",\n                  (SELECT count(*) FROM file_chunks c WHERE c.file_id = e.file_id) AS \"chunk_count!\"\n           FROM file_extractions e\n           JOIN files f ON f.id = e.file_id\n           WHERE f.owner_id = $1 AND e.file_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "extractor",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "extractor_version",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "page_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "char_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "pages",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 5,
+        "name": "notes",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "text!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "chunk_count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "6e3924c9f0c6e2ac352ee78ac9e157ff32c4befb8f136e7e9d0ef6d1e838c21b"
+}

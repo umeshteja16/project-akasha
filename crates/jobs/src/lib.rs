@@ -25,6 +25,7 @@
 //! Kinds without a registered handler are never claimed: they stay `queued` until a
 //! worker that knows them starts (the worker logs them once at start-up).
 
+mod attempt;
 mod backoff;
 mod outcome;
 pub mod queue;
@@ -34,6 +35,7 @@ mod worker;
 
 use serde::{Serialize, de::DeserializeOwned};
 
+pub use attempt::{Attempt, current_attempt};
 pub use backoff::backoff;
 pub use queue::{JobInfo, enqueue, enqueue_delayed};
 pub use registry::Registry;

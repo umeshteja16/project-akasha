@@ -1,6 +1,12 @@
 # cargo-deny: blocks known-vulnerable, yanked or unexpected-source dependencies.
 [advisories]
 yanked = "deny"
+ignore = [
+  # ttf-parser is unmaintained (not a vulnerability). It comes in through lopdf, the
+  # PDF parser under pdf-extract (ADR 0008), with no maintained alternative there yet.
+  # Revisit when lopdf moves to skrifa.
+  { id = "RUSTSEC-2026-0192", reason = "unmaintained only; required by lopdf (ADR 0008)" },
+]
 
 [bans]
 multiple-versions = "allow"
