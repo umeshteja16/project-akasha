@@ -10,6 +10,8 @@ pub struct Conversation {
     pub id: Uuid,
     pub owner_id: Uuid,
     pub title: String,
+    /// Files the conversation answers from by default; empty: all files.
+    pub file_ids: Vec<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -48,13 +50,18 @@ pub async fn create_conversation(
     pool: &PgPool,
     owner_id: Uuid,
     title: &str,
+    file_ids: &[Uuid],
 ) -> Result<Conversation, sqlx::Error> {
     sqlx::query_as!(
         Conversation,
-        "INSERT INTO conversations (owner_id, title) VALUES ($1, $2)
-         RETURNING id, owner_id, title, created_at, updated_at",
+        "INSERT INTO conversations (owner_id, title, file_ids)
+         VALUES ($1, $2, ARRAY(SELECT f.id FROM files f
+                               WHERE f.owner_id = $1 AND f.id = ANY($3::uuid[])
+                               ORDER BY array_position($3::uuid[], f.id)))
+         RETURNING id, owner_id, title, file_ids, created_at, updated_at",
         owner_id,
-        title
+        title,
+        file_ids
     )
     .fetch_one(pool)
     .await
@@ -70,7 +77,7 @@ pub async fn list_conversations(
     let (before_at, before_id) = before.unzip();
     sqlx::query_as!(
         Conversation,
-        "SELECT id, owner_id, title, created_at, updated_at FROM conversations
+        "SELECT id, owner_id, title, file_ids, created_at, updated_at FROM conversations
          WHERE owner_id = $1
            AND ($2::timestamptz IS NULL OR (updated_at, id) < ($2, $3::uuid))
          ORDER BY updated_at DESC, id DESC
@@ -91,7 +98,7 @@ pub async fn get_conversation(
 ) -> Result<Option<Conversation>, sqlx::Error> {
     sqlx::query_as!(
         Conversation,
-        "SELECT id, owner_id, title, created_at, updated_at FROM conversations
+        "SELECT id, owner_id, title, file_ids, created_at, updated_at FROM conversations
          WHERE id = $1 AND owner_id = $2",
         id,
         owner_id
@@ -101,7 +108,7 @@ pub async fn get_conversation(
 }
 
 pub async fn rename_conversation(
-    pool: &PgPool,
+    conn: &mut PgConnection,
     owner_id: Uuid,
     id: Uuid,
     title: &str,
@@ -109,12 +116,36 @@ pub async fn rename_conversation(
     sqlx::query_as!(
         Conversation,
         "UPDATE conversations SET title = $3, title_source = 'user' WHERE id = $1 AND owner_id = $2
-         RETURNING id, owner_id, title, created_at, updated_at",
+         RETURNING id, owner_id, title, file_ids, created_at, updated_at",
         id,
         owner_id,
         title
     )
-    .fetch_optional(pool)
+    .fetch_optional(conn)
+    .await
+}
+
+/// Set the files a conversation answers from (empty: all). Ids that are not
+/// the owner's files are dropped; the order is kept.
+pub async fn set_conversation_scope(
+    conn: &mut PgConnection,
+    owner_id: Uuid,
+    id: Uuid,
+    file_ids: &[Uuid],
+) -> Result<Option<Conversation>, sqlx::Error> {
+    sqlx::query_as!(
+        Conversation,
+        "UPDATE conversations
+         SET file_ids = ARRAY(SELECT f.id FROM files f
+                              WHERE f.owner_id = $2 AND f.id = ANY($3::uuid[])
+                              ORDER BY array_position($3::uuid[], f.id))
+         WHERE id = $1 AND owner_id = $2
+         RETURNING id, owner_id, title, file_ids, created_at, updated_at",
+        id,
+        owner_id,
+        file_ids
+    )
+    .fetch_optional(conn)
     .await
 }
 

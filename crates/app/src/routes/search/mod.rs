@@ -97,7 +97,14 @@ pub async fn models(state: &AppState) -> Models {
             Err("the reranker could not be loaded".to_owned())
         }
     };
-    Models { embedder, reranker }
+    Models {
+        embedder,
+        reranker,
+        floor: akasha_search::RelevanceFloor {
+            min_similarity: state.config.search_min_similarity,
+            min_rerank_score: state.config.search_min_rerank_score,
+        },
+    }
 }
 
 /// The query itself is not logged (it may be private).

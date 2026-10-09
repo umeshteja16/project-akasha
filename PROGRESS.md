@@ -137,7 +137,8 @@ See [`docs/adr/`](docs/adr). Summary:
 0010 Hybrid search (FTS + pgvector, RRF, rerank) in `crates/search` ·
 0011 Search eval tiers, spelling vocabulary, thumbnails ·
 0012 LLM providers (`crates/llm`) and grounded chat ·
-0013 Model-written file summaries, suggested tags and conversation titles.
+0013 Model-written file summaries, suggested tags and conversation titles ·
+0014 Relevance floor for results found by meaning alone.
 
 ## Known issues and gotchas
 
@@ -392,8 +393,21 @@ See [`docs/adr/`](docs/adr). Summary:
   model-written title. Stored messages with the live turn's ids are hidden (no duplicates).
 - `/chat` routes render full-bleed: `AppShell` drops the page padding for `/chat*` and the
   chat layout sizes itself (`100dvh` minus the phone header and tab bar).
-- `?files=` on `/chat` scopes answers (library "Ask about these", max 100 ids); it is sent as
-  `file_ids` with every question and is not stored on the conversation yet.
+- Conversation scope (5d, migration 0011): `conversations.file_ids` (≤ 100; ids are
+  filtered to the owner's files on write, a later-deleted file just stops matching).
+  `PATCH /conversations/{id}` takes `title` and/or `file_ids` (`[]` = all files). A question
+  without `file_ids` uses the conversation's; one with `file_ids` overrides it for that turn.
+- Relevance floor (ADR 0014): semantic-only results below the model's floor
+  (`EmbedModel::min_similarity`, or `RerankModel::min_score` when reranked) are dropped and
+  counted in `loosely_related`; `include_weak=true` returns them last with
+  `loosely_related: true`. Tests that relied on "semantic returns every file" now pass
+  `include_weak`. Chat retrieves without them; the gate calibration in `akasha eval` keeps
+  them. Eval queries of kind `negative` list no relevant files; `negative_clean` and
+  `precision@10` are gated like recall.
+- `GET /api/v1/system/status` never loads a model (`MlProvider::{embedder,reranker}_state`
+  reports ready / not loaded / last load error). Queue numbers are server-wide counts only.
+- UI assets are compressed (gzip/brotli via `tower-http` `CompressionLayer`, only on the
+  UI fallback; API responses, downloads and SSE are not compressed).
 - Textless files (images without OCR text, media) now get `enrichment_status = skipped` in
   the extraction transaction (`enrichment::skip_current`), so the UI never shows "Writing a
   summary" for them; the timeline also treats ready files whose last job is `extract` as

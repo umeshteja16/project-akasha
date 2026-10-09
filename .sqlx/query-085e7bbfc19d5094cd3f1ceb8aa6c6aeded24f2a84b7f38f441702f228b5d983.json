@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO conversations (owner_id, title) VALUES ($1, $2)\n         RETURNING id, owner_id, title, created_at, updated_at",
+  "query": "SELECT id, owner_id, title, file_ids, created_at, updated_at FROM conversations\n         WHERE owner_id = $1\n           AND ($2::timestamptz IS NULL OR (updated_at, id) < ($2, $3::uuid))\n         ORDER BY updated_at DESC, id DESC\n         LIMIT $4",
   "describe": {
     "columns": [
       {
@@ -20,11 +20,16 @@
       },
       {
         "ordinal": 3,
+        "name": "file_ids",
+        "type_info": "UuidArray"
+      },
+      {
+        "ordinal": 4,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -32,7 +37,9 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Text"
+        "Timestamptz",
+        "Uuid",
+        "Int8"
       ]
     },
     "nullable": [
@@ -40,8 +47,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "2b2cf19608ac50592d14b80387f6d024171b7eccc559f0730715384f37d2c3eb"
+  "hash": "085e7bbfc19d5094cd3f1ceb8aa6c6aeded24f2a84b7f38f441702f228b5d983"
 }

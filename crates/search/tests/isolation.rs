@@ -204,14 +204,12 @@ async fn large_libraries_use_the_vector_index(pool: PgPool) {
     .await
     .expect("build index");
 
-    let res = search_chunks(
-        &pool,
-        ada,
-        &request("aardvark burrow", SearchMode::Semantic),
-        &models(),
-    )
-    .await
-    .expect("search");
+    // The bulk vectors are noise: keep the loosely related ones to count them.
+    let mut req = request("aardvark burrow", SearchMode::Semantic);
+    req.include_weak = true;
+    let res = search_chunks(&pool, ada, &req, &models())
+        .await
+        .expect("search");
     assert_eq!(res.results.len(), 10);
     assert_eq!(res.results[0].file.id, target);
 }

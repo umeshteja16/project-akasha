@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use self::types::{
     ConversationList, ConversationResponse, CreateConversation, MessageList, PageQuery,
-    UpdateConversation, clean_title,
+    UpdateConversation, check_scope, clean_title,
 };
 use crate::{
     auth::AuthUser,
@@ -56,7 +56,10 @@ pub async fn create(
     Json(body): Json<CreateConversation>,
 ) -> Result<(StatusCode, Json<ConversationResponse>), ApiError> {
     let title = clean_title(body.title.as_deref().unwrap_or(""), true)?;
-    let conversation = chat::create_conversation(&state.db, auth.user_id, &title).await?;
+    let file_ids = body.file_ids.unwrap_or_default();
+    check_scope(&file_ids)?;
+    let conversation =
+        chat::create_conversation(&state.db, auth.user_id, &title, &file_ids).await?;
     Ok((StatusCode::CREATED, Json(conversation.into())))
 }
 
@@ -110,7 +113,7 @@ pub async fn get(
     Ok(Json(conversation.into()))
 }
 
-/// Rename a conversation.
+/// Rename a conversation or change the files it answers from.
 #[utoipa::path(
     patch, path = "/api/v1/conversations/{id}", tag = "chat", operation_id = "update_conversation",
     params(("id" = Uuid, Path, description = "Conversation id")),
@@ -128,11 +131,30 @@ pub async fn update(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateConversation>,
 ) -> Result<Json<ConversationResponse>, ApiError> {
-    let title = clean_title(&body.title, false)?;
-    let conversation = chat::rename_conversation(&state.db, auth.user_id, id, &title)
-        .await?
-        .ok_or_else(not_found)?;
-    Ok(Json(conversation.into()))
+    if body.title.is_none() && body.file_ids.is_none() {
+        return Err(Error::bad_request("nothing to change: send title and/or file_ids").into());
+    }
+    let title = body
+        .title
+        .as_deref()
+        .map(|t| clean_title(t, false))
+        .transpose()?;
+    if let Some(ids) = &body.file_ids {
+        check_scope(ids)?;
+    }
+    let mut tx = state.db.begin().await?;
+    let mut conversation = None;
+    if let Some(title) = &title {
+        conversation = chat::rename_conversation(&mut tx, auth.user_id, id, title).await?;
+        if conversation.is_none() {
+            return Err(not_found());
+        }
+    }
+    if let Some(ids) = &body.file_ids {
+        conversation = chat::set_conversation_scope(&mut tx, auth.user_id, id, ids).await?;
+    }
+    tx.commit().await?;
+    Ok(Json(conversation.ok_or_else(not_found)?.into()))
 }
 
 /// Delete a conversation and its messages.

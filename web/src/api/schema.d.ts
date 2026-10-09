@@ -88,7 +88,7 @@ export interface paths {
         delete: operations["delete_conversation"];
         options?: never;
         head?: never;
-        /** Rename a conversation. */
+        /** Rename a conversation or change the files it answers from. */
         patch: operations["update_conversation"];
         trace?: never;
     };
@@ -391,6 +391,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Which models and services this server runs with, and the job queue. */
+        get: operations["status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tags": {
         parameters: {
             query?: never;
@@ -502,6 +519,15 @@ export interface components {
              */
             message_id?: string | null;
         };
+        ChatModelStatus: {
+            /** @description `true` when questions and passages never leave this machine or network. */
+            local: boolean;
+            /** @description The model answers come from; empty without a provider. */
+            model: string;
+            /** @description `ollama`, `anthropic`, `gemini`, `openai`, `fake` or `none`. */
+            provider: string;
+            status: components["schemas"]["ComponentStatus"];
+        };
         /** @description `event: sources`: the passages the answer may cite (empty when refused). */
         ChatSources: {
             /** Format: uuid */
@@ -537,6 +563,11 @@ export interface components {
             chunk_id: number;
             /** Format: int32 */
             chunk_index: number;
+            /**
+             * @description Found by meaning alone and below the relevance floor (only returned with
+             *     `include_weak`).
+             */
+            loosely_related: boolean;
             /**
              * Format: int32
              * @description 1-based PDF page; `null` for formats without pages.
@@ -579,6 +610,11 @@ export interface components {
             /** @description The start of the passage. */
             quote: string;
         };
+        /**
+         * @description How a component stands.
+         * @enum {string}
+         */
+        ComponentStatus: "ready" | "not_loaded" | "downloads_on_first_use" | "unavailable" | "disabled" | "not_needed";
         ConversationList: {
             /** @description Most recently active first. */
             items: components["schemas"]["ConversationResponse"][];
@@ -588,23 +624,34 @@ export interface components {
         ConversationResponse: {
             /** Format: date-time */
             created_at: string;
+            /**
+             * @description Files questions are answered from unless a question names its own;
+             *     empty: all your files.
+             */
+            file_ids: string[];
             /** Format: uuid */
             id: string;
             /** @description Empty until the first question (or a rename) names it. */
             title: string;
             /**
              * Format: date-time
-             * @description Last activity (new message or rename).
+             * @description Last activity (new message, rename or new scope).
              */
             updated_at: string;
         };
         CreateConversation: {
+            /** @description Answer only from these files (up to 100; ids that are not yours are dropped). */
+            file_ids?: string[] | null;
             /** @description Optional; otherwise the first question becomes the title. */
             title?: string | null;
         };
         DeleteAccountRequest: {
             /** @description Current password, to confirm. */
             password: string;
+        };
+        EmbeddingStatus: components["schemas"]["ModelStatus"] & {
+            /** Format: int32 */
+            dimensions: number;
         };
         EnrichmentInfo: {
             /** @description `provider/model` that wrote the summary and tags. */
@@ -681,6 +728,11 @@ export interface components {
         /** @description A file-level result: the file and its best matching chunks. */
         FileHit: {
             file: components["schemas"]["FileInfo"];
+            /**
+             * @description Every matching chunk is loosely related (only returned with `include_weak`;
+             *     such files come after the real matches).
+             */
+            loosely_related: boolean;
             /**
              * Format: int32
              * @description Matching chunks of this file among the candidates.
@@ -812,6 +864,13 @@ export interface components {
          * @enum {string}
          */
         MessageRole: "user" | "assistant";
+        ModelStatus: {
+            /** @description Why it is unavailable, when it is. */
+            detail?: string | null;
+            /** @description Configured model name; `null` when this kind of model is turned off. */
+            name?: string | null;
+            status: components["schemas"]["ComponentStatus"];
+        };
         /**
          * @description Where a PDF page's text came from.
          * @enum {string}
@@ -833,7 +892,10 @@ export interface components {
         PostMessage: {
             /** @description The question, 1–4000 characters. */
             content: string;
-            /** @description Only answer from these files (up to 100). */
+            /**
+             * @description Only answer from these files (up to 100). Omitted: the conversation's
+             *     own scope (`file_ids` on the conversation).
+             */
             file_ids?: string[] | null;
             /** @description Only answer from files carrying all of these tags. */
             tags?: string[] | null;
@@ -866,6 +928,19 @@ export interface components {
             display_name?: string | null;
             email: string;
             password: string;
+        };
+        /** @description The relevance floor search uses for results found by meaning alone. */
+        RelevanceStatus: {
+            /**
+             * Format: float
+             * @description Minimum reranker score (configured or the reranker's default).
+             */
+            min_rerank_score?: number | null;
+            /**
+             * Format: float
+             * @description Minimum cosine similarity (configured or the model's default).
+             */
+            min_similarity?: number | null;
         };
         /** @description Why a chunk ranked where it did. */
         Scores: {
@@ -911,6 +986,13 @@ export interface components {
             degraded: boolean;
             /** @description More results follow this page. */
             has_more: boolean;
+            /**
+             * Format: int32
+             * @description Results left out because they are only loosely related (found by meaning
+             *     alone, below the relevance floor): files for `/search`, passages for
+             *     `/search/chunks`. Ask again with `include_weak=true` to see them.
+             */
+            loosely_related: number;
             /** @description The mode that actually ran: `keyword` when semantic search was unavailable. */
             mode: components["schemas"]["SearchMode"];
             /** @description The query as searched (trimmed). */
@@ -967,6 +1049,20 @@ export interface components {
             /** @description Up to two fragments joined by " … "; the chunk's start when no term matched. */
             text: string;
         };
+        SystemStatus: {
+            chat: components["schemas"]["ChatModelStatus"];
+            embedding: components["schemas"]["EmbeddingStatus"];
+            /** @description Text recognition for images and scanned PDFs. */
+            ocr: components["schemas"]["ModelStatus"];
+            /** @description ONNX Runtime, which the real embedding and rerank models run on. */
+            onnx_runtime: components["schemas"]["ModelStatus"];
+            relevance: components["schemas"]["RelevanceStatus"];
+            reranker: components["schemas"]["ModelStatus"];
+            /** @description Cloud language models are refused (`AKASHA_STRICT_OFFLINE`). */
+            strict_offline: boolean;
+            version: string;
+            worker: components["schemas"]["WorkerStatus"];
+        };
         TagList: {
             /** @description Most used first. */
             items: components["schemas"]["TagSummary"][];
@@ -1019,9 +1115,12 @@ export interface components {
             /** Format: int32 */
             output_tokens?: number | null;
         };
+        /** @description Change the title, the file scope, or both. */
         UpdateConversation: {
+            /** @description New file scope (up to 100 ids); `[]`: all your files. */
+            file_ids?: string[] | null;
             /** @description 1–200 characters. */
-            title: string;
+            title?: string | null;
         };
         UpdateFileRequest: {
             /**
@@ -1055,6 +1154,41 @@ export interface components {
             email: string;
             /** Format: uuid */
             id: string;
+        };
+        /**
+         * @description `ok`: working through jobs or nothing to do; `stalled`: jobs wait and no
+         *     worker takes them (start one with `akasha worker` or `serve --with-worker`).
+         * @enum {string}
+         */
+        WorkerHealth: "busy" | "idle" | "stalled";
+        WorkerStatus: {
+            /**
+             * Format: int64
+             * @description Jobs given up on in the last 24 hours.
+             */
+            failed_last_day: number;
+            health: components["schemas"]["WorkerHealth"];
+            /** @description This process runs a worker (`serve --with-worker`); others may run elsewhere. */
+            in_process: boolean;
+            /** Format: date-time */
+            last_finished_at?: string | null;
+            /**
+             * Format: int64
+             * @description How long the oldest ready job has waited, in seconds.
+             */
+            oldest_wait_secs?: number | null;
+            /**
+             * Format: int64
+             * @description Jobs ready to run now (queue depth).
+             */
+            queued: number;
+            /**
+             * Format: int64
+             * @description Waiting to retry after a failure.
+             */
+            retrying: number;
+            /** Format: int64 */
+            running: number;
         };
     };
     responses: never;
@@ -2282,6 +2416,12 @@ export interface operations {
                 page?: number;
                 /** @description Reorder the top results with the cross-encoder, if one is configured (default true). */
                 rerank?: boolean;
+                /**
+                 * @description Also return loosely related results (found by meaning alone but below the
+                 *     relevance floor), marked `loosely_related` and listed after the matches
+                 *     (default false).
+                 */
+                include_weak?: boolean;
             };
             header?: never;
             path?: never;
@@ -2351,6 +2491,12 @@ export interface operations {
                 page?: number;
                 /** @description Reorder the top results with the cross-encoder, if one is configured (default true). */
                 rerank?: boolean;
+                /**
+                 * @description Also return loosely related results (found by meaning alone but below the
+                 *     relevance floor), marked `loosely_related` and listed after the matches
+                 *     (default false).
+                 */
+                include_weak?: boolean;
             };
             header?: never;
             path?: never;
@@ -2383,6 +2529,33 @@ export interface operations {
                 };
             };
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemStatus"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -4,6 +4,9 @@
 //! - **MRR**: 1 / rank of the first relevant result (0 if none in the top 10).
 //! - **nDCG@10**: discounted cumulative gain of the top 10 (gain 1 per relevant
 //!   file at rank i, discounted by log2(i + 1)), divided by the best possible.
+//! - **Precision@10**: share of the (up to 10) returned files that are relevant;
+//!   0 when nothing came back. Search hides loosely related results, so noise
+//!   (unrelated files listed after the answer) lowers it.
 
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +21,8 @@ pub struct Metrics {
     pub recall_at_10: f64,
     pub mrr: f64,
     pub ndcg_at_10: f64,
+    #[serde(default)]
+    pub precision_at_10: f64,
 }
 
 impl Metrics {
@@ -42,12 +47,18 @@ impl Metrics {
             .map(|(i, _)| gain(i))
             .sum();
         let ideal: f64 = (0..relevant.len().min(DEPTH)).map(gain).sum();
+        let precision = if hits.is_empty() {
+            0.0
+        } else {
+            hits.iter().filter(|h| **h).count() as f64 / hits.len() as f64
+        };
         Self {
             recall_at_1: recall(1),
             recall_at_5: recall(5),
             recall_at_10: recall(DEPTH),
             mrr,
             ndcg_at_10: if ideal > 0.0 { dcg / ideal } else { 0.0 },
+            precision_at_10: precision,
         }
     }
 
@@ -61,17 +72,19 @@ impl Metrics {
             recall_at_10: avg(|m| m.recall_at_10),
             mrr: avg(|m| m.mrr),
             ndcg_at_10: avg(|m| m.ndcg_at_10),
+            precision_at_10: avg(|m| m.precision_at_10),
         }
     }
 
     /// `(name, value)` pairs, for comparisons and tables.
-    pub fn named(&self) -> [(&'static str, f64); 5] {
+    pub fn named(&self) -> [(&'static str, f64); 6] {
         [
             ("recall@1", self.recall_at_1),
             ("recall@5", self.recall_at_5),
             ("recall@10", self.recall_at_10),
             ("mrr", self.mrr),
             ("ndcg@10", self.ndcg_at_10),
+            ("precision@10", self.precision_at_10),
         ]
     }
 }
@@ -106,6 +119,7 @@ mod tests {
         assert_eq!(best.mrr, 1.0);
         assert_eq!(best.ndcg_at_10, 1.0);
         assert_eq!(best.recall_at_1, 1.0);
+        assert_eq!(best.precision_at_10, 0.5);
         let none = Metrics::score(&names(&["b", "c"]), &rel);
         assert_eq!(none, Metrics::default());
     }
@@ -118,6 +132,8 @@ mod tests {
         assert_eq!(m.recall_at_1, 0.0);
         assert_eq!(m.recall_at_5, 0.5);
         assert_eq!(m.recall_at_10, 1.0);
+        assert!((m.precision_at_10 - 2.0 / 6.0).abs() < 1e-12);
+        assert_eq!(Metrics::score(&[], &rel).precision_at_10, 0.0);
         let dcg = 1.0 / 3f64.log2() + 1.0 / 7f64.log2();
         let ideal = 1.0 + 1.0 / 3f64.log2();
         assert!((m.ndcg_at_10 - dcg / ideal).abs() < 1e-12);

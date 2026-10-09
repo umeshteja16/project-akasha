@@ -117,6 +117,8 @@ pub async fn run(
             limit: RETRIEVE,
             offset: 0,
             rerank: true,
+            // Calibrate on the reranker's raw view of the best passage.
+            include_weak: true,
         };
         let res = akasha_search::search_chunks(pool, owner, &req, models).await?;
         let top_score = res.results.first().and_then(|h| h.chunk.scores.rerank);

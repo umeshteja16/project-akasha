@@ -12,7 +12,7 @@ use uuid::Uuid;
 use crate::{
     CANDIDATES, EF_SEARCH, MAX_LIMIT, MAX_QUERY_CHARS, MAX_WINDOW, Models, RRF_K, SearchError,
     fusion::{self, Source},
-    group,
+    group, relevance,
     rerank::rerank,
     snippet, suggest,
     types::{
@@ -28,6 +28,8 @@ const MAX_POOL: usize = 300;
 pub(crate) struct Ranked {
     pub row: ChunkRow,
     pub scores: Scores,
+    /// Below the relevance floor ([`crate::relevance`]).
+    pub weak: bool,
 }
 
 impl Ranked {
@@ -40,6 +42,7 @@ impl Ranked {
             char_end: self.row.char_end,
             snippet: snippet::parse(&self.row.headline),
             scores: self.scores.clone(),
+            loosely_related: self.weak,
         }
     }
 
@@ -69,7 +72,12 @@ pub async fn search_chunks(
 ) -> Result<ChunkResults, SearchError> {
     let started = Instant::now();
     let window = validate(req)?;
-    let (mut meta, ranked) = retrieve(pool, owner_id, req, models, window).await?;
+    let (mut meta, mut ranked) = retrieve(pool, owner_id, req, models, window).await?;
+    if !req.include_weak {
+        let before = ranked.len();
+        ranked.retain(|r| !r.weak);
+        meta.loosely_related = count(before - ranked.len());
+    }
     meta.has_more = ranked.len() > window && window < MAX_WINDOW;
     let results = ranked
         .into_iter()
@@ -97,7 +105,12 @@ pub async fn search_files(
     let window = validate(req)?;
     // Files usually match with several chunks: fetch more candidates.
     let (mut meta, ranked) = retrieve(pool, owner_id, req, models, window * 3).await?;
-    let files = group::by_file(&ranked);
+    let mut files = group::by_file(&ranked);
+    if !req.include_weak {
+        let before = files.len();
+        files.retain(|f| !f.loosely_related);
+        meta.loosely_related = count(before - files.len());
+    }
     meta.has_more = files.len() > window && window < MAX_WINDOW;
     let results = files.into_iter().skip(req.offset).take(req.limit).collect();
     meta.timings.total_ms = ms(started);
@@ -154,6 +167,7 @@ async fn retrieve(
         warnings: Vec::new(),
         has_more: false,
         suggestion: None,
+        loosely_related: 0,
         timings: Timings::default(),
     };
 
@@ -246,6 +260,7 @@ async fn retrieve(
             rows.remove(&f.chunk_id).map(|row| Ranked {
                 row,
                 scores: f.scores,
+                weak: false,
             })
         })
         .collect();
@@ -256,6 +271,7 @@ async fn retrieve(
         rerank(query, models, &mut ranked, &mut meta).await;
         timings.rerank_ms = ms(t);
     }
+    relevance::apply(models, &mut ranked);
     meta.timings = timings;
     Ok((meta, ranked))
 }
@@ -289,6 +305,10 @@ async fn embed(embedder: Arc<dyn Embedder>, query: &str) -> Result<Vec<f32>, Str
         Ok(Err(err)) => Err(err.to_string()),
         Err(err) => Err(format!("embedding panicked: {err}")),
     }
+}
+
+fn count(n: usize) -> u32 {
+    u32::try_from(n).unwrap_or(u32::MAX)
 }
 
 fn ms(since: Instant) -> f64 {

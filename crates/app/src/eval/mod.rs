@@ -154,6 +154,10 @@ pub async fn evaluate(
     let models = Models {
         embedder: Ok(embedder),
         reranker: Ok(reranker),
+        floor: akasha_search::RelevanceFloor {
+            min_similarity: state.config.search_min_similarity,
+            min_rerank_score: state.config.search_min_rerank_score,
+        },
     };
     let mut modes = vec![
         ("keyword", SearchMode::Keyword, false),
@@ -212,12 +216,14 @@ async fn run_mode(
         limit: DEPTH,
         offset: 0,
         rerank,
+        include_weak: false,
     };
     // Warm caches (and lazily loaded model sessions) outside the timings.
     if let Some(q) = suite.queries.first() {
         akasha_search::search_files(pool, owner, &request(&q.query), models).await?;
     }
     let mut scored: Vec<(&str, Metrics)> = Vec::new();
+    let (mut negatives, mut clean) = (0usize, 0usize);
     let mut latencies = Vec::new();
     let mut outcomes = Vec::new();
     for q in &suite.queries {
@@ -228,6 +234,18 @@ async fn run_mode(
             bail!("search degraded: {:?}", res.meta.warnings);
         }
         let ranked: Vec<String> = res.results.into_iter().map(|h| h.file.name).collect();
+        if q.is_negative() {
+            negatives += 1;
+            clean += usize::from(ranked.is_empty());
+            outcomes.push(QueryOutcome {
+                id: q.id.clone(),
+                mode: name.to_owned(),
+                first_relevant: None,
+                ndcg_at_10: 0.0,
+                top: ranked.into_iter().take(5).collect(),
+            });
+            continue;
+        }
         let m = Metrics::score(&ranked, &q.relevant);
         outcomes.push(QueryOutcome {
             id: q.id.clone(),
@@ -255,6 +273,11 @@ async fn run_mode(
             .into_iter()
             .map(|(k, v)| (k, Metrics::mean(&v)))
             .collect(),
+        negative_clean: if negatives == 0 {
+            1.0
+        } else {
+            round(clean as f64 / negatives as f64)
+        },
     };
     Ok((report, outcomes))
 }

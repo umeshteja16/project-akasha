@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use super::{
     not_found,
-    types::{MAX_QUESTION_CHARS, PostMessage, auto_title},
+    types::{MAX_QUESTION_CHARS, PostMessage, auto_title, check_scope},
 };
 use crate::{
     auth::AuthUser,
@@ -28,7 +28,6 @@ use crate::{
 use akasha_core::Error;
 use akasha_db::chat::{self, NewMessage};
 
-const MAX_FILE_IDS: usize = 100;
 /// Events buffered between the answer task and a slow client.
 const BUFFER: usize = 64;
 
@@ -71,10 +70,10 @@ pub async fn post(
         ))
         .into());
     }
-    let filter = filter(&body)?;
-    chat::get_conversation(&state.db, auth.user_id, id)
+    let conversation = chat::get_conversation(&state.db, auth.user_id, id)
         .await?
         .ok_or_else(not_found)?;
+    let filter = filter(&body, conversation.file_ids)?;
     let history_len = i64::from(state.config.chat_history_messages);
     let history = chat::history(&state.db, auth.user_id, id, history_len).await?;
 
@@ -117,13 +116,10 @@ pub async fn post(
     Ok(Sse::new(events).keep_alive(KeepAlive::default()))
 }
 
-fn filter(body: &PostMessage) -> Result<ChunkFilter, Error> {
-    let file_ids = body.file_ids.clone().unwrap_or_default();
-    if file_ids.len() > MAX_FILE_IDS {
-        return Err(Error::bad_request(format!(
-            "at most {MAX_FILE_IDS} file ids"
-        )));
-    }
+/// The question's own scope, else the conversation's.
+fn filter(body: &PostMessage, scope: Vec<uuid::Uuid>) -> Result<ChunkFilter, Error> {
+    let file_ids = body.file_ids.clone().unwrap_or(scope);
+    check_scope(&file_ids)?;
     Ok(ChunkFilter {
         mime_patterns: body
             .file_type

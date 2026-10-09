@@ -130,6 +130,8 @@ impl Turn {
             limit: RETRIEVE,
             offset: 0,
             rerank: true,
+            // Loosely related passages only distract the model.
+            include_weak: false,
         };
         let res = match akasha_search::search_chunks(&self.state.db, self.owner_id, &req, &models)
             .await

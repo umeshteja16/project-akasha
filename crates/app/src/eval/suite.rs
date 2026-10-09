@@ -18,11 +18,21 @@ pub struct Suite {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Query {
     pub id: String,
-    /// Report group (keyword, paraphrase, filename, multi, ...).
+    /// Report group (keyword, paraphrase, filename, multi, ...). `negative`
+    /// queries are about nothing in the corpus: a good search returns nothing.
     pub kind: String,
     pub query: String,
     /// Corpus file names that answer the query.
     pub relevant: Vec<String>,
+}
+
+/// The `kind` of off-topic queries.
+pub const NEGATIVE: &str = "negative";
+
+impl Query {
+    pub fn is_negative(&self) -> bool {
+        self.kind == NEGATIVE
+    }
 }
 
 impl Suite {
@@ -48,8 +58,11 @@ impl Suite {
             if !ids.insert(&q.id) {
                 bail!("duplicate query id `{}`", q.id);
             }
-            if q.relevant.is_empty() {
-                bail!("query `{}` lists no relevant files", q.id);
+            if q.relevant.is_empty() != q.is_negative() {
+                bail!(
+                    "query `{}`: `negative` queries, and only they, list no relevant files",
+                    q.id
+                );
             }
             if let Some(missing) = q.relevant.iter().find(|r| !corpus.contains(r)) {
                 bail!("query `{}`: `{missing}` is not in the corpus", q.id);

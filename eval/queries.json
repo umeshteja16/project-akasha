@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Search quality benchmark over eval/corpus. `relevant` lists the files a good search shows first; `kind` groups queries in the report: keyword (shares the document's words), paraphrase (same meaning, different words), filename, multi (several relevant files), legacy (ported from legacy/apps/api/eval-benchmark.json).",
+  "description": "Search quality benchmark over eval/corpus. `relevant` lists the files a good search shows first; `kind` groups queries in the report: keyword (shares the document's words), paraphrase (same meaning, different words), filename, multi (several relevant files), precision (short queries where unrelated files must not appear), negative (about nothing in the corpus: nothing should come back), legacy (ported from legacy/apps/api/eval-benchmark.json).",
   "queries": [
     { "id": "legacy-1", "kind": "legacy", "query": "crashed background jobs recovery", "relevant": ["bullmq_resilience_eval.txt"] },
     { "id": "legacy-2", "kind": "legacy", "query": "high-performance knowledge retrieval foundation", "relevant": ["knowledge_foundation_eval.txt"] },
@@ -51,6 +51,18 @@
     { "id": "multi-02", "kind": "multi", "query": "sourdough starter and baking bread", "relevant": ["sourdough-starter.md", "bread-baking-troubleshooting.md"] },
     { "id": "multi-03", "kind": "multi", "query": "coffee grind and espresso machine care", "relevant": ["coffee-brewing.md", "espresso-machine-maintenance.md"] },
     { "id": "multi-04", "kind": "multi", "query": "running training and knee pain", "relevant": ["marathon-training-plan.md", "knee-injury-recovery.txt"] },
-    { "id": "multi-05", "kind": "multi", "query": "rust async and ownership", "relevant": ["rust-async.md", "rust-ownership.md"] }
+    { "id": "multi-05", "kind": "multi", "query": "rust async and ownership", "relevant": ["rust-async.md", "rust-ownership.md"] },
+
+    { "id": "prec-01", "kind": "precision", "query": "lunar module eagle", "relevant": ["moon-landing-1969.md"] },
+    { "id": "prec-02", "kind": "precision", "query": "Armstrong Aldrin Apollo", "relevant": ["moon-landing-1969.md"] },
+    { "id": "prec-03", "kind": "precision", "query": "kitten litter", "relevant": ["cat-care.md"] },
+    { "id": "prec-04", "kind": "precision", "query": "Pi-hole", "relevant": ["home-network-setup.md"] },
+
+    { "id": "neg-01", "kind": "negative", "query": "quantum chromodynamics lattice gauge theory", "relevant": [] },
+    { "id": "neg-02", "kind": "negative", "query": "how do I knit a wool scarf", "relevant": [] },
+    { "id": "neg-03", "kind": "negative", "query": "best ski resorts in the Alps", "relevant": [] },
+    { "id": "neg-04", "kind": "negative", "query": "medieval castle siege weapons", "relevant": [] },
+    { "id": "neg-05", "kind": "negative", "query": "learning to play the violin", "relevant": [] },
+    { "id": "neg-06", "kind": "negative", "query": "eruption of Mount Vesuvius", "relevant": [] }
   ]
 }

@@ -98,6 +98,13 @@ silence while streaming. Chat is limited per user (`AKASHA_CHAT_RATE_PER_MINUTE`
 the refusal threshold is `AKASHA_CHAT_MIN_RERANK_SCORE` (default per reranker; `akasha eval`
 prints a calibration report for it). See `.env.example` for every setting.
 
+Search hides results that only vector similarity found and that score below a per-model
+**relevance floor** (ADR 0014), so off-topic queries return nothing instead of every file;
+`include_weak=true` (or "Loosely related" in the UI) shows them. Override the floors with
+`AKASHA_SEARCH_MIN_SIMILARITY` / `AKASHA_SEARCH_MIN_RERANK_SCORE`. Settings → System (and
+`GET /api/v1/system/status`) shows the active models, ONNX Runtime, OCR, strict offline mode
+and the job queue.
+
 With a model configured, every file also gets a short **summary and 3-5 suggested tags** once
 it is indexed (`enrich_file` job, one model call per file, `AKASHA_LLM_ENRICH_FILES=false` to
 turn off). Suggested tags (`auto_tags`) are kept apart from your own `tags`, which the model

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE conversations SET title = $3, title_source = 'user' WHERE id = $1 AND owner_id = $2\n         RETURNING id, owner_id, title, created_at, updated_at",
+  "query": "UPDATE conversations SET title = $3, title_source = 'user' WHERE id = $1 AND owner_id = $2\n         RETURNING id, owner_id, title, file_ids, created_at, updated_at",
   "describe": {
     "columns": [
       {
@@ -20,11 +20,16 @@
       },
       {
         "ordinal": 3,
+        "name": "file_ids",
+        "type_info": "UuidArray"
+      },
+      {
+        "ordinal": 4,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -41,8 +46,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "f4753c342e0a990a370dc057954477c2fb41fe0da32ca9126394f2f5772a2b0f"
+  "hash": "7a55216005eaf8a08e5781d4909a3948f735ed854cc747a4d1dd12d720d4761d"
 }

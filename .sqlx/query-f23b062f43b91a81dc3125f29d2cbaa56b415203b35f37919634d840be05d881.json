@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, owner_id, title, created_at, updated_at FROM conversations\n         WHERE id = $1 AND owner_id = $2",
+  "query": "UPDATE conversations\n         SET file_ids = ARRAY(SELECT f.id FROM files f\n                              WHERE f.owner_id = $2 AND f.id = ANY($3::uuid[])\n                              ORDER BY array_position($3::uuid[], f.id))\n         WHERE id = $1 AND owner_id = $2\n         RETURNING id, owner_id, title, file_ids, created_at, updated_at",
   "describe": {
     "columns": [
       {
@@ -20,11 +20,16 @@
       },
       {
         "ordinal": 3,
+        "name": "file_ids",
+        "type_info": "UuidArray"
+      },
+      {
+        "ordinal": 4,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -32,7 +37,8 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid"
+        "Uuid",
+        "UuidArray"
       ]
     },
     "nullable": [
@@ -40,8 +46,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "bb785fe01bbb403017d694899e30ad4b337d693b48ea1bb261ec34d79b65d6aa"
+  "hash": "f23b062f43b91a81dc3125f29d2cbaa56b415203b35f37919634d840be05d881"
 }

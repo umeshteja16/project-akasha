@@ -64,7 +64,7 @@ async fn semantic_search_ranks_by_similarity_without_word_matches(pool: PgPool) 
     file(&pool, ada, "a.txt", TXT, &["aardvark burrow"]).await;
     file(&pool, ada, "b.txt", TXT, &["quantum chess opening theory"]).await;
 
-    // "aardvarks" does not stem-match for the hash embedder, "burrow" does.
+    // By default the unrelated nearest neighbour stays below the relevance floor.
     let res = search_chunks(
         &pool,
         ada,
@@ -73,8 +73,38 @@ async fn semantic_search_ranks_by_similarity_without_word_matches(pool: PgPool) 
     )
     .await
     .expect("search");
+    assert_eq!(res.results.len(), 1);
+    assert_eq!(res.meta.loosely_related, 1);
+    assert!(!res.results[0].chunk.loosely_related);
+
+    // "aardvarks" does not stem-match for the hash embedder, "burrow" does.
+    let mut req = request("burrow", SearchMode::Semantic);
+    req.include_weak = true;
+    let res = search_chunks(&pool, ada, &req, &models())
+        .await
+        .expect("search");
     assert_eq!(res.meta.mode, SearchMode::Semantic);
     assert_eq!(res.results.len(), 2, "semantic returns nearest neighbours");
+    assert_eq!(res.meta.loosely_related, 0);
+    assert!(res.results[1].chunk.loosely_related);
+
+    // A configured floor overrides the model's default.
+    let lenient = Models {
+        floor: akasha_search::RelevanceFloor {
+            min_similarity: Some(-1.0),
+            min_rerank_score: None,
+        },
+        ..models()
+    };
+    let res = search_chunks(
+        &pool,
+        ada,
+        &request("burrow", SearchMode::Semantic),
+        &lenient,
+    )
+    .await
+    .expect("search");
+    assert_eq!(res.results.len(), 2);
     assert_eq!(res.results[0].text, "aardvark burrow");
     let top = &res.results[0].chunk.scores;
     assert_eq!(top.keyword_rank, None);
@@ -144,6 +174,7 @@ async fn unavailable_embedder_degrades_to_keyword(pool: PgPool) {
     let models = Models {
         embedder: Err("ONNX Runtime is not installed".into()),
         reranker: Ok(None),
+        floor: Default::default(),
     };
     for mode in [SearchMode::Hybrid, SearchMode::Semantic] {
         let res = search_chunks(&pool, ada, &request("aardvark", mode), &models)

@@ -11,7 +11,9 @@
 //!
 //! Their ranked lists are fused with Reciprocal Rank Fusion ([`fusion`]), the top
 //! of the fused list is optionally reordered by a cross-encoder [`Reranker`], and
-//! each result gets a highlighted snippet ([`snippet`]).
+//! each result gets a highlighted snippet ([`snippet`]). Results only the
+//! semantic retriever found must clear a relevance floor ([`RelevanceFloor`]);
+//! the rest are "loosely related" and hidden unless asked for.
 //!
 //! Two views of the same ranking: [`search_chunks`] (chunk-level, for grounded
 //! chat and agents) and [`search_files`] (grouped by file, for the search page).
@@ -21,6 +23,7 @@
 mod engine;
 pub mod fusion;
 mod group;
+mod relevance;
 mod rerank;
 mod similar;
 pub mod snippet;
@@ -33,6 +36,7 @@ use akasha_ml::{Embedder, Reranker};
 
 pub use akasha_db::search::ChunkFilter;
 pub use engine::{search_chunks, search_files};
+pub use relevance::RelevanceFloor;
 pub use similar::{MAX_SIMILAR, similar_files};
 pub use types::{
     ChunkHit, ChunkMatch, ChunkResults, FileHit, FileInfo, FileResults, Highlight, Scores,
@@ -60,6 +64,8 @@ pub const EF_SEARCH: i64 = 100;
 pub struct Models {
     pub embedder: Result<Arc<dyn Embedder>, String>,
     pub reranker: Result<Option<Arc<dyn Reranker>>, String>,
+    /// Configured relevance thresholds (defaults come from the models).
+    pub floor: RelevanceFloor,
 }
 
 #[derive(Debug, thiserror::Error)]

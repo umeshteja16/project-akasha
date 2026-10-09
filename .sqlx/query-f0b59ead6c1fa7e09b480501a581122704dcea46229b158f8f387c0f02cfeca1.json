@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, owner_id, title, created_at, updated_at FROM conversations\n         WHERE owner_id = $1\n           AND ($2::timestamptz IS NULL OR (updated_at, id) < ($2, $3::uuid))\n         ORDER BY updated_at DESC, id DESC\n         LIMIT $4",
+  "query": "SELECT id, owner_id, title, file_ids, created_at, updated_at FROM conversations\n         WHERE id = $1 AND owner_id = $2",
   "describe": {
     "columns": [
       {
@@ -20,11 +20,16 @@
       },
       {
         "ordinal": 3,
+        "name": "file_ids",
+        "type_info": "UuidArray"
+      },
+      {
+        "ordinal": 4,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -32,9 +37,7 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Timestamptz",
-        "Uuid",
-        "Int8"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -42,8 +45,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "dce7e4b6af6869c678ec6fc1d27c45eb4adc2f5a90e98cbb67c323882164a9f3"
+  "hash": "f0b59ead6c1fa7e09b480501a581122704dcea46229b158f8f387c0f02cfeca1"
 }

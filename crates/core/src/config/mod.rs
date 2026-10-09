@@ -85,6 +85,13 @@ pub struct Config {
     pub ml_threads: u32,
     /// Searches each user may run per minute (burst of the same size); 0: unlimited.
     pub search_rate_per_minute: u32,
+    /// Relevance floor: results found only by vector similarity are hidden as
+    /// "loosely related" below this cosine similarity. Unset: the embedding
+    /// model's default.
+    pub search_min_similarity: Option<f32>,
+    /// Relevance floor with a reranker: results found only by vector similarity
+    /// are hidden below this reranker score. Unset: the reranker's default.
+    pub search_min_rerank_score: Option<f32>,
 
     // Chat and language models (ADR 0012).
     /// Who writes chat answers: `ollama` (default, local), `anthropic`, `gemini`,
@@ -173,6 +180,8 @@ impl Default for Config {
             ort_dylib_path: String::new(),
             ml_threads: 0,
             search_rate_per_minute: 30,
+            search_min_similarity: None,
+            search_min_rerank_score: None,
             llm_provider: LlmProvider::Ollama,
             llm_model: String::new(),
             strict_offline: false,

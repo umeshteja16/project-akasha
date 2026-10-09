@@ -32,6 +32,9 @@ pub struct SearchRequest {
     pub offset: usize,
     /// Reorder the top results with the reranker (when one is configured).
     pub rerank: bool,
+    /// Also return loosely related results (semantic-only matches below the
+    /// relevance floor), after the real matches.
+    pub include_weak: bool,
 }
 
 /// Milliseconds spent per stage (stages that did not run are 0).
@@ -68,6 +71,10 @@ pub struct SearchMeta {
     /// "Did you mean": the query with misspelt-looking words replaced by similar
     /// words from your documents. Only when keyword search found few matches.
     pub suggestion: Option<String>,
+    /// Results left out because they are only loosely related (found by meaning
+    /// alone, below the relevance floor): files for `/search`, passages for
+    /// `/search/chunks`. Ask again with `include_weak=true` to see them.
+    pub loosely_related: u32,
     pub timings: Timings,
 }
 
@@ -117,6 +124,9 @@ pub struct ChunkMatch {
     pub char_end: i32,
     pub snippet: Snippet,
     pub scores: Scores,
+    /// Found by meaning alone and below the relevance floor (only returned with
+    /// `include_weak`).
+    pub loosely_related: bool,
 }
 
 /// The file a result belongs to.
@@ -175,6 +185,9 @@ pub struct FileHit {
     pub match_count: u32,
     /// Up to three best chunks, best first.
     pub matches: Vec<ChunkMatch>,
+    /// Every matching chunk is loosely related (only returned with `include_weak`;
+    /// such files come after the real matches).
+    pub loosely_related: bool,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]

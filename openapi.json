@@ -401,7 +401,7 @@
         "tags": [
           "chat"
         ],
-        "summary": "Rename a conversation.",
+        "summary": "Rename a conversation or change the files it answers from.",
         "operationId": "update_conversation",
         "parameters": [
           {
@@ -1840,6 +1840,15 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "include_weak",
+            "in": "query",
+            "description": "Also return loosely related results (found by meaning alone but below the\nrelevance floor), marked `loosely_related` and listed after the matches\n(default false).",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -1999,6 +2008,15 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "include_weak",
+            "in": "query",
+            "description": "Also return loosely related results (found by meaning alone but below the\nrelevance floor), marked `loosely_related` and listed after the matches\n(default false).",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -2033,6 +2051,42 @@
             }
           },
           "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/system/status": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Which models and services this server runs with, and the job queue.",
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStatus"
+                }
+              }
+            }
+          },
+          "401": {
             "description": "",
             "content": {
               "application/json": {
@@ -2283,6 +2337,32 @@
           }
         }
       },
+      "ChatModelStatus": {
+        "type": "object",
+        "required": [
+          "provider",
+          "model",
+          "local",
+          "status"
+        ],
+        "properties": {
+          "local": {
+            "type": "boolean",
+            "description": "`true` when questions and passages never leave this machine or network."
+          },
+          "model": {
+            "type": "string",
+            "description": "The model answers come from; empty without a provider."
+          },
+          "provider": {
+            "type": "string",
+            "description": "`ollama`, `anthropic`, `gemini`, `openai`, `fake` or `none`."
+          },
+          "status": {
+            "$ref": "#/components/schemas/ComponentStatus"
+          }
+        }
+      },
       "ChatSources": {
         "type": "object",
         "description": "`event: sources`: the passages the answer may cite (empty when refused).",
@@ -2347,7 +2427,8 @@
           "char_start",
           "char_end",
           "snippet",
-          "scores"
+          "scores",
+          "loosely_related"
         ],
         "properties": {
           "char_end": {
@@ -2366,6 +2447,10 @@
           "chunk_index": {
             "type": "integer",
             "format": "int32"
+          },
+          "loosely_related": {
+            "type": "boolean",
+            "description": "Found by meaning alone and below the relevance floor (only returned with\n`include_weak`)."
           },
           "page": {
             "type": [
@@ -2458,6 +2543,18 @@
           }
         }
       },
+      "ComponentStatus": {
+        "type": "string",
+        "description": "How a component stands.",
+        "enum": [
+          "ready",
+          "not_loaded",
+          "downloads_on_first_use",
+          "unavailable",
+          "disabled",
+          "not_needed"
+        ]
+      },
       "ConversationList": {
         "type": "object",
         "required": [
@@ -2485,6 +2582,7 @@
         "required": [
           "id",
           "title",
+          "file_ids",
           "created_at",
           "updated_at"
         ],
@@ -2492,6 +2590,14 @@
           "created_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "file_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Files questions are answered from unless a question names its own;\nempty: all your files."
           },
           "id": {
             "type": "string",
@@ -2504,13 +2610,24 @@
           "updated_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Last activity (new message or rename)."
+            "description": "Last activity (new message, rename or new scope)."
           }
         }
       },
       "CreateConversation": {
         "type": "object",
         "properties": {
+          "file_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Answer only from these files (up to 100; ids that are not yours are dropped)."
+          },
           "title": {
             "type": [
               "string",
@@ -2531,6 +2648,26 @@
             "description": "Current password, to confirm."
           }
         }
+      },
+      "EmbeddingStatus": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ModelStatus"
+          },
+          {
+            "type": "object",
+            "required": [
+              "dimensions"
+            ],
+            "properties": {
+              "dimensions": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              }
+            }
+          }
+        ]
       },
       "EnrichmentInfo": {
         "type": "object",
@@ -2716,11 +2853,16 @@
           "file",
           "score",
           "match_count",
-          "matches"
+          "matches",
+          "loosely_related"
         ],
         "properties": {
           "file": {
             "$ref": "#/components/schemas/FileInfo"
+          },
+          "loosely_related": {
+            "type": "boolean",
+            "description": "Every matching chunk is loosely related (only returned with `include_weak`;\nsuch files come after the real matches)."
           },
           "match_count": {
             "type": "integer",
@@ -3107,6 +3249,31 @@
           "assistant"
         ]
       },
+      "ModelStatus": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it is unavailable, when it is."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Configured model name; `null` when this kind of model is turned off."
+          },
+          "status": {
+            "$ref": "#/components/schemas/ComponentStatus"
+          }
+        }
+      },
       "PageSource": {
         "type": "string",
         "description": "Where a PDF page's text came from.",
@@ -3167,7 +3334,7 @@
               "type": "string",
               "format": "uuid"
             },
-            "description": "Only answer from these files (up to 100)."
+            "description": "Only answer from these files (up to 100). Omitted: the conversation's\nown scope (`file_ids` on the conversation)."
           },
           "tags": {
             "type": [
@@ -3260,6 +3427,28 @@
           }
         }
       },
+      "RelevanceStatus": {
+        "type": "object",
+        "description": "The relevance floor search uses for results found by meaning alone.",
+        "properties": {
+          "min_rerank_score": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float",
+            "description": "Minimum reranker score (configured or the reranker's default)."
+          },
+          "min_similarity": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float",
+            "description": "Minimum cosine similarity (configured or the model's default)."
+          }
+        }
+      },
       "Scores": {
         "type": "object",
         "description": "Why a chunk ranked where it did.",
@@ -3336,6 +3525,7 @@
           "reranked",
           "warnings",
           "has_more",
+          "loosely_related",
           "timings"
         ],
         "properties": {
@@ -3346,6 +3536,12 @@
           "has_more": {
             "type": "boolean",
             "description": "More results follow this page."
+          },
+          "loosely_related": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Results left out because they are only loosely related (found by meaning\nalone, below the relevance floor): files for `/search`, passages for\n`/search/chunks`. Ask again with `include_weak=true` to see them.",
+            "minimum": 0
           },
           "mode": {
             "$ref": "#/components/schemas/SearchMode",
@@ -3472,6 +3668,52 @@
           }
         }
       },
+      "SystemStatus": {
+        "type": "object",
+        "required": [
+          "version",
+          "strict_offline",
+          "embedding",
+          "reranker",
+          "chat",
+          "onnx_runtime",
+          "ocr",
+          "relevance",
+          "worker"
+        ],
+        "properties": {
+          "chat": {
+            "$ref": "#/components/schemas/ChatModelStatus"
+          },
+          "embedding": {
+            "$ref": "#/components/schemas/EmbeddingStatus"
+          },
+          "ocr": {
+            "$ref": "#/components/schemas/ModelStatus",
+            "description": "Text recognition for images and scanned PDFs."
+          },
+          "onnx_runtime": {
+            "$ref": "#/components/schemas/ModelStatus",
+            "description": "ONNX Runtime, which the real embedding and rerank models run on."
+          },
+          "relevance": {
+            "$ref": "#/components/schemas/RelevanceStatus"
+          },
+          "reranker": {
+            "$ref": "#/components/schemas/ModelStatus"
+          },
+          "strict_offline": {
+            "type": "boolean",
+            "description": "Cloud language models are refused (`AKASHA_STRICT_OFFLINE`)."
+          },
+          "version": {
+            "type": "string"
+          },
+          "worker": {
+            "$ref": "#/components/schemas/WorkerStatus"
+          }
+        }
+      },
       "TagList": {
         "type": "object",
         "required": [
@@ -3577,12 +3819,24 @@
       },
       "UpdateConversation": {
         "type": "object",
-        "required": [
-          "title"
-        ],
+        "description": "Change the title, the file scope, or both.",
         "properties": {
+          "file_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "New file scope (up to 100 ids); `[]`: all your files."
+          },
           "title": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "1–200 characters."
           }
         }
@@ -3675,6 +3929,70 @@
           "id": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "WorkerHealth": {
+        "type": "string",
+        "description": "`ok`: working through jobs or nothing to do; `stalled`: jobs wait and no\nworker takes them (start one with `akasha worker` or `serve --with-worker`).",
+        "enum": [
+          "busy",
+          "idle",
+          "stalled"
+        ]
+      },
+      "WorkerStatus": {
+        "type": "object",
+        "required": [
+          "health",
+          "in_process",
+          "queued",
+          "running",
+          "retrying",
+          "failed_last_day"
+        ],
+        "properties": {
+          "failed_last_day": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Jobs given up on in the last 24 hours."
+          },
+          "health": {
+            "$ref": "#/components/schemas/WorkerHealth"
+          },
+          "in_process": {
+            "type": "boolean",
+            "description": "This process runs a worker (`serve --with-worker`); others may run elsewhere."
+          },
+          "last_finished_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "oldest_wait_secs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "How long the oldest ready job has waited, in seconds.",
+            "minimum": 0
+          },
+          "queued": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Jobs ready to run now (queue depth)."
+          },
+          "retrying": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Waiting to retry after a failure."
+          },
+          "running": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       }

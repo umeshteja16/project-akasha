@@ -56,7 +56,7 @@ pub enum EmbedBackend {
 }
 
 /// An embedding model.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EmbedModel {
     pub name: &'static str,
     pub dim: usize,
@@ -66,6 +66,11 @@ pub struct EmbedModel {
     pub document_prefix: &'static str,
     /// Longer inputs are truncated to this many tokens.
     pub max_tokens: usize,
+    /// Relevance floor for search: a passage found *only* by vector similarity
+    /// is "loosely related" below this cosine similarity (models spread scores
+    /// very differently, so it is per model; `AKASHA_SEARCH_MIN_SIMILARITY`
+    /// overrides it).
+    pub min_similarity: f32,
     pub backend: EmbedBackend,
 }
 
@@ -77,10 +82,14 @@ pub enum RerankBackend {
 }
 
 /// A cross-encoder reranker.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RerankModel {
     pub name: &'static str,
     pub max_tokens: usize,
+    /// Relevance floor for search: a passage found only by vector similarity
+    /// is "loosely related" below this score (model specific scale;
+    /// `AKASHA_SEARCH_MIN_RERANK_SCORE` overrides it).
+    pub min_score: f32,
     pub backend: RerankBackend,
 }
 
@@ -104,6 +113,7 @@ pub const EMBED_MODELS: &[EmbedModel] = &[
         query_prefix: "query: ",
         document_prefix: "passage: ",
         max_tokens: 512,
+        min_similarity: 0.80,
         backend: onnx(
             "intfloat/multilingual-e5-small",
             "onnx/model.onnx",
@@ -116,6 +126,7 @@ pub const EMBED_MODELS: &[EmbedModel] = &[
         query_prefix: "Represent this sentence for searching relevant passages: ",
         document_prefix: "",
         max_tokens: 512,
+        min_similarity: 0.55,
         backend: onnx("Xenova/bge-small-en-v1.5", "onnx/model.onnx", Pooling::Cls),
     },
     EmbedModel {
@@ -124,6 +135,7 @@ pub const EMBED_MODELS: &[EmbedModel] = &[
         query_prefix: "Represent this sentence for searching relevant passages: ",
         document_prefix: "",
         max_tokens: 512,
+        min_similarity: 0.55,
         backend: onnx("Xenova/bge-base-en-v1.5", "onnx/model.onnx", Pooling::Cls),
     },
     EmbedModel {
@@ -132,6 +144,7 @@ pub const EMBED_MODELS: &[EmbedModel] = &[
         query_prefix: "search_query: ",
         document_prefix: "search_document: ",
         max_tokens: 512,
+        min_similarity: 0.45,
         backend: onnx(
             "nomic-ai/nomic-embed-text-v1.5",
             "onnx/model.onnx",
@@ -144,6 +157,7 @@ pub const EMBED_MODELS: &[EmbedModel] = &[
         query_prefix: "",
         document_prefix: "",
         max_tokens: 512,
+        min_similarity: 0.45,
         backend: EmbedBackend::Onnx {
             files: ModelFiles {
                 repo: "BAAI/bge-m3",
@@ -159,6 +173,7 @@ pub const EMBED_MODELS: &[EmbedModel] = &[
         query_prefix: "",
         document_prefix: "",
         max_tokens: 256,
+        min_similarity: 0.25,
         backend: onnx("Qdrant/all-MiniLM-L6-v2-onnx", "model.onnx", Pooling::Mean),
     },
     EmbedModel {
@@ -167,6 +182,7 @@ pub const EMBED_MODELS: &[EmbedModel] = &[
         query_prefix: "",
         document_prefix: "",
         max_tokens: 0,
+        min_similarity: 0.15,
         backend: EmbedBackend::Hash,
     },
 ];
@@ -188,16 +204,19 @@ pub const RERANK_MODELS: &[RerankModel] = &[
     RerankModel {
         name: "jina-reranker-v1-turbo-en",
         max_tokens: 512,
+        min_score: -2.0,
         backend: rerank("jinaai/jina-reranker-v1-turbo-en", "onnx/model.onnx", &[]),
     },
     RerankModel {
         name: "bge-reranker-base",
         max_tokens: 512,
+        min_score: -2.0,
         backend: rerank("BAAI/bge-reranker-base", "onnx/model.onnx", &[]),
     },
     RerankModel {
         name: "bge-reranker-v2-m3",
         max_tokens: 512,
+        min_score: -2.0,
         backend: rerank(
             "rozgo/bge-reranker-v2-m3",
             "model.onnx",
@@ -207,6 +226,7 @@ pub const RERANK_MODELS: &[RerankModel] = &[
     RerankModel {
         name: OVERLAP_RERANK_MODEL,
         max_tokens: 0,
+        min_score: 0.25,
         backend: RerankBackend::Overlap,
     },
 ];

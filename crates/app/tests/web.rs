@@ -15,6 +15,8 @@ use serde_json::Value;
 use sqlx::postgres::PgPoolOptions;
 use tower::ServiceExt;
 
+const BIG: &str =
+    "export const words = ['aardvark', 'aardvark', 'aardvark', 'aardvark', 'aardvark'];";
 const INDEX: &str = "<!doctype html><title>Akasha</title><div id=root></div>";
 
 fn state(config: Config, web: WebAssets) -> AppState {
@@ -32,6 +34,7 @@ fn ui() -> WebAssets {
         ("index.html", INDEX.as_bytes().to_vec()),
         ("assets/index-abc123.js", b"console.log(1)".to_vec()),
         ("theme-init.js", b"/* theme */".to_vec()),
+        ("assets/big-def456.js", BIG.as_bytes().to_vec()),
     ])
 }
 
@@ -109,6 +112,25 @@ async fn hashed_assets_are_immutable() {
     let other = get(state(Config::default(), ui()), "/theme-init.js").await;
     assert_eq!(other.status, StatusCode::OK);
     assert_eq!(other.header(header::CACHE_CONTROL), "no-cache");
+}
+
+#[tokio::test]
+async fn ui_assets_are_compressed_for_browsers_that_accept_it() {
+    for (accept, encoding) in [("gzip", "gzip"), ("br, gzip", "br")] {
+        let reply = send(
+            state(Config::default(), ui()),
+            Method::GET,
+            "/assets/big-def456.js",
+            &[("accept-encoding", accept)],
+        )
+        .await;
+        assert_eq!(reply.status, StatusCode::OK);
+        assert_eq!(reply.header(header::CONTENT_ENCODING), encoding);
+        assert!(reply.body.len() < BIG.len());
+    }
+    let plain = get(state(Config::default(), ui()), "/assets/big-def456.js").await;
+    assert_eq!(plain.header(header::CONTENT_ENCODING), "");
+    assert_eq!(plain.body, BIG.as_bytes());
 }
 
 #[tokio::test]

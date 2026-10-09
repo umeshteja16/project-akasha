@@ -20,6 +20,7 @@ pub fn models() -> Models {
     Models {
         embedder: Ok(embedder()),
         reranker: Ok(None),
+        floor: Default::default(),
     }
 }
 
@@ -29,6 +30,7 @@ pub fn models_with_rerank() -> Models {
     Models {
         embedder: Ok(embedder()),
         reranker: Ok(Some(reranker)),
+        floor: Default::default(),
     }
 }
 
@@ -40,6 +42,7 @@ pub fn request(query: &str, mode: SearchMode) -> SearchRequest {
         limit: 10,
         offset: 0,
         rerank: false,
+        include_weak: false,
     }
 }
 

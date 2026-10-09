@@ -71,6 +71,7 @@ async fn gate_lets_answerable_questions_through_and_refuses_off_topic_ones(pool:
             .map_err(|e| e.to_string()),
         reranker: akasha_ml::load_reranker(&config.rerank_model, &ml_options())
             .map_err(|e| e.to_string()),
+        floor: Default::default(),
     };
 
     let mut report = Vec::new();
@@ -82,6 +83,7 @@ async fn gate_lets_answerable_questions_through_and_refuses_off_topic_ones(pool:
             limit: 20,
             offset: 0,
             rerank: true,
+            include_weak: true,
         };
         let pool = pool.clone();
         let models = models.clone();

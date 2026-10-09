@@ -12,6 +12,7 @@ pub mod files;
 pub mod scratch;
 pub mod search;
 pub mod sessions;
+pub mod system;
 pub mod users;
 
 use std::time::Duration;

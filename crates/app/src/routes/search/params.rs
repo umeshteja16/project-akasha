@@ -41,6 +41,10 @@ pub struct SearchQuery {
     pub page: Option<usize>,
     /// Reorder the top results with the cross-encoder, if one is configured (default true).
     pub rerank: Option<bool>,
+    /// Also return loosely related results (found by meaning alone but below the
+    /// relevance floor), marked `loosely_related` and listed after the matches
+    /// (default false).
+    pub include_weak: Option<bool>,
 }
 
 impl SearchQuery {
@@ -91,6 +95,7 @@ impl SearchQuery {
             limit,
             offset,
             rerank: self.rerank.unwrap_or(true),
+            include_weak: self.include_weak.unwrap_or(false),
         })
     }
 }
@@ -152,6 +157,7 @@ mod tests {
             limit: None,
             page: None,
             rerank: None,
+            include_weak: None,
         }
     }
 

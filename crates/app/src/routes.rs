@@ -9,6 +9,7 @@ mod health;
 mod me;
 mod meta;
 pub(crate) mod search;
+mod system;
 
 use std::time::Duration;
 
@@ -18,7 +19,7 @@ use axum::{
     http::StatusCode,
     routing::{get, post},
 };
-use tower_http::timeout::TimeoutLayer;
+use tower_http::{compression::CompressionLayer, timeout::TimeoutLayer};
 use utoipa::{
     Modify, OpenApi,
     openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
@@ -41,6 +42,7 @@ use crate::{auth::session::COOKIE_NAME, error::ErrorBody, rate_limit, state::App
         search::search, search::search_chunks,
         chat::create, chat::list, chat::get, chat::update, chat::delete,
         chat::list_messages, chat::messages::post,
+        system::status,
     ),
     components(schemas(
         ErrorBody, health::Health, files::types::FileCategory, files::types::FileSort,
@@ -105,6 +107,7 @@ pub fn router(state: &AppState) -> Router<AppState> {
             get(|| async { Json(ApiDoc::openapi()) }),
         )
         .route("/api/v1/meta", get(meta::get_meta))
+        .route("/api/v1/system/status", get(system::status))
         .route("/api/v1/auth/logout", post(auth::logout))
         .route("/api/v1/me", get(me::get_me).patch(me::update_me))
         .route("/api/v1/files", get(files::list))
@@ -142,6 +145,12 @@ pub fn router(state: &AppState) -> Router<AppState> {
             REQUEST_TIMEOUT,
         ))
         .merge(transfers)
-        // Unknown `/api` paths are JSON 404s; browser paths get the embedded UI.
-        .fallback(crate::web::fallback)
+        // Unknown `/api` paths are JSON 404s; browser paths get the embedded UI,
+        // compressed (gzip or brotli, as the browser accepts).
+        .fallback_service(
+            Router::new()
+                .fallback(crate::web::fallback)
+                .layer(CompressionLayer::new())
+                .with_state(state.clone()),
+        )
 }

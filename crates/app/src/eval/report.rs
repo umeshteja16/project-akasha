@@ -33,6 +33,18 @@ pub struct ModeReport {
     pub latency_p50_ms: f64,
     pub latency_p95_ms: f64,
     pub by_kind: BTreeMap<String, Metrics>,
+    /// Share of the `negative` (off-topic) queries that returned nothing.
+    #[serde(default)]
+    pub negative_clean: f64,
+}
+
+impl ModeReport {
+    /// The gated quality numbers.
+    pub fn named(&self) -> Vec<(&'static str, f64)> {
+        let mut all = self.overall.named().to_vec();
+        all.push(("negative_clean", self.negative_clean));
+        all
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,7 +86,7 @@ impl Report {
     pub fn table(&self) -> String {
         let mut out = format!(
             "{} queries over {} files ({} chunks); embed {}, rerank {}\n\n\
-             {:<14}{:>9}{:>9}{:>10}{:>8}{:>9}{:>9}{:>9}\n",
+             {:<14}{:>9}{:>9}{:>10}{:>8}{:>9}{:>9}{:>9}{:>9}{:>9}\n",
             self.queries,
             self.files,
             self.chunks,
@@ -86,18 +98,22 @@ impl Report {
             "R@10",
             "MRR",
             "nDCG@10",
+            "P@10",
+            "neg ok",
             "p50 ms",
             "p95 ms"
         );
         for (mode, r) in &self.modes {
             let m = &r.overall;
             out += &format!(
-                "{mode:<14}{:>9.3}{:>9.3}{:>10.3}{:>8.3}{:>9.3}{:>9.1}{:>9.1}\n",
+                "{mode:<14}{:>9.3}{:>9.3}{:>10.3}{:>8.3}{:>9.3}{:>9.3}{:>9.3}{:>9.1}{:>9.1}\n",
                 m.recall_at_1,
                 m.recall_at_5,
                 m.recall_at_10,
                 m.mrr,
                 m.ndcg_at_10,
+                m.precision_at_10,
+                r.negative_clean,
                 r.latency_p50_ms,
                 r.latency_p95_ms
             );
@@ -115,7 +131,7 @@ pub fn regressions(current: &Report, baseline: &Report, tolerance: f64) -> Vec<S
             out.push(format!("{mode}: not measured (in the baseline)"));
             continue;
         };
-        for ((name, was), (_, is)) in base.overall.named().into_iter().zip(now.overall.named()) {
+        for ((name, was), (_, is)) in base.named().into_iter().zip(now.named()) {
             if is < was - tolerance {
                 out.push(format!(
                     "{mode} {name}: {is:.4} < baseline {was:.4} - {tolerance}"
@@ -131,8 +147,7 @@ pub fn improvements(current: &Report, baseline: &Report, tolerance: f64) -> Vec<
     let mut out = Vec::new();
     for (mode, base) in &baseline.modes {
         if let Some(now) = current.modes.get(mode) {
-            for ((name, was), (_, is)) in base.overall.named().into_iter().zip(now.overall.named())
-            {
+            for ((name, was), (_, is)) in base.named().into_iter().zip(now.named()) {
                 if is > was + tolerance {
                     out.push(format!("{mode} {name}: {is:.4} > baseline {was:.4}"));
                 }
@@ -155,6 +170,7 @@ mod tests {
             latency_p50_ms: 1.0,
             latency_p95_ms: 2.0,
             by_kind: BTreeMap::new(),
+            negative_clean: 1.0,
         };
         Report {
             version: 1,

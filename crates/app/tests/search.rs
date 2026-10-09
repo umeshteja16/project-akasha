@@ -113,11 +113,12 @@ async fn other_users_never_see_your_results(pool: PgPool) {
     assert_eq!(res.status, StatusCode::NOT_FOUND);
     let res = app.send("GET", "/api/v1/search?q=aardvark", "", None).await;
     assert_eq!(res.status, StatusCode::UNAUTHORIZED);
-    // Ada still finds her file.
+    // Ada still finds her file (the chess notes are only loosely related).
     let res = app
         .send("GET", "/api/v1/search?q=aardvark", &ada, None)
         .await;
-    assert_eq!(res.json()["results"].as_array().expect("results").len(), 2);
+    assert_eq!(res.json()["results"].as_array().expect("results").len(), 1);
+    assert_eq!(res.json()["loosely_related"], 1);
 }
 
 #[sqlx::test(migrator = "akasha_db::MIGRATOR")]
@@ -130,8 +131,9 @@ async fn filters_apply_over_http(pool: PgPool) {
     assert_eq!(res.status, StatusCode::OK);
 
     let get = async |filter: &str| -> Vec<String> {
-        // Semantic search returns every file's nearest chunks, so only filters narrow it.
-        let url = format!("/api/v1/search?q=aardvark&mode=semantic&{filter}");
+        // Semantic search with loosely related results returns every file's
+        // nearest chunks, so only filters narrow it.
+        let url = format!("/api/v1/search?q=aardvark&mode=semantic&include_weak=true&{filter}");
         let res = app.send("GET", &url, &ada, None).await;
         assert_eq!(res.status, StatusCode::OK, "{filter}");
         res.json()["results"]

@@ -27,8 +27,11 @@ pub struct ConversationResponse {
     pub id: Uuid,
     /// Empty until the first question (or a rename) names it.
     pub title: String,
+    /// Files questions are answered from unless a question names its own;
+    /// empty: all your files.
+    pub file_ids: Vec<Uuid>,
     pub created_at: DateTime<Utc>,
-    /// Last activity (new message or rename).
+    /// Last activity (new message, rename or new scope).
     pub updated_at: DateTime<Utc>,
 }
 
@@ -37,6 +40,7 @@ impl From<Conversation> for ConversationResponse {
         Self {
             id: c.id,
             title: c.title,
+            file_ids: c.file_ids,
             created_at: c.created_at,
             updated_at: c.updated_at,
         }
@@ -64,12 +68,30 @@ pub struct PageQuery {
 pub struct CreateConversation {
     /// Optional; otherwise the first question becomes the title.
     pub title: Option<String>,
+    /// Answer only from these files (up to 100; ids that are not yours are dropped).
+    pub file_ids: Option<Vec<Uuid>>,
 }
 
+/// Change the title, the file scope, or both.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateConversation {
     /// 1–200 characters.
-    pub title: String,
+    pub title: Option<String>,
+    /// New file scope (up to 100 ids); `[]`: all your files.
+    pub file_ids: Option<Vec<Uuid>>,
+}
+
+/// Longest file scope.
+pub const MAX_FILE_IDS: usize = 100;
+
+/// Rejects a scope over [`MAX_FILE_IDS`] files.
+pub fn check_scope(file_ids: &[Uuid]) -> Result<(), Error> {
+    if file_ids.len() > MAX_FILE_IDS {
+        return Err(Error::bad_request(format!(
+            "at most {MAX_FILE_IDS} file ids"
+        )));
+    }
+    Ok(())
 }
 
 /// `user` or `assistant`.
@@ -139,7 +161,8 @@ pub struct MessageList {
 pub struct PostMessage {
     /// The question, 1–4000 characters.
     pub content: String,
-    /// Only answer from these files (up to 100).
+    /// Only answer from these files (up to 100). Omitted: the conversation's
+    /// own scope (`file_ids` on the conversation).
     pub file_ids: Option<Vec<Uuid>>,
     /// Only answer from files carrying all of these tags.
     pub tags: Option<Vec<String>>,

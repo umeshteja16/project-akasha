@@ -1,7 +1,11 @@
 //! The process-wide embedding model and reranker, loaded (and their files
 //! downloaded) on first use and shared by the worker and, later, search.
 
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use akasha_core::Config;
 use akasha_ml::{Embedder, MlError, MlOptions, Reranker};
@@ -15,6 +19,20 @@ pub struct MlProvider {
     options: MlOptions,
     embedder: OnceCell<Arc<dyn Embedder>>,
     reranker: OnceCell<Option<Arc<dyn Reranker>>>,
+    /// Why the last load failed (cleared by a successful load).
+    embedder_error: Mutex<Option<String>>,
+    reranker_error: Mutex<Option<String>>,
+}
+
+/// Where a model stands, without loading it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ModelState {
+    /// Loaded and in use.
+    Ready,
+    /// Not loaded yet (models load on first use).
+    NotLoaded,
+    /// The last load failed (why).
+    Failed(String),
 }
 
 impl MlProvider {
@@ -25,6 +43,8 @@ impl MlProvider {
             options: ml_options(config),
             embedder: OnceCell::new(),
             reranker: OnceCell::new(),
+            embedder_error: Mutex::new(None),
+            reranker_error: Mutex::new(None),
         }
     }
 
@@ -39,8 +59,9 @@ impl MlProvider {
                     .await
                     .map_err(|e| MlError::Inference(format!("loading the model panicked: {e}")))?
             })
-            .await?;
-        Ok(Arc::clone(embedder))
+            .await;
+        remember(&self.embedder_error, embedder.as_ref().err());
+        Ok(Arc::clone(embedder?))
     }
 
     /// The reranker; `None` when reranking is disabled.
@@ -54,12 +75,23 @@ impl MlProvider {
                     .await
                     .map_err(|e| MlError::Inference(format!("loading the model panicked: {e}")))?
             })
-            .await?;
-        Ok(reranker.clone())
+            .await;
+        remember(&self.reranker_error, reranker.as_ref().err());
+        Ok(reranker?.clone())
     }
 }
 
 impl MlProvider {
+    /// The embedding model's state (never loads it).
+    pub fn embedder_state(&self) -> ModelState {
+        state(self.embedder.initialized(), &self.embedder_error)
+    }
+
+    /// The reranker's state (never loads it).
+    pub fn reranker_state(&self) -> ModelState {
+        state(self.reranker.initialized(), &self.reranker_error)
+    }
+
     /// The embedder if it is loaded, or loads within `wait`; `Ok(None)` while it is
     /// still loading (the load carries on in the background, so a request never
     /// waits for a model download).
@@ -84,6 +116,22 @@ impl MlProvider {
         }
         let me = Arc::clone(self);
         within(wait, tokio::spawn(async move { me.reranker().await })).await
+    }
+}
+
+fn remember(slot: &Mutex<Option<String>>, err: Option<&MlError>) {
+    if let Ok(mut slot) = slot.lock() {
+        *slot = err.map(ToString::to_string);
+    }
+}
+
+fn state(loaded: bool, error: &Mutex<Option<String>>) -> ModelState {
+    if loaded {
+        return ModelState::Ready;
+    }
+    match error.lock().ok().and_then(|e| e.clone()) {
+        Some(err) => ModelState::Failed(err),
+        None => ModelState::NotLoaded,
     }
 }
 
