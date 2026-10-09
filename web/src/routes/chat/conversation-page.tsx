@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { EllipsisIcon, MessageSquareOffIcon, PencilIcon, Trash2Icon } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import {
   type Conversation,
   conversationQuery,
@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip } from "@/components/ui/tooltip";
 import { Answer, type AnswerView } from "@/features/chat/answer";
 import { ChatScroll } from "@/features/chat/chat-scroll";
 import type { LiveTurn } from "@/features/chat/chat-session";
@@ -31,8 +32,10 @@ import {
   DeleteConversationDialog,
   RenameConversationDialog,
 } from "@/features/chat/conversation-dialogs";
+import { useSetConversationScope } from "@/features/chat/mutations";
 import { parseFileScope, ScopeBar } from "@/features/chat/scope";
 import { useAsk, useChatSessions, useLiveTurn } from "@/features/chat/session-context";
+import { useDocumentTitle } from "@/lib/use-document-title";
 
 const route = getRouteApi("/app/chat/$conversationId");
 
@@ -81,14 +84,33 @@ function ConversationView({ id }: { id: string }) {
   const api = useApi();
   const navigate = route.useNavigate();
   const { files } = route.useSearch();
-  const fileIds = parseFileScope(files);
   const conversation = useQuery(conversationQuery(api, id));
+  useDocumentTitle(
+    conversation.isError
+      ? "Conversation not found"
+      : conversation.data
+        ? conversationTitle(conversation.data)
+        : "Chat",
+  );
+  const setScope = useSetConversationScope();
+  // The scope is stored with the conversation; `?files=` (an older link) sets it.
+  const fileIds = conversation.data?.file_ids ?? [];
+  const linked = parseFileScope(files).join(",");
+  const loaded = conversation.isSuccess;
+  const { mutate: saveScope } = setScope;
+  useEffect(() => {
+    if (!loaded || !linked) return;
+    saveScope({ id, fileIds: linked.split(",") });
+    void navigate({ search: {}, replace: true });
+  }, [loaded, linked, id, saveScope, navigate]);
   const messages = useInfiniteQuery(messagesQuery(api, id));
   const turn = useLiveTurn(id);
   const sessions = useChatSessions();
   const ask = useAsk();
   const [renaming, setRenaming] = useState<Conversation | null>(null);
   const [deleting, setDeleting] = useState<Conversation | null>(null);
+  const [draft, setDraft] = useState<{ text: string; key: number }>();
+  const edit = (text: string) => setDraft({ text, key: Date.now() });
 
   const hidden = new Set(
     [turn?.userMessageId, turn?.done?.message_id].filter((x): x is string => Boolean(x)),
@@ -195,7 +217,7 @@ function ConversationView({ id }: { id: string }) {
           {history.map((m) => {
             if (m.role === "user") {
               question = m.content;
-              return <UserMessage key={m.id} text={m.content} />;
+              return <UserMessage key={m.id} text={m.content} onEdit={busy ? undefined : edit} />;
             }
             const asked = question;
             const isLast = m === lastAnswer && !turn;
@@ -238,13 +260,11 @@ function ConversationView({ id }: { id: string }) {
           streaming={busy}
           onSend={send}
           onStop={() => sessions.stop(id)}
+          draft={draft}
           placeholder={history.length || turn ? "Ask a follow-up…" : "Ask about your files…"}
           top={
             fileIds.length ? (
-              <ScopeBar
-                fileIds={fileIds}
-                onClear={() => void navigate({ search: {}, replace: true })}
-              />
+              <ScopeBar fileIds={fileIds} onClear={() => setScope.mutate({ id, fileIds: [] })} />
             ) : null
           }
         />
@@ -266,9 +286,22 @@ function ConversationView({ id }: { id: string }) {
   );
 }
 
-function UserMessage({ text }: { text: string }) {
+function UserMessage({ text, onEdit }: { text: string; onEdit?: (text: string) => void }) {
   return (
-    <div className="flex animate-fade-in justify-end">
+    <div className="group/question flex animate-fade-in items-start justify-end gap-1">
+      {onEdit ? (
+        <Tooltip content="Edit and ask again">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Edit and ask again"
+            className="mt-1 text-fg-subtle opacity-100 transition-opacity sm:opacity-0 sm:group-hover/question:opacity-100 sm:focus-visible:opacity-100"
+            onClick={() => onEdit(text)}
+          >
+            <PencilIcon />
+          </Button>
+        </Tooltip>
+      ) : null}
       <p className="max-w-[85%] rounded-xl rounded-br-sm bg-surface-2 px-4 py-2.5 text-base whitespace-pre-wrap text-fg [overflow-wrap:anywhere]">
         <span className="sr-only">You asked: </span>
         {text}

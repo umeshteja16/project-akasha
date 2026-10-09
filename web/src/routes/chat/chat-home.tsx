@@ -10,6 +10,7 @@ import { Composer } from "@/features/chat/composer";
 import { useCreateConversation } from "@/features/chat/mutations";
 import { parseFileScope, ScopeBar } from "@/features/chat/scope";
 import { useAsk } from "@/features/chat/session-context";
+import { useDocumentTitle } from "@/lib/use-document-title";
 
 const route = getRouteApi("/app/chat/");
 
@@ -21,6 +22,7 @@ const SUGGESTIONS = [
 
 /** A new conversation: what to ask, then the composer. */
 export function ChatHome() {
+  useDocumentTitle("New conversation");
   const api = useApi();
   const navigate = route.useNavigate();
   const { files } = route.useSearch();
@@ -30,22 +32,26 @@ export function ChatHome() {
   const ask = useAsk();
 
   const send = (question: string) => {
-    create.mutate(undefined, {
-      onSuccess: (conversation) => {
-        ask({ conversationId: conversation.id, question, fileIds, first: true });
-        void navigate({
-          to: "/chat/$conversationId",
-          params: { conversationId: conversation.id },
-          search: files ? { files } : {},
-        });
+    create.mutate(
+      { fileIds },
+      {
+        onSuccess: (conversation) => {
+          // The scope is stored with the conversation from here on.
+          ask({ conversationId: conversation.id, question, fileIds, first: true });
+          void navigate({
+            to: "/chat/$conversationId",
+            params: { conversationId: conversation.id },
+            search: {},
+          });
+        },
+        onError: (e) =>
+          toast({
+            title: "Couldn't start a conversation",
+            description: isApiError(e) ? e.message : undefined,
+            tone: "danger",
+          }),
       },
-      onError: (e) =>
-        toast({
-          title: "Couldn't start a conversation",
-          description: isApiError(e) ? e.message : undefined,
-          tone: "danger",
-        }),
-    });
+    );
   };
 
   return (

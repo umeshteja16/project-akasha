@@ -21,11 +21,13 @@ export function AuthLayout() {
           <dl className="mt-10 grid gap-5 border-t border-border pt-8">
             {PRINCIPLES.map(([term, detail], index) => (
               <div key={term} className="grid grid-cols-[2rem_1fr] gap-x-3">
-                <span className="font-mono text-xs text-fg-subtle">0{index + 1}</span>
-                <div>
-                  <dt className="text-sm font-medium text-fg">{term}</dt>
-                  <dd className="text-sm text-fg-muted">{detail}</dd>
-                </div>
+                <dt className="col-span-2 grid grid-cols-subgrid text-sm font-medium text-fg">
+                  <span className="font-mono text-xs leading-5 font-normal text-fg-subtle">
+                    0{index + 1}
+                  </span>
+                  <span>{term}</span>
+                </dt>
+                <dd className="col-start-2 text-sm text-fg-muted">{detail}</dd>
               </div>
             ))}
           </dl>

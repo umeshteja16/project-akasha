@@ -130,9 +130,9 @@ export function FileTile(props: FileCardProps) {
           className="border-b border-border"
         />
         <div className="grid flex-1 content-start gap-1.5 p-3">
-          <h3 className="line-clamp-2 text-sm font-medium break-words text-fg" title={file.name}>
+          <h2 className="line-clamp-2 text-sm font-medium break-words text-fg" title={file.name}>
             {file.name}
-          </h3>
+          </h2>
           <p className="truncate text-xs text-fg-subtle">{meta(file)}</p>
           <TagList file={file} max={3} />
         </div>

@@ -1,10 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import { Wordmark } from "@/components/common/wordmark";
 import { Button } from "@/components/ui/button";
+import { useDocumentTitle } from "@/lib/use-document-title";
 
 export function NotFoundPage() {
+  useDocumentTitle("Page not found");
   return (
-    <div className="grid min-h-dvh place-items-center bg-bg px-6">
+    <main className="grid min-h-dvh place-items-center bg-bg px-6">
       <div className="grid max-w-md justify-items-center gap-5 text-center">
         <Wordmark />
         <p className="display text-[6rem] leading-none text-border-strong italic">404</p>
@@ -16,6 +18,6 @@ export function NotFoundPage() {
           <Link to="/library">Back to the library</Link>
         </Button>
       </div>
-    </div>
+    </main>
   );
 }

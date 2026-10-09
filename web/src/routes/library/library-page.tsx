@@ -1,10 +1,11 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { SearchIcon, UploadIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiError } from "@/api/client";
 import { useApi } from "@/api/context";
 import { type FileItem, filesQuery } from "@/api/files";
+import { meQuery } from "@/api/queries";
 import { PageHeader } from "@/components/common/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { ConfirmDeleteDialog } from "@/features/files/confirm-delete-dialog";
 import { useReindex, useTogglePin } from "@/features/files/mutations";
 import { useUploader } from "@/features/upload/upload-context";
+import { useDocumentTitle } from "@/lib/use-document-title";
 import { FileCollection } from "./file-collection";
 import { LibraryEmpty, LibraryLoading, NoMatches } from "./library-empty";
 import { hasFilters, toFilters } from "./library-search";
@@ -24,6 +26,7 @@ import { useLibraryPrefs } from "./use-library-prefs";
 const route = getRouteApi("/app/library");
 
 export function LibraryPage() {
+  useDocumentTitle("Library");
   const api = useApi();
   const search = route.useSearch();
   const navigate = useNavigate();
@@ -31,6 +34,7 @@ export function LibraryPage() {
   const { pick } = useUploader();
   const filters = useMemo(() => toFilters(search), [search]);
   const query = useInfiniteQuery(filesQuery(api, filters, prefs.sort));
+  const me = useQuery(meQuery(api)).data;
   const files = useMemo(() => query.data?.pages.flatMap((p) => p.items) ?? [], [query.data]);
 
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -106,7 +110,7 @@ export function LibraryPage() {
           {isApiError(query.error) ? query.error.message : "Try again in a moment."}
         </p>
       ) : files.length === 0 && !filtered ? (
-        <LibraryEmpty onUpload={pick} />
+        <LibraryEmpty onUpload={pick} name={firstName(me?.display_name)} />
       ) : (
         <>
           <LibraryToolbar
@@ -237,4 +241,9 @@ function LibrarySearchField() {
       <Kbd className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2">/</Kbd>
     </form>
   );
+}
+
+/** "Ada" from "Ada Lovelace"; nothing for an empty name. */
+function firstName(name: string | null | undefined): string | undefined {
+  return name?.trim().split(/\s+/)[0] || undefined;
 }

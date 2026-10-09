@@ -10,6 +10,8 @@ const badgeVariants = cva(
         neutral: "bg-surface-2 text-fg-muted",
         accent: "bg-accent-soft text-accent-text",
         danger: "bg-danger-soft text-danger",
+        success: "bg-surface-2 text-success",
+        warning: "bg-surface-2 text-warning",
       },
     },
     defaultVariants: { tone: "neutral" },

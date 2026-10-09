@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toast";
 import { Tooltip } from "@/components/ui/tooltip";
+import { useDocumentTitle } from "@/lib/use-document-title";
 
 const SWATCHES = [
   "bg",
@@ -50,6 +51,7 @@ function Block({ title, children }: { title: string; children: ReactNode }) {
 
 /** Living reference of the design system (web/DESIGN.md). Not linked in the nav. */
 export function DesignPage() {
+  useDocumentTitle("Design system");
   return (
     <div>
       <PageHeader

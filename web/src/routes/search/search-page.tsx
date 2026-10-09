@@ -16,7 +16,9 @@ import {
   updateParams,
 } from "@/features/search/search-params";
 import { useDebouncedValue } from "@/lib/use-debounced";
+import { useDocumentTitle } from "@/lib/use-document-title";
 import { cn } from "@/lib/utils";
+import { LooselyRelated } from "./loosely-related";
 import { SearchDebug } from "./search-debug";
 import { SearchFilters } from "./search-filters";
 import { SearchResult } from "./search-result";
@@ -29,6 +31,7 @@ export const DEBOUNCE_MS = 300;
 
 export function SearchPage() {
   const params = route.useSearch();
+  useDocumentTitle(params.q ? `“${params.q}” · Search` : "Search");
   const navigate = route.useNavigate();
   const api = useApi();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -68,6 +71,9 @@ export function SearchPage() {
   const rateLimited = isApiError(query.error) && query.error.code === "rate_limited";
   const wait = retryAfterSeconds(query.error);
   const page = params.page ?? 1;
+  // Offered below the last page of real matches; reset for every new search.
+  const weakCount = data && !data.has_more ? data.loosely_related : 0;
+  const weakKey = JSON.stringify({ ...params, page: undefined });
 
   // Retry automatically once a rate limit has passed.
   useEffect(() => {
@@ -214,13 +220,18 @@ export function SearchPage() {
                   No more results past this point.
                 </Notice>
               ) : (
-                <NoResults
-                  query={data.query}
-                  filtered={activeFilters(params) > 0}
-                  mode={data.mode}
-                  onClearFilters={() => go(clearFilters(params))}
-                  onHybrid={() => go(updateParams(params, { mode: undefined }))}
-                />
+                <>
+                  <NoResults
+                    query={data.query}
+                    filtered={activeFilters(params) > 0}
+                    mode={data.mode}
+                    onClearFilters={() => go(clearFilters(params))}
+                    onHybrid={() => go(updateParams(params, { mode: undefined }))}
+                  />
+                  {weakCount > 0 ? (
+                    <LooselyRelated key={weakKey} params={params} count={weakCount} />
+                  ) : null}
+                </>
               )
             ) : (
               <section aria-label="Results" className="grid gap-2">
@@ -268,6 +279,9 @@ export function SearchPage() {
                       Next <ChevronRightIcon />
                     </Button>
                   </nav>
+                ) : null}
+                {weakCount > 0 ? (
+                  <LooselyRelated key={weakKey} params={params} count={weakCount} />
                 ) : null}
                 <SearchDebug data={data} />
                 <p className="sr-only">

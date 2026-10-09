@@ -14,9 +14,9 @@ export function isTyping(target: EventTarget | null): boolean {
 /**
  * App-wide single-key shortcuts (outside text fields, without modifiers):
  * `/` focuses the page's search field (or opens Search), `u` opens the file
- * picker, `g` then a letter goes to a screen (g l, g s, g c, g ,).
+ * picker, `g` then a letter goes to a screen (g l, g s, g c, g ,), `?` shows them all.
  */
-export function useGlobalShortcuts() {
+export function useGlobalShortcuts({ onHelp }: { onHelp: () => void }) {
   const navigate = useNavigate();
   const { pick } = useUploader();
 
@@ -24,6 +24,7 @@ export function useGlobalShortcuts() {
     let pendingG = 0;
     const onKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+      // `?` is Shift+/ on most layouts; any other Shift chord is not ours.
       if (isTyping(event.target)) return;
       if (document.querySelector("[role=dialog]")) return;
 
@@ -47,6 +48,11 @@ export function useGlobalShortcuts() {
         else void navigate({ to: "/search" });
         return;
       }
+      if (event.key === "?") {
+        event.preventDefault();
+        onHelp();
+        return;
+      }
       if (event.key === "u") {
         event.preventDefault();
         pick();
@@ -54,5 +60,5 @@ export function useGlobalShortcuts() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [navigate, pick]);
+  }, [navigate, pick, onHelp]);
 }

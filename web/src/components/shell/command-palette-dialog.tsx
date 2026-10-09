@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { Command, defaultFilter } from "cmdk";
 import {
   ArrowRightIcon,
+  KeyboardIcon,
   LoaderIcon,
   LogOutIcon,
   MessageSquarePlusIcon,
@@ -26,6 +27,7 @@ import { useTheme } from "@/lib/theme";
 import { useDebouncedValue } from "@/lib/use-debounced";
 import { isApple } from "@/lib/utils";
 import { NAV_ITEMS } from "./nav-items";
+import { openShortcuts } from "./shortcuts-store";
 import { useSignOut } from "./use-sign-out";
 
 const itemClass =
@@ -187,6 +189,14 @@ export function CommandPalette({
                 className={itemClass}
               >
                 <MessageSquarePlusIcon /> New chat
+              </Command.Item>
+              <Command.Item
+                value="keyboard shortcuts help"
+                onSelect={() => run(openShortcuts)}
+                className={itemClass}
+              >
+                <KeyboardIcon /> Keyboard shortcuts
+                <Kbd className="ml-auto">?</Kbd>
               </Command.Item>
             </Command.Group>
             <Command.Group heading="Theme" className={groupClass}>

@@ -42,6 +42,7 @@ import {
 import { parsePassage } from "@/features/files/passage";
 import { StatusBadge } from "@/features/files/status-badge";
 import { formatBytes, formatDateTime, formatRelative } from "@/lib/format";
+import { useDocumentTitle } from "@/lib/use-document-title";
 import { cn } from "@/lib/utils";
 import { ExtractionViewer } from "./extraction-viewer";
 import { FilePreview } from "./file-preview";
@@ -57,6 +58,7 @@ export function FilePage() {
   const { fileId } = route.useParams();
   const api = useApi();
   const query = useQuery(fileQuery(api, fileId));
+  useDocumentTitle(query.data?.name ?? (query.isError ? "File not found" : "File"));
 
   if (query.isPending) return <FileSkeleton />;
   if (query.isError) {

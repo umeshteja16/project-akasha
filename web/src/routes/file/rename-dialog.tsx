@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Field } from "@/components/ui/field";
+import { toast } from "@/components/ui/toast";
 import { useUpdateFile } from "@/features/files/mutations";
 
 export function RenameDialog({
@@ -40,7 +41,10 @@ export function RenameDialog({
     update.mutate(
       { id: file.id, changes: { name: next } },
       {
-        onSuccess: () => onOpenChange(false),
+        onSuccess: () => {
+          onOpenChange(false);
+          toast({ title: "File renamed", tone: "success" });
+        },
         onError: (e) => setError(isApiError(e) ? e.message : "Couldn't rename it."),
       },
     );

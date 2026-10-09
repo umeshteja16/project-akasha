@@ -8,7 +8,7 @@ import {
   SquareIcon,
   TriangleAlertIcon,
 } from "lucide-react";
-import { Fragment, type ReactNode, useMemo, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { AnswerStatus, Citation } from "@/api/chat";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
@@ -76,6 +76,48 @@ export function copyText(view: AnswerView): string {
   return `${view.text}\n\nSources:\n${lines.join("\n")}`;
 }
 
+/** Longest answer text read out when it is ready (the rest is on screen). */
+const ANNOUNCE_CHARS = 600;
+
+/**
+ * What a screen reader hears about a live answer: its progress and, once done,
+ * the answer itself. Not every streamed piece: that would be unlistenable.
+ * Stored answers (never seen live) are not announced.
+ */
+export function announcement(view: AnswerView, wasLive: boolean): string {
+  switch (view.state) {
+    case "sending":
+      return "Searching your files.";
+    case "streaming":
+      return "Writing the answer.";
+    case "answered":
+    case "no_llm": {
+      if (!wasLive) return "";
+      const text = view.text
+        .replace(/\s*\[\d+\]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      const cut = text.length > ANNOUNCE_CHARS ? `${text.slice(0, ANNOUNCE_CHARS)}…` : text;
+      return `Answer ready. ${cut}`;
+    }
+    case "refused":
+      return wasLive ? "No answer: nothing in your files was close enough." : "";
+    case "cancelled":
+      return wasLive ? "Stopped." : "";
+    default:
+      return "";
+  }
+}
+
+function useAnnouncement(view: AnswerView): string {
+  const live = view.state === "sending" || view.state === "streaming";
+  const wasLive = useRef(live);
+  useEffect(() => {
+    if (live) wasLive.current = true;
+  }, [live]);
+  return announcement(view, wasLive.current || live);
+}
+
 /** One answer: its text, state notes, sources and actions. */
 export function Answer({
   view,
@@ -91,11 +133,12 @@ export function Answer({
 }) {
   const { state } = view;
   const live = state === "sending" || state === "streaming";
+  const spoken = useAnnouncement(view);
 
   let body: ReactNode;
   if (state === "sending" || (state === "streaming" && !view.text)) {
     body = (
-      <p className="flex items-center gap-2.5 text-sm text-fg-muted" role="status">
+      <p className="flex items-center gap-2.5 text-sm text-fg-muted">
         <Dots />
         {state === "sending"
           ? "Searching your files…"
@@ -142,8 +185,13 @@ export function Answer({
   }
 
   return (
-    <div className="grid gap-3" aria-busy={live}>
-      {body}
+    <div className="grid gap-3">
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {spoken}
+      </p>
+      <div className="grid gap-3" aria-busy={live}>
+        {body}
+      </div>
       {state === "error" ? (
         <p
           role="alert"

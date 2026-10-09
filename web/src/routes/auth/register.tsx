@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { safeRedirect, sentence, signedIn } from "@/lib/session";
+import { useDocumentTitle } from "@/lib/use-document-title";
 import { FormError } from "./form-error";
 
 const route = getRouteApi("/auth/register");
@@ -25,6 +26,7 @@ function registerErrorMessage(error: unknown): string {
 }
 
 export function RegisterPage() {
+  useDocumentTitle("Create your account");
   const api = useApi();
   const queryClient = useQueryClient();
   const router = useRouter();

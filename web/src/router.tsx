@@ -22,6 +22,8 @@ import { ErrorPage } from "@/routes/error-page";
 import { validateLibrarySearch } from "@/routes/library/library-search";
 import { NotFoundPage } from "@/routes/not-found";
 import { RootLayout } from "@/routes/root";
+import { RouteError } from "@/routes/route-error";
+import { validateSettingsSearch } from "@/routes/settings/settings-search";
 
 export interface RouterContext {
   queryClient: QueryClient;
@@ -38,6 +40,7 @@ const authLayout = createRoute({
   getParentRoute: () => rootRoute,
   id: "auth",
   component: AuthLayout,
+  errorComponent: ErrorPage,
   beforeLoad: async ({ context, search }) => {
     const me = await context.queryClient.ensureQueryData(meQuery(context.api));
     if (me) {
@@ -68,6 +71,7 @@ const appLayout = createRoute({
   getParentRoute: () => rootRoute,
   id: "app",
   component: AppShell,
+  errorComponent: ErrorPage,
   beforeLoad: async ({ context, location }) => {
     const me = await context.queryClient.ensureQueryData(meQuery(context.api));
     if (!me) {
@@ -132,6 +136,7 @@ const conversationRoute = createRoute({
 const settingsRoute = createRoute({
   getParentRoute: () => appLayout,
   path: "/settings",
+  validateSearch: validateSettingsSearch,
   component: lazyRouteComponent(() => import("@/routes/settings/settings-page"), "SettingsPage"),
 });
 
@@ -163,6 +168,8 @@ export function createAppRouter(
     context,
     history,
     defaultPreload: "intent",
+    // Each screen gets its own boundary, inside the shell (layouts use ErrorPage).
+    defaultErrorComponent: RouteError,
     // Loaders read through TanStack Query, which does its own caching.
     defaultPreloadStaleTime: 0,
     scrollRestoration: true,

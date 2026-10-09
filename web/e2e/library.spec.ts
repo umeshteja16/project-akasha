@@ -13,7 +13,7 @@ test("upload → ready → detail → rename, tag, pin → delete", async ({ pag
   await register(page, uniqueEmail("library"), "Grace Hopper");
 
   // The empty library teaches what to do.
-  await expect(page.getByRole("heading", { name: "Drop files here to begin" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Drop your first files here" })).toBeVisible();
 
   // Upload two files through the Upload button's file input.
   await page.getByTestId("upload-input").setInputFiles([

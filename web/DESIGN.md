@@ -72,7 +72,7 @@ the semantic names (`bg-surface`, `text-fg-muted`, `border-border`, ...), never 
 | `border-strong` | `#938c7f` | `#6f6a60` | control outlines (≥ 3:1) |
 | `fg` | `#1f1d1a` | `#ece8e0` | primary text |
 | `fg-muted` | `#5e584f` | `#a9a297` | secondary text |
-| `fg-subtle` | `#736c60` | `#8c857a` | tertiary text, icons |
+| `fg-subtle` | `#6b6458` | `#979084` | tertiary text, icons |
 | `accent` | `#0d6b5e` | `#5fc4af` | primary buttons, active marker, focus |
 | `accent-fg` | `#ffffff` | `#0a1f1b` | text on accent |
 | `accent-soft` / `accent-text` | `#ddeee9` / `#0a5c51` | `#17352f` / `#72d0bc` | selected states, links |
@@ -85,7 +85,7 @@ the semantic names (`bg-surface`, `text-fg-muted`, `border-border`, ...), never 
 |---|---|---|---|
 | `fg` on `bg` / `surface` | 15.4 / 16.8 | 15.1 / 14.2 | 4.5 |
 | `fg-muted` on `bg` / `surface` / `surface-2` | 6.5 / 7.0 / 6.0 | 7.3 / 6.9 / 6.2 | 4.5 |
-| `fg-subtle` on `bg` / `surface` | 4.8 / 5.2 | 5.1 / 4.8 | 4.5 |
+| `fg-subtle` on `bg` / `surface` / `sidebar` / `surface-2` | 5.4 / 5.9 / 5.1 / 5.0 | 5.8 / 5.5 / 5.7 / 4.9 | 4.5 |
 | `accent-fg` on `accent` (buttons) | 6.4 | 8.2 | 4.5 |
 | `accent-text` on `bg` / `surface` / `accent-soft` | 7.2 / 7.9 / 6.6 | 10.1 / 9.5 / 7.2 | 4.5 |
 | `danger` on `bg` / `surface` / `danger-soft` | 6.0 / 6.6 / 5.5 | 7.7 / 7.3 / 6.5 | 4.5 |
@@ -129,8 +129,11 @@ Re-run the check (a 20-line relative-luminance script) whenever a token changes.
 - **Feedback**: inline errors under fields and a form-level `role="alert"` banner for
   server errors (server messages are sentence-cased); toasts for completed actions that
   have no visible result of their own (saved, password changed, account deleted).
-- **Keyboard**: ⌘K / Ctrl+K opens the command palette everywhere in the app; Esc closes
-  overlays; a "Skip to content" link is the first tab stop.
+- **Keyboard**: ⌘K / Ctrl+K opens the command palette everywhere in the app; `?` opens the
+  shortcuts sheet; Esc closes overlays; a "Skip to content" link is the first tab stop.
+- **Accessibility**: every screen passes axe (WCAG 2.2 AA) in both themes (`e2e/a11y.spec.ts`);
+  touch targets ≥ 24px, one `<main>` per page, headings in order, icon-only buttons
+  labelled, streaming output announced once per state change (not per token).
 
 ## Layout
 
@@ -167,6 +170,9 @@ one-off class soup; keep components under ~300 lines.
   passages, added, pinned), summary (2 lines), up to three passages as serif quotes with a
   hairline on the left (accent on hover) and `<mark>` hits, then tags. Passages link to the
   file at that passage (`?at=start-end&page=n`); the file page opens its text there and marks it.
+- **Loosely related** results (found by meaning alone, below the relevance floor) never mix
+  with matches: a collapsed section under the last page ("Show N loosely related files")
+  fetches and lists them with a one-line caveat.
 - **Answers** are reading text (serif, 17px, 1.7 leading). Citations are small mono chips
   in `accent-soft`; hover (mouse) previews the quote, click opens the passage; tap/Enter
   toggles the preview, which links on. Questions sit right-aligned in `surface-2` bubbles.

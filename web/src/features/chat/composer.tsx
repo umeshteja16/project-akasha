@@ -1,5 +1,5 @@
 import { ArrowUpIcon, SquareIcon } from "lucide-react";
-import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +15,8 @@ interface ComposerProps {
   placeholder?: string;
   /** Shown above the text box (e.g. the file scope). */
   top?: ReactNode;
+  /** Put this text in the box and focus it (edit an earlier question); a new `key` re-applies it. */
+  draft?: { text: string; key: number };
 }
 
 /** Multi-line question box: Enter sends, Shift+Enter adds a line, stop while streaming. */
@@ -26,9 +28,20 @@ export function Composer({
   autoFocus,
   placeholder = "Ask about your files…",
   top,
+  draft,
 }: ComposerProps) {
   const [text, setText] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (!draft) return;
+    setText(draft.text);
+    const el = ref.current;
+    if (el) {
+      el.focus();
+      el.setSelectionRange(draft.text.length, draft.text.length);
+    }
+  }, [draft]);
 
   // Grow with the text up to ~8 lines.
   // biome-ignore lint/correctness/useExhaustiveDependencies: re-measure when the text changes

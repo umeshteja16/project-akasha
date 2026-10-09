@@ -17,33 +17,35 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 
 | | |
 |---|---|
-| **Current step** | Step 5: New web UI (Step 4 done) |
+| **Current step** | Step 6: Beyond parity (Step 5 done) |
 | **Last updated** | 2026-10-09 |
-| **`just check`** | passing (255 Rust tests + 5 ignored OCR/real-model tests, 89 web tests); `just e2e` 8 Playwright tests |
+| **`just check`** | passing (262 Rust tests + 5 ignored OCR/real-model tests, 95 web tests, bundle budget); `just e2e` 9 Playwright tests (incl. axe) |
 | **Old code** | `legacy/` (read-only reference; deleted in step 7) |
 
 ## Next up
 
-**Step 5d: remaining screens and polish.** Done so far: foundation (5.1), library + file
-detail (5.2), search + chat (5c). Remaining, in order; each ends with `just check` green,
-`just e2e` green and a PROGRESS.md update:
+**Step 6: beyond parity.** Step 5 (web UI) is complete. In order; each ends with
+`just check` green, `just e2e` green and a PROGRESS.md update:
 
-1. **Polish**: gzip/brotli for embedded assets (`tower-http` compression), a keyboard
-   shortcuts sheet (`?`), focus management review (palette → result → back), a11y pass with
-   axe in Playwright, empty/error states audit across screens, bundle size check.
-2. **Chat extras**: per-conversation default file scope (API: store `file_ids` on the
-   conversation; today the scope lives in the URL `?files=` only), edit-and-resend a
-   question, message keyset paging UI test with > 50 messages.
-3. Collections and activity screens wait for their APIs (step 6).
+1. **Collections + activity timeline + audit log** (legacy parity, the screens step 5
+   deferred): migrations (`collections`, `collection_files`, `activity_events`), CRUD and
+   owner-scoped routes, the `ChunkFilter` collection seam in search, then the UI screens
+   (collection list/detail, add-to-collection from library and search, timeline).
+2. **MCP server** (`akasha mcp`, `rmcp`): search, read passage, list files as tools over
+   stdio with a per-user token; reuse `akasha_search::search_chunks` (relevance floor on).
+3. **Observability**: Prometheus `/metrics` (search latency, job queue depth, model load
+   state from `system::status`), OpenTelemetry export behind a feature.
+4. **Watched folders / connectors** (Obsidian vault, Downloads) via the job queue.
+5. **Audio/video transcription** (`whisper-rs`), into the existing extract pipeline.
 
-Open follow-ups (not blocking step 5):
-- Calibrate the real-reranker refusal threshold: `akasha eval --real-models` with
-  `AKASHA_RERANK_MODEL=jina-reranker-v1-turbo-en` prints the gate report (see gotchas);
-  needs a network that can reach Hugging Face (not this sandbox; use the `eval.yml` run).
-- Commit a real-model eval baseline for the default models from the first `eval.yml`
-  artifact. Keyword search ANDs every word (MRR 0.57 vs hybrid 0.82): consider an OR
-  fallback, check with `akasha eval`.
-- Chat: per-conversation default file scope; `no_llm` fallback on a provider outage.
+Open follow-ups:
+- Tune the unmeasured relevance floors (e5-small 0.80, bge 0.55, nomic/bge-m3 0.45, ONNX
+  rerankers -2.0) from the nightly `eval.yml` real-model artifact (it now reports P@10 and
+  `negative_clean`); calibrate the real-reranker refusal threshold the same way.
+- Commit a real-model eval baseline for the default models; consider an OR fallback for
+  keyword search (it ANDs every word).
+- Chat: `no_llm` fallback on a provider outage. PWA offline shell (service worker) was
+  deferred: the app is installable (manifest + icons) but needs the server to work.
 
 ## Roadmap
 
@@ -93,22 +95,26 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 - [x] Refusal when evidence is weak (reranker score threshold, calibrated for `overlap`), tested
 - [x] Auto tags/summary per file (`enrich_file`, separate `auto_tags`; replaces the legacy Gemini calls), model-written conversation titles, refusal-gate calibration report in `akasha eval` (ADR 0013)
 
-### Step 5: New web UI (redesign)
+### Step 5: New web UI (redesign) ✅
 - [x] Design system first (tokens, type scale, light + dark), documented in `web/DESIGN.md`
 - [x] TanStack Router + Query, shadcn/ui on Tailwind 4, typed client from `openapi.json`
-- [~] Screens: auth, settings, 404, error boundary, app shell, library (upload, grid/list,
-      filters, bulk delete), file detail, search (URL state, filters, highlights, ⌘K live
-      results) and chat (streaming, citations, conversations) done; polish (5d) left;
-      collections, activity wait for step 6
+- [x] Screens: auth, settings (+ System status), 404, per-screen error boundaries, app
+      shell, first-run onboarding, library, file detail, search (relevance floor with a
+      "Loosely related" section) and chat (stored file scope, edit and ask again).
+      Collections and activity moved to step 6 with their APIs (none exist yet)
+- [x] Polish (5d): axe-core in Playwright over every screen in light + dark (contrast
+      fixes), skip link/focus/landmarks/live regions, `?` shortcuts sheet, page titles,
+      consistent toasts, optimistic tags/pins/scope, gzip/brotli UI assets, favicon + PWA
+      manifest, initial JS budget 180 kB gzip checked on every build (171 kB)
 - [x] Route-level code splitting (`lazyRouteComponent`) and long-lived vendor chunks
 - [x] Rust binary serves the built UI (`rust-embed`, feature `embed-ui`), so production is a single binary
-- [x] Playwright end-to-end tests in CI (auth + settings flow; extend per screen)
+- [x] Playwright end-to-end tests in CI (auth, library, search, chat, accessibility)
 
 ### Step 6: Beyond parity
 - [ ] MCP server (`akasha mcp`, `rmcp`) exposing search/read to AI agents
 - [ ] Audio/video transcription (`whisper-rs`)
 - [ ] Watched folders / connectors (Obsidian vault, Downloads)
-- [ ] Collections, activity timeline, audit log (legacy parity)
+- [ ] Collections, activity timeline, audit log (legacy parity; API + screens)
 - [ ] OpenTelemetry export + Prometheus `/metrics`
 
 ### Step 7: Release v0.1
@@ -344,6 +350,16 @@ See [`docs/adr/`](docs/adr). Summary:
   (`router.tsx`) read it; sign-in/out set it (`lib/session.ts`). The client's
   `onUnauthorized` (any other 401) only acts when a user was cached, so the bootstrap 401 is
   quiet; wrong-password 401s (login, password change, account delete) are excluded.
+- Accessibility (5d): `e2e/a11y.spec.ts` runs axe (WCAG 2.2 AA + best practices) on every
+  main screen in light and dark with one account (credential calls are rate-limited). New
+  screens: add them there. `@axe-core/playwright` is MPL-2.0 (dev-only, web). Chat answers
+  announce progress and the final text through one polite live region (`announcement()`
+  in `answer.tsx`), never per streamed delta.
+- Bundle budget: `pnpm build` ends with `scripts/check-bundle.mjs` (entry + preloaded
+  chunks, gzip, 180 kB; `BUNDLE_BUDGET_KB` overrides). Load new dialogs lazily
+  (`React.lazy`), like the palette and the shortcuts sheet.
+- Page titles: `useDocumentTitle()` in each screen ("Library · Akasha"). Screen errors
+  render `RouteError` inside the shell (`defaultErrorComponent`); layouts keep `ErrorPage`.
 - Radix toasts duplicate their text into a live region: in Playwright use
   `getByText(.., { exact: true })`.
 - Playwright is pinned to 1.56.1 to match the preinstalled Chromium (revision 1194 in
@@ -420,6 +436,8 @@ See [`docs/adr/`](docs/adr). Summary:
 ## Session log
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
+
+- 2026-10-09 · Claude (cloud) · Step 5d, Step 5 complete. Search relevance floor (ADR 0014): semantic-only results must clear a per-model threshold (rerank score or cosine), keyword/file-name hits always count, the rest are "loosely related" (`include_weak`, collapsed UI section); eval gains Precision@10 and `negative_clean` (baselines re-recorded as an intended change, MiniLM floor calibrated). Conversations store their file scope (migration 0011). `GET /system/status` + Settings → System. UI: first-run onboarding, axe in e2e over every screen light/dark (fixed `fg-subtle` contrast, heading order, dl markup, target sizes, landmarks), answer live-region announcements, `?` shortcuts sheet, page titles, per-screen error boundaries, edit and ask again, toasts, optimistic tags, PWA manifest + icons, compressed assets, bundle budget script. Deferred: offline shell (service worker).
 
 - 2026-10-09 · Claude (cloud) · Step 5c: search + chat screens. Search: debounced as-you-type with URL state (q, mode in "Advanced", type, date range, tags, pinned, page), cancelled stale requests, rate-limit notice with auto retry, file-grouped results with summaries, page numbers and safe `<mark>` highlights (code-point offsets), "did you mean", degraded notice, empty/no-result guidance, timing disclosure; passage links open the file's text marked and scrolled (PDF at the page); ⌘K live results + "Search for", new chat action. Chat: conversation list (rail / phone sheet) with rename/delete, new chat with suggestions, composer (Enter/Shift+Enter, stop), SSE streaming via fetch, safe Markdown answers with citation chips (hover/tap quote, click opens passage), sources panel, refusal/no_llm/error/cancelled states, copy, ask again, jump to latest, library "Ask about these" scope. Textless files get enrichment `skipped` at once (fix from review). Vitest 89 (SSE parser, stream, citations, highlights, URL state, search page, answers), e2e 8 (search + chat flows, refusal).
 

@@ -49,7 +49,10 @@ export function RenameConversationDialog({ conversation, onOpenChange }: DialogP
     rename.mutate(
       { id: conversation.id, title: next },
       {
-        onSuccess: () => onOpenChange(false),
+        onSuccess: () => {
+          onOpenChange(false);
+          toast({ title: "Conversation renamed", tone: "success" });
+        },
         onError: (e) => setError(isApiError(e) ? e.message : "Couldn't rename it."),
       },
     );
@@ -137,6 +140,12 @@ export function DeleteConversationDialog({
                   toast({ title: "Conversation deleted", tone: "success" });
                   onDeleted?.(conversation.id);
                 },
+                onError: (e) =>
+                  toast({
+                    title: "Couldn't delete the conversation",
+                    description: isApiError(e) ? e.message : undefined,
+                    tone: "danger",
+                  }),
               });
             }}
           >

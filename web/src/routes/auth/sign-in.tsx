@@ -8,6 +8,7 @@ import { metaQuery } from "@/api/queries";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { safeRedirect, sentence, signedIn } from "@/lib/session";
+import { useDocumentTitle } from "@/lib/use-document-title";
 import { FormError } from "./form-error";
 
 const route = getRouteApi("/auth/sign-in");
@@ -20,6 +21,7 @@ export function signInErrorMessage(error: unknown): string {
 }
 
 export function SignInPage() {
+  useDocumentTitle("Sign in");
   const api = useApi();
   const queryClient = useQueryClient();
   const router = useRouter();

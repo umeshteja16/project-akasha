@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { Citation } from "@/api/chat";
 import { renderWithRouter } from "@/test/router";
-import { Answer, AnswerText, copyText } from "./answer";
+import { Answer, AnswerText, announcement, copyText } from "./answer";
 
 const CITATION: Citation = {
   n: 1,
@@ -99,5 +99,20 @@ describe("copyText", () => {
     expect(
       copyText({ text: "Dawn [1].", state: "answered", citable: [CITATION], cited: [CITATION] }),
     ).toBe("Dawn [1].\n\nSources:\n[1] heron-notes.pdf, p. 3");
+  });
+});
+
+describe("answer announcements", () => {
+  const base = { text: "", citable: [], cited: [] };
+  it("speaks progress and the finished answer, never stored ones", () => {
+    expect(announcement({ ...base, state: "sending" }, true)).toBe("Searching your files.");
+    expect(announcement({ ...base, state: "streaming", text: "Par" }, true)).toBe(
+      "Writing the answer.",
+    );
+    expect(announcement({ ...base, state: "answered", text: "It renews in May [1]." }, true)).toBe(
+      "Answer ready. It renews in May.",
+    );
+    expect(announcement({ ...base, state: "answered", text: "Old." }, false)).toBe("");
+    expect(announcement({ ...base, state: "refused" }, true)).toMatch(/No answer/);
   });
 });

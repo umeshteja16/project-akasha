@@ -1,6 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ChevronsUpDownIcon, LogOutIcon, PaletteIcon, Settings2Icon } from "lucide-react";
+import {
+  ChevronsUpDownIcon,
+  KeyboardIcon,
+  LogOutIcon,
+  PaletteIcon,
+  Settings2Icon,
+} from "lucide-react";
 import { useApi } from "@/api/context";
 import { meQuery } from "@/api/queries";
 import { Avatar } from "@/components/common/avatar";
@@ -16,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { type ThemePreference, useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { openShortcuts } from "./shortcuts-store";
 import { useSignOut } from "./use-sign-out";
 
 /** Avatar menu: settings, theme, sign out. `compact` shows only the avatar. */
@@ -64,6 +71,10 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
             <Settings2Icon />
             Settings
           </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={openShortcuts}>
+          <KeyboardIcon />
+          Keyboard shortcuts
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="flex items-center gap-2 eyebrow">

@@ -1,7 +1,9 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { PlusIcon, SparklesIcon, XIcon } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { isApiError } from "@/api/client";
 import type { FileItem } from "@/api/files";
+import { replaceFile } from "@/features/files/cache";
 import { type FileChanges, useUpdateFile } from "@/features/files/mutations";
 
 const MAX_TAG = 50;
@@ -20,11 +22,21 @@ export function TagsEditor({ file }: { file: FileItem }) {
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  const queryClient = useQueryClient();
+
+  // Tags change on screen at once; a refused save puts them back.
   const save = (changes: FileChanges) => {
     setError(null);
+    const before = file;
+    replaceFile(queryClient, { ...file, ...changes });
     update.mutate(
       { id: file.id, changes },
-      { onError: (e) => setError(isApiError(e) ? e.message : "Couldn't save the tags.") },
+      {
+        onError: (e) => {
+          replaceFile(queryClient, before);
+          setError(isApiError(e) ? e.message : "Couldn't save the tags.");
+        },
+      },
     );
   };
 
@@ -59,7 +71,7 @@ export function TagsEditor({ file }: { file: FileItem }) {
               type="button"
               aria-label={`Remove tag ${tag}`}
               onClick={() => save({ tags: file.tags.filter((t) => t !== tag) })}
-              className="grid size-5 place-items-center rounded-full text-fg-subtle hover:bg-surface-3 hover:text-fg"
+              className="grid size-6 place-items-center rounded-full text-fg-subtle hover:bg-surface-3 hover:text-fg"
             >
               <XIcon className="size-3" />
             </button>
@@ -106,7 +118,7 @@ export function TagsEditor({ file }: { file: FileItem }) {
                   type="button"
                   aria-label={`Dismiss suggested tag ${tag}`}
                   onClick={() => save({ auto_tags: file.auto_tags.filter((t) => t !== tag) })}
-                  className="grid h-full place-items-center rounded-r-full pr-1.5 pl-1 text-fg-subtle hover:bg-surface-2 hover:text-fg"
+                  className="grid h-full min-w-6 place-items-center rounded-r-full pr-1.5 pl-1 text-fg-subtle hover:bg-surface-2 hover:text-fg"
                 >
                   <XIcon className="size-3" />
                 </button>

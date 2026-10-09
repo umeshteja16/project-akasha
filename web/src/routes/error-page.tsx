@@ -4,15 +4,17 @@ import { isApiError } from "@/api/client";
 import { Wordmark } from "@/components/common/wordmark";
 import { Button } from "@/components/ui/button";
 import { sentence } from "@/lib/session";
+import { useDocumentTitle } from "@/lib/use-document-title";
 
 /** Router error boundary: anything a route throws (loaders, render) ends up here. */
 export function ErrorPage({ error, reset }: ErrorComponentProps) {
+  useDocumentTitle("Something went wrong");
   const offline = isApiError(error) && error.status === 0;
   const detail = isApiError(error)
     ? sentence(error.message)
     : "An unexpected error stopped this page from loading.";
   return (
-    <div role="alert" className="grid min-h-dvh place-items-center bg-bg px-6">
+    <main role="alert" className="grid min-h-dvh place-items-center bg-bg px-6">
       <div className="grid max-w-md justify-items-center gap-4 text-center">
         <Wordmark />
         <h1 className="display mt-4 text-2xl text-fg">
@@ -39,6 +41,6 @@ export function ErrorPage({ error, reset }: ErrorComponentProps) {
           </pre>
         ) : null}
       </div>
-    </div>
+    </main>
   );
 }

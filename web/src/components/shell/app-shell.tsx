@@ -1,12 +1,19 @@
 import { Outlet, useRouterState } from "@tanstack/react-router";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { UploadProvider } from "@/features/upload/upload-context";
 import { UploadPanel } from "@/features/upload/upload-panel";
 import { cn } from "@/lib/utils";
 import { CommandPaletteProvider } from "./command-palette";
 import { MobileHeader, MobileTabBar } from "./mobile-nav";
+import { onOpenShortcuts } from "./shortcuts-store";
 import { Sidebar } from "./sidebar";
 import { UploadDropZone } from "./upload-drop-zone";
 import { useGlobalShortcuts } from "./use-global-shortcuts";
+
+// Loaded on first `?`, not with the app.
+const ShortcutsDialog = lazy(() =>
+  import("./shortcuts-dialog").then((m) => ({ default: m.ShortcutsDialog })),
+);
 
 /** The signed-in frame: sidebar (desktop) or top bar + tab bar (phone). */
 export function AppShell() {
@@ -27,7 +34,10 @@ function useFullBleed(): boolean {
 }
 
 function Shell() {
-  useGlobalShortcuts();
+  const [help, setHelp] = useState<boolean | null>(null);
+  const showHelp = useCallback(() => setHelp(true), []);
+  useGlobalShortcuts({ onHelp: showHelp });
+  useEffect(() => onOpenShortcuts(showHelp), [showHelp]);
   const fullBleed = useFullBleed();
   return (
     <>
@@ -46,7 +56,9 @@ function Shell() {
             tabIndex={-1}
             className={cn(
               "flex-1 outline-none",
-              fullBleed ? "min-h-0" : "px-4 pt-6 pb-28 sm:px-8 md:pt-12 md:pb-16 lg:px-12",
+              fullBleed
+                ? "min-h-0"
+                : "px-4 pt-6 pb-[calc(7rem+env(safe-area-inset-bottom))] sm:px-8 md:pt-12 md:pb-16 lg:px-12",
             )}
           >
             {fullBleed ? (
@@ -60,6 +72,11 @@ function Shell() {
         </div>
         <MobileTabBar />
       </div>
+      {help === null ? null : (
+        <Suspense fallback={null}>
+          <ShortcutsDialog open={help} onOpenChange={setHelp} />
+        </Suspense>
+      )}
       <UploadDropZone />
       <UploadPanel />
     </>

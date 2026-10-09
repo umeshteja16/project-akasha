@@ -12,7 +12,8 @@ export type Timings = Schemas["Timings"];
 
 export const searchKeys = {
   all: ["search"] as const,
-  results: (params: SearchParams, limit: number) => [...searchKeys.all, params, limit] as const,
+  results: (params: SearchParams, limit: number, includeWeak = false) =>
+    [...searchKeys.all, params, limit, includeWeak] as const,
 };
 
 export const RESULTS_PER_PAGE = 10;
@@ -28,13 +29,23 @@ export function retrySearch(failures: number, error: unknown): boolean {
  * request in flight (the signal is passed on) and keeps the last results on screen
  * until the new ones arrive.
  */
-export const searchQuery = (api: Api, params: SearchParams, limit = RESULTS_PER_PAGE) =>
+export const searchQuery = (
+  api: Api,
+  params: SearchParams,
+  limit = RESULTS_PER_PAGE,
+  includeWeak = false,
+) =>
   queryOptions({
-    queryKey: searchKeys.results(params, limit),
+    queryKey: searchKeys.results(params, limit, includeWeak),
     queryFn: ({ signal }) =>
       unwrap(
         api.GET("/api/v1/search", {
-          params: { query: toApiQuery({ ...params, q: params.q ?? "" }, limit) },
+          params: {
+            query: {
+              ...toApiQuery({ ...params, q: params.q ?? "" }, limit),
+              ...(includeWeak ? { include_weak: true } : {}),
+            },
+          },
           signal,
         }),
       ),

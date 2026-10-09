@@ -17,6 +17,7 @@ function results(q: string, overrides: Record<string, unknown> = {}) {
     warnings: [],
     has_more: false,
     suggestion: null,
+    loosely_related: 0,
     timings: {
       embed_ms: 1,
       keyword_ms: 2,
@@ -41,6 +42,7 @@ function results(q: string, overrides: Record<string, unknown> = {}) {
         },
         score: 0.03,
         match_count: 1,
+        loosely_related: false,
         matches: [
           {
             chunk_id: 1,
@@ -49,6 +51,7 @@ function results(q: string, overrides: Record<string, unknown> = {}) {
             char_end: 60,
             page: null,
             scores: { fused: 0.03 },
+            loosely_related: false,
             // "🦩" counts as one character on the server.
             snippet: { text: "🦩 The heron <b>returned</b>", highlights: [{ start: 6, end: 11 }] },
           },
@@ -131,5 +134,32 @@ describe("search page", () => {
   it("explains a rate limit instead of failing", async () => {
     setup("/search?q=heron", () => apiError(429, "rate_limited", "too many searches, retry in 7s"));
     expect(await screen.findByText(/Results resume in about 7 s/)).toBeInTheDocument();
+  });
+
+  it("hides loosely related files until asked, then lists them apart", async () => {
+    const user = userEvent.setup();
+    const { queries } = setup("/search?q=lunar+module", (url) => {
+      if (url.searchParams.get("include_weak") !== "true") {
+        return json(results("lunar module", { results: [], loosely_related: 2 }));
+      }
+      const base = results("lunar module");
+      const weak = { ...base.results[0], loosely_related: true };
+      return json({ ...base, results: [weak] });
+    });
+    expect(
+      await screen.findByRole("heading", { name: "Nothing matched “lunar module”" }),
+    ).toBeInTheDocument();
+    const toggle = screen.getByRole("button", { name: "Show 2 loosely related files" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: "heron-notes.txt" })).toBeNull();
+    expect(queries).toHaveLength(1);
+
+    await user.click(toggle);
+    expect(await screen.findByRole("link", { name: "heron-notes.txt" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hide 2 loosely related files" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(queries[1]).toContain("include_weak=true");
   });
 });
