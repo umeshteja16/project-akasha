@@ -26,7 +26,8 @@ crates/app    the `akasha` binary: axum routes (src/routes/*), auth/, jobs/ (job
               tags, ADR 0013), eval/ (`akasha eval`), state, telemetry
 eval/         search benchmark: corpus/, queries.json, gate.json, baselines/ (ADR 0011)
 .sqlx/        offline cache of checked SQL queries (`just sqlx-prepare`)
-web/          React + TS frontend (Vite, Biome, Vitest)
+web/          React + TS frontend (Vite, Tailwind 4, Radix ui/, TanStack Router + Query,
+              Biome, Vitest, Playwright e2e/); design system in web/DESIGN.md
 legacy/       old TypeScript implementation: read-only reference, do not edit
 docs/adr/     architecture decisions
 openapi.json  generated API contract (`just openapi`), checked in CI
@@ -36,7 +37,8 @@ openapi.json  generated API contract (`just openapi`), checked in CI
 `just` lists everything. Common: `just serve`, `just web`, `just check`, `just fmt`,
 `just openapi`, `just migration <name>`, `just migrate`. `just serve` runs the API and the
 background worker in one process; `just worker` runs a worker alone. HTTP tests run queued
-jobs with `TestApp::run_jobs()`.
+jobs with `TestApp::run_jobs()`. `just e2e` builds the UI, embeds it (`--features embed-ui`)
+and runs Playwright against a real server (not part of `just check`; CI job `e2e`).
 
 ## Rules
 - **Schema** changes only via `just migration <name>` (reversible up/down files). Never alter
@@ -68,6 +70,8 @@ jobs with `TestApp::run_jobs()`.
   `overlap` reranker and the `fake` chat model (provider HTTP is tested against local mocks).
 - **Small files**: split a file once it passes ~300 lines.
 - **Frontend**: TS strict, no `any`, server state via TanStack Query, generated API types only.
+  Call the API through `unwrap(api.GET(..))` (`src/api/client.ts`; throws `ApiError`). Style
+  with the semantic tokens from `web/DESIGN.md` (never raw hex), compose `components/ui/`.
 - **Dependencies**: add to `[workspace.dependencies]` in the root `Cargo.toml`; `cargo-deny`
   rejects non-permissive licenses.
 - Record any significant architecture choice as a new ADR in `docs/adr/`.

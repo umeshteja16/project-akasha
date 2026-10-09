@@ -332,6 +332,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/meta": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Public server facts (no sign-in needed). Reveals nothing about accounts. */
+        get: operations["get_meta"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/search": {
         parameters: {
             query?: never;
@@ -893,6 +910,17 @@ export interface components {
          * @enum {string}
          */
         SearchMode: "keyword" | "semantic" | "hybrid";
+        ServerMeta: {
+            /** @description Whether `POST /api/v1/auth/register` accepts new accounts. */
+            allow_registration: boolean;
+            /**
+             * @description Whether a language model is configured (chat answers and enrichment).
+             *     Without one, chat answers with passages only.
+             */
+            chat_model: boolean;
+            /** @description Server version (the `akasha` crate version). */
+            version: string;
+        };
         /** @description A file similar to another one. */
         SimilarFile: {
             file: components["schemas"]["FileInfo"];
@@ -2148,6 +2176,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_meta: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerMeta"];
                 };
             };
         };

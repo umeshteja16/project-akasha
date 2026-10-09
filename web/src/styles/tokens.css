@@ -1,0 +1,132 @@
+/*
+ * Akasha design tokens. The single source of truth for colour, type, space,
+ * shape, depth and motion; documented in web/DESIGN.md. Tailwind utilities read
+ * these through `@theme inline` in app.css, so a token change restyles everything.
+ *
+ * Themes: `data-theme="light|dark"` on <html> (set before paint by
+ * public/theme-init.js and kept by ThemeProvider). Without JS, the media query
+ * below follows the system.
+ */
+
+:root {
+  /* Motion (Tailwind reads durations/easings from app.css) */
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-slow: 260ms;
+  --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Layout */
+  --sidebar-width: 248px;
+  --content-max: 1080px;
+  --reading-max: 68ch;
+
+  /* ---- Light: "paper" -------------------------------------------------- */
+  --bg: #f7f5f0;
+  --surface: #ffffff;
+  --surface-2: #efece5;
+  --surface-3: #e7e3da;
+  --sidebar: #f1eee7;
+  --border: #e3dfd6;
+  --border-strong: #938c7f;
+  --fg: #1f1d1a;
+  --fg-muted: #5e584f;
+  --fg-subtle: #736c60;
+  --accent: #0d6b5e;
+  --accent-hover: #0a5c51;
+  --accent-fg: #ffffff;
+  --accent-soft: #ddeee9;
+  --accent-text: #0a5c51;
+  --highlight: #f2b84b;
+  --mark: #fbe7b5;
+  --danger: #b42318;
+  --danger-hover: #9a1d14;
+  --danger-fg: #ffffff;
+  --danger-soft: #fbe7e4;
+  --success: #2f6b2f;
+  --warning: #8a5a00;
+  --overlay: rgb(31 29 26 / 0.38);
+  --focus: #0d6b5e;
+
+  --elev-1: 0 1px 0 rgb(31 29 26 / 0.04);
+  --elev-2: 0 1px 2px rgb(31 29 26 / 0.06), 0 1px 1px rgb(31 29 26 / 0.04);
+  --elev-3: 0 6px 16px -6px rgb(31 29 26 / 0.14), 0 2px 4px rgb(31 29 26 / 0.05);
+  --elev-4: 0 24px 48px -16px rgb(31 29 26 / 0.22), 0 4px 10px rgb(31 29 26 / 0.06);
+
+  color-scheme: light;
+}
+
+/* ---- Dark: "night ink" (explicit choice) ------------------------------- */
+:root[data-theme="dark"] {
+  --bg: #141412;
+  --surface: #1b1a18;
+  --surface-2: #25241f;
+  --surface-3: #2e2c27;
+  --sidebar: #171614;
+  --border: #2e2c27;
+  --border-strong: #6f6a60;
+  --fg: #ece8e0;
+  --fg-muted: #a9a297;
+  --fg-subtle: #8c857a;
+  --accent: #5fc4af;
+  --accent-hover: #7bd3c0;
+  --accent-fg: #0a1f1b;
+  --accent-soft: #17352f;
+  --accent-text: #72d0bc;
+  --highlight: #e7a93a;
+  --mark: #4a3a14;
+  --danger: #f28b7e;
+  --danger-hover: #f6a297;
+  --danger-fg: #2a0f0b;
+  --danger-soft: #3a1c18;
+  --success: #8fcf8a;
+  --warning: #e7b75a;
+  --overlay: rgb(0 0 0 / 0.6);
+  --focus: #72d0bc;
+
+  --elev-1: 0 1px 0 rgb(0 0 0 / 0.3);
+  --elev-2: 0 1px 2px rgb(0 0 0 / 0.4);
+  --elev-3: 0 8px 20px -8px rgb(0 0 0 / 0.6), 0 2px 4px rgb(0 0 0 / 0.3);
+  --elev-4: 0 28px 56px -18px rgb(0 0 0 / 0.75), 0 4px 12px rgb(0 0 0 / 0.35);
+
+  color-scheme: dark;
+}
+
+/* No JS (or before the init script): follow the system. Same values as above. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --bg: #141412;
+    --surface: #1b1a18;
+    --surface-2: #25241f;
+    --surface-3: #2e2c27;
+    --sidebar: #171614;
+    --border: #2e2c27;
+    --border-strong: #6f6a60;
+    --fg: #ece8e0;
+    --fg-muted: #a9a297;
+    --fg-subtle: #8c857a;
+    --accent: #5fc4af;
+    --accent-hover: #7bd3c0;
+    --accent-fg: #0a1f1b;
+    --accent-soft: #17352f;
+    --accent-text: #72d0bc;
+    --highlight: #e7a93a;
+    --mark: #4a3a14;
+    --danger: #f28b7e;
+    --danger-hover: #f6a297;
+    --danger-fg: #2a0f0b;
+    --danger-soft: #3a1c18;
+    --success: #8fcf8a;
+    --warning: #e7b75a;
+    --overlay: rgb(0 0 0 / 0.6);
+    --focus: #72d0bc;
+    color-scheme: dark;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+    --motion-slow: 0ms;
+  }
+}

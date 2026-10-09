@@ -21,3 +21,7 @@ akasha.toml
 .idea/
 .vscode/
 *.log
+
+# Playwright
+web/test-results/
+web/playwright-report/

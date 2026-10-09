@@ -16,6 +16,7 @@ pub mod rate_limit;
 pub mod routes;
 pub mod state;
 pub mod telemetry;
+pub mod web;
 
 use std::net::SocketAddr;
 
@@ -35,8 +36,7 @@ const REQUEST_ID: HeaderName = HeaderName::from_static("x-request-id");
 
 /// Build the full HTTP application.
 pub fn app(state: AppState) -> Router {
-    routes::router(&state)
-        .with_state(state)
+    web::security_headers(routes::router(&state).with_state(state))
         .layer(CatchPanicLayer::new())
         .layer(TraceLayer::new_for_http())
         .layer(PropagateRequestIdLayer::new(REQUEST_ID))

@@ -19,48 +19,42 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 |---|---|
 | **Current step** | Step 5: New web UI (Step 4 done) |
 | **Last updated** | 2026-10-09 |
-| **`just check`** | passing (240 Rust tests + 3 ignored OCR + 2 ignored real-model tests, 1 web test) |
+| **`just check`** | passing (247 Rust tests + 3 ignored OCR + 2 ignored real-model tests, 17 web tests); `just e2e` 4 Playwright tests |
 | **Old code** | `legacy/` (read-only reference; deleted in step 7) |
 
 ## Next up
 
-**Step 5: the web UI redesign.** The API is feature-complete for the core screens
-(`openapi.json` + generated `web/src/api/schema.d.ts`). Work in this order; each task ends
-with `just check` green and a PROGRESS.md update.
+**Step 5: the web UI redesign.** The foundation is done (5.1): design system
+(`web/DESIGN.md`), Tailwind 4 tokens, owned Radix primitives, TanStack Router + Query, typed
+`openapi-fetch` client, app shell, auth + settings screens, embedded single-binary serving,
+Vitest + Playwright. Remaining, in order; each ends with `just check` green, `just e2e`
+green and a PROGRESS.md update:
 
-1. **Design system** (`web/DESIGN.md`): Tailwind 4 + shadcn/ui, colour/spacing/radius tokens
-   as CSS variables, type scale, light + dark (system default, toggle), focus/motion rules.
-   A small `/_design` page rendering the primitives (button, input, card, badge, toast,
-   dialog, skeleton) doubles as a visual check. Add deps to `web/package.json` only.
-2. **App shell + API client**: TanStack Router (typed routes) + TanStack Query;
-   `openapi-fetch` (or a thin typed wrapper) over `schema.d.ts` that turns the
-   `{ error: { code, message } }` shape into typed errors; cookies (`credentials:
-   "include"`); Vite dev proxy `/api` → `http://localhost:8080`; 401 → login redirect.
-3. **Auth screens**: register, login, logout, session bootstrap via `GET /api/v1/me`;
-   rate-limit (429) and validation messages.
-4. **Library**: keyset-paged list (`next_cursor`, infinite query), filters (status,
-   category, tag), streaming upload with progress (XHR or fetch + `ReadableStream`),
-   duplicate (200) vs new (201), processing state polling (`processing.stage`), pin,
-   rename, bulk delete. Tags editor: user `tags` plus `auto_tags` shown as suggestions
-   (accept = add to `tags`, dismiss = `PATCH auto_tags` without it).
-5. **File detail**: metadata, `summary` + `enrichment` state with "regenerate"
-   (`POST /files/{id}/enrich`, handles 409/503), extraction viewer (windowed text, page
-   spans, notes), thumbnail, similar files, download, reindex.
-6. **Search**: query box with mode toggle, filters, file-grouped results with highlight
-   offsets rendered as `<mark>` (Unicode-character offsets!), "did you mean", degraded
-   warning, summary under each hit, paging.
-7. **Chat**: conversation list (keyset), message history, ask via `fetch` POST + streamed
-   body parsed as SSE (EventSource cannot POST), live deltas, sources panel with `[n]`
-   citations linking to file/page, refused/no_llm/error states, stop (AbortController),
-   rename/delete; titles refresh after the first answer (model-written titles arrive a
-   moment later).
-8. **Settings**: display name, password change, delete account. Collections and activity
-   screens wait for their APIs (step 6).
-9. **Single binary**: build `web/dist` and embed it with `rust-embed` (SPA fallback for
-   non-`/api` paths, immutable caching for hashed assets, `index.html` no-cache); Dockerfile
-   builds the web first; CI checks it.
-10. **Playwright e2e in CI**: register → upload → wait ready → search → chat (server with
-   `AKASHA_LLM_PROVIDER=fake`, deterministic models, `OCR_ENABLED=false`).
+1. **Library + upload** (`src/routes/library.tsx` is a placeholder): keyset-paged list
+   (`GET /files`, `next_cursor`, `useInfiniteQuery`), filters (status, category, tag),
+   upload with progress via XHR `upload.onprogress` (fetch has no upload progress) wired
+   into the existing global drop zone (`components/shell/upload-drop-zone.tsx`, today it only
+   toasts) and the Upload button; duplicate (200) vs new (201) toasts; processing polling
+   (`refetchInterval` while any file is `processing`, show `processing.stage`); pin,
+   rename, bulk delete (dialog). Tags editor: user `tags` + `auto_tags` as suggestions
+   (accept = add to `tags`, dismiss = `PATCH auto_tags` without it). E2E: upload a `.txt`,
+   wait for ready.
+2. **File detail** (`/library/$fileId`): metadata, `summary` + `enrichment` with
+   "regenerate" (`POST /files/{id}/enrich`, 409/503), extraction viewer (windowed text,
+   page spans; offsets are Unicode characters), thumbnail, similar files, download, reindex.
+3. **Search** (`/search` placeholder): query box (also from the ⌘K palette: add a
+   "Search for …" item), mode toggle, filters, file-grouped results, highlight offsets
+   rendered as `<mark>` (convert Unicode-character offsets to JS string indices!),
+   "did you mean", degraded warning, summaries, paging. Search state in the URL
+   (`validateSearch`).
+4. **Chat** (`/chat` placeholder): conversation list (keyset), history, ask via `fetch`
+   POST + SSE parsing of the streamed body (EventSource cannot POST), live deltas,
+   sources panel with `[n]` citations linking to file/page, refused/no_llm/error states
+   (`meta.chat_model` tells whether a model exists), stop (AbortController), rename/delete,
+   title refresh after the first answer. E2E: ask with the fake model.
+5. **Polish**: route-level code splitting (`lazyRouteComponent`; the bundle is ~560 kB /
+   180 kB gzip), gzip/brotli for embedded assets (`tower-http` compression), a keyboard
+   shortcuts sheet, collections/activity screens once their APIs exist (step 6).
 
 Open follow-ups (not blocking step 5):
 - Calibrate the real-reranker refusal threshold: `akasha eval --real-models` with
@@ -120,11 +114,12 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 - [x] Auto tags/summary per file (`enrich_file`, separate `auto_tags`; replaces the legacy Gemini calls), model-written conversation titles, refusal-gate calibration report in `akasha eval` (ADR 0013)
 
 ### Step 5: New web UI (redesign)
-- [ ] Design system first (tokens, type scale, light + dark), documented in `web/DESIGN.md`
-- [ ] TanStack Router + Query, shadcn/ui on Tailwind 4, typed client from `openapi.json`
-- [ ] Screens: auth, library, file detail, search, chat, collections, activity, settings
-- [ ] Rust binary serves the built UI (`rust-embed`), so production is a single binary
-- [ ] Playwright end-to-end tests in CI
+- [x] Design system first (tokens, type scale, light + dark), documented in `web/DESIGN.md`
+- [x] TanStack Router + Query, shadcn/ui on Tailwind 4, typed client from `openapi.json`
+- [~] Screens: auth, settings, 404, error boundary and the app shell done; library, file
+      detail, search, chat are placeholders; collections, activity wait for step 6
+- [x] Rust binary serves the built UI (`rust-embed`, feature `embed-ui`), so production is a single binary
+- [x] Playwright end-to-end tests in CI (auth + settings flow; extend per screen)
 
 ### Step 6: Beyond parity
 - [ ] MCP server (`akasha mcp`, `rmcp`) exposing search/read to AI agents
@@ -349,9 +344,37 @@ See [`docs/adr/`](docs/adr). Summary:
   (`extra_hosts: host-gateway`); host Ollama must listen on `0.0.0.0`. `--profile ollama`
   runs `ollama/ollama:0.12.3` as service `ollama` (set `AKASHA_OLLAMA_URL=http://ollama:11434`).
 
+- Web UI (step 5): `web/DESIGN.md` is the source of truth; colours are CSS variables in
+  `src/styles/tokens.css` named without the `--color-` prefix (`--bg`, `--fg-muted`, ...) and
+  mapped to Tailwind in `app.css` (`@theme inline`), because Tailwind owns the `--color-*`,
+  `--shadow-*`, `--radius-*` namespaces. Use `bg-surface`, `text-fg-muted`, etc.
+- The server's CSP forbids inline scripts: the pre-paint theme script is the external
+  `web/public/theme-init.js`. `style-src` allows `'unsafe-inline'` (Radix injects styles).
+  The e2e test fails on any CSP console error, so new libraries that need more show up there.
+- The UI is embedded only with `cargo build --features embed-ui` (needs `web/dist`, i.e.
+  `pnpm build` first; rust-embed with `debug-embed`, so debug builds embed too). Without
+  the feature, non-API paths are JSON 404s (CI rust job, `cargo test`). Serving logic is
+  tested with `WebAssets::from_files` (`crates/app/tests/web.rs`). Unknown `/api/*` paths
+  never fall back to `index.html`; missing files with an extension are 404 (stale chunks).
+- `GET /api/v1/me` 401 is "not signed in": `meQuery` returns `null`. Route guards
+  (`router.tsx`) read it; sign-in/out set it (`lib/session.ts`). The client's
+  `onUnauthorized` (any other 401) only acts when a user was cached, so the bootstrap 401 is
+  quiet; wrong-password 401s (login, password change, account delete) are excluded.
+- Radix toasts duplicate their text into a live region: in Playwright use
+  `getByText(.., { exact: true })`.
+- Playwright is pinned to 1.56.1 to match the preinstalled Chromium (revision 1194 in
+  `/opt/pw-browsers`); CI installs its own browser. Bump both together. `just e2e` starts
+  `target/debug/akasha` on port 8091 (`AKASHA_E2E_PORT`) against `DATABASE_URL`, with a
+  temp storage dir. Credential endpoints are rate-limited per IP (burst 10, then 1/6 s): keep
+  the e2e suite under ~10 sign-in/register/password calls or tests start getting 429s.
+- The Docker image builds `web/` in a `node:22` stage and embeds it; the Docker build could
+  not be run in the cloud sandbox (no daemon), CI's docker job covers it.
+
 ## Session log
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
+
+- 2026-10-09 · Claude (cloud) · Step 5.1: UI foundation. `web/DESIGN.md` (paper/ink palette with one verdigris accent, Newsreader + Inter + JetBrains Mono self-hosted, verified AA contrast, 4px spacing, radii, elevation, motion with reduced-motion), Tailwind 4 tokens, owned Radix primitives (button, input, field, dialog, dropdown, toast, tooltip, tabs, segmented, skeleton, card, badge, kbd), TanStack Router (typed, code-based, guarded layouts) + Query, `openapi-fetch` client with `ApiError` mapping and session-expiry redirect, app shell (sidebar / phone tab bar, ⌘K palette, theme toggle, user menu, global drop zone placeholder), sign-in, register (honours `allow_registration` via new public `GET /api/v1/meta`), settings (profile, theme, password, delete account), 404, error boundary, `/design` reference page, placeholders for library/search/chat; UI embedded in the binary (`embed-ui` feature, SPA fallback, immutable hashed assets, ETag, CSP and security headers on every response), Dockerfile web stage, Vitest (17) + Playwright e2e (4) with `just e2e` and a CI `e2e` job. Library/search/chat screens next.
 
 - 2026-10-09 · Claude (cloud) · Step 4 done (4.4): default Claude model → `claude-sonnet-5-5`; migration 0010 (`files.summary/auto_tags/enrichment_*`, `conversations.title_source`); `enrich_file` job (first 8k chars + 3 later samples, JSON mode for Ollama/Gemini, defensive parsing/normalisation, idempotent per extraction, failures never touch file status), `auto_tags` in file/search responses and tag filters, `PATCH auto_tags`, `POST /files/{id}/enrich` (10/min/user); `title_conversation` job after the first answer; refusal-gate calibration report in `akasha eval` (`eval/gate.json`); compose `--profile ollama` + host-Ollama docs; ADR 0013. Real-reranker threshold still uncalibrated (HF blocked here).
 

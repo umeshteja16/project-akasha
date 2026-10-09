@@ -1,6 +1,9 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
-  "files": { "includes": ["**", "!dist", "!src/api/schema.d.ts"] },
+  "files": {
+    "includes": ["**", "!dist", "!src/api/schema.d.ts", "!test-results", "!playwright-report"]
+  },
+  "css": { "parser": { "tailwindDirectives": true } },
   "formatter": { "indentStyle": "space", "lineWidth": 100 },
   "linter": { "rules": { "preset": "recommended", "suspicious": { "noExplicitAny": "error" } } }
 }

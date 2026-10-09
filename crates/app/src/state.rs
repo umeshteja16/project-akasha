@@ -8,6 +8,7 @@ use akasha_storage::Storage;
 use crate::{
     jobs::ml::MlProvider,
     rate_limit::{self, AuthLimiter, UserLimiter},
+    web::WebAssets,
 };
 
 /// `POST /files/{id}/enrich` calls per user per minute.
@@ -32,6 +33,8 @@ pub struct AppState {
     pub ml: Arc<MlProvider>,
     /// The chat model; `None`: chat answers with passages only.
     pub llm: Option<Arc<dyn ChatModel>>,
+    /// The built web UI (embedded with feature `embed-ui`; otherwise none).
+    pub web: Arc<WebAssets>,
 }
 
 impl AppState {
@@ -54,6 +57,7 @@ impl AppState {
         Self {
             ml: Arc::new(MlProvider::from_config(&config)),
             llm,
+            web: Arc::new(WebAssets::embedded()),
             search_limiter: rate_limit::user_limiter(config.search_rate_per_minute),
             chat_limiter: rate_limit::user_limiter(config.chat_rate_per_minute),
             enrich_limiter: rate_limit::user_limiter(ENRICH_PER_MINUTE),

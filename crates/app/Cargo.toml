@@ -13,6 +13,9 @@ path = "src/main.rs"
 default = ["onnx"]
 # Real embedding/rerank models through ONNX Runtime (loaded at run time).
 onnx = ["akasha-ml/onnx"]
+# Embed the built web UI from web/dist (run `pnpm build` in web/ first). Without it
+# the server is API-only and the UI is served by Vite in development.
+embed-ui = ["dep:rust-embed"]
 
 [dependencies]
 akasha-core.workspace = true
@@ -34,6 +37,8 @@ clap.workspace = true
 futures-util.workspace = true
 governor.workspace = true
 infer.workspace = true
+mime_guess.workspace = true
+rust-embed = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

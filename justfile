@@ -40,6 +40,16 @@ models:
 web:
     cd web && pnpm dev
 
+# Build the web UI and a server binary with it embedded (production is one binary).
+build-ui:
+    cd web && pnpm build
+    cargo build -p akasha --features embed-ui
+
+# Playwright end-to-end tests against the real stack (Postgres + akasha serve with
+# fake models + the embedded UI). Not part of `check`; CI runs it as its own job.
+e2e: build-ui
+    cd web && pnpm e2e
+
 # Apply migrations with sqlx-cli (no app build needed; the SQL macros require the schema).
 db-migrate:
     sqlx migrate run --source crates/db/migrations

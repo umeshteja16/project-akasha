@@ -1692,6 +1692,27 @@
         ]
       }
     },
+    "/api/v1/meta": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Public server facts (no sign-in needed). Reveals nothing about accounts.",
+        "operationId": "get_meta",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerMeta"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/search": {
       "get": {
         "tags": [
@@ -3304,6 +3325,28 @@
           "semantic",
           "hybrid"
         ]
+      },
+      "ServerMeta": {
+        "type": "object",
+        "required": [
+          "version",
+          "allow_registration",
+          "chat_model"
+        ],
+        "properties": {
+          "allow_registration": {
+            "type": "boolean",
+            "description": "Whether `POST /api/v1/auth/register` accepts new accounts."
+          },
+          "chat_model": {
+            "type": "boolean",
+            "description": "Whether a language model is configured (chat answers and enrichment).\nWithout one, chat answers with passages only."
+          },
+          "version": {
+            "type": "string",
+            "description": "Server version (the `akasha` crate version)."
+          }
+        }
       },
       "SimilarFile": {
         "type": "object",

@@ -1,14 +1,26 @@
 # syntax=docker/dockerfile:1
-# Production image: one static-ish binary on distroless, running as non-root.
+# Production image: one static-ish binary (API + embedded web UI) on distroless,
+# running as non-root.
+
+# The web UI, built once and embedded into the binary (feature `embed-ui`).
+FROM node:22-bookworm-slim AS web
+WORKDIR /web
+RUN npm install -g pnpm@10.28.0
+COPY web/package.json web/pnpm-lock.yaml ./
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
+COPY web/ ./
+RUN pnpm build
 
 FROM rust:1.97-bookworm AS build
 WORKDIR /src
 # Compile SQL macros against the checked-in .sqlx cache; no database at build time.
 ENV SQLX_OFFLINE=true
 COPY . .
+COPY --from=web /web/dist web/dist
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/target \
-    cargo build --release -p akasha && cp target/release/akasha /akasha \
+    cargo build --release -p akasha --features embed-ui && cp target/release/akasha /akasha \
     && mkdir -p /empty-dir
 
 # ONNX Runtime for embeddings/reranking, loaded by akasha at run time (ADR 0009).

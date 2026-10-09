@@ -6,6 +6,7 @@ pub(crate) mod chat;
 pub(crate) mod files;
 mod health;
 mod me;
+mod meta;
 pub(crate) mod search;
 
 use std::time::Duration;
@@ -22,19 +23,13 @@ use utoipa::{
     openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
 };
 
-use crate::{
-    auth::session::COOKIE_NAME,
-    error::{ApiError, ErrorBody},
-    rate_limit,
-    state::AppState,
-};
-use akasha_core::Error;
+use crate::{auth::session::COOKIE_NAME, error::ErrorBody, rate_limit, state::AppState};
 
 #[derive(OpenApi)]
 #[openapi(
     info(title = "Akasha API", description = "Personal knowledge retrieval."),
     paths(
-        health::healthz, health::readyz,
+        health::healthz, health::readyz, meta::get_meta,
         auth::register, auth::login, auth::logout,
         me::get_me, me::update_me, me::change_password, me::delete_me,
         files::upload::upload, files::list, files::get, files::update, files::delete,
@@ -107,6 +102,7 @@ pub fn router(state: &AppState) -> Router<AppState> {
             "/api/openapi.json",
             get(|| async { Json(ApiDoc::openapi()) }),
         )
+        .route("/api/v1/meta", get(meta::get_meta))
         .route("/api/v1/auth/logout", post(auth::logout))
         .route("/api/v1/me", get(me::get_me).patch(me::update_me))
         .route("/api/v1/files", get(files::list))
@@ -143,5 +139,6 @@ pub fn router(state: &AppState) -> Router<AppState> {
             REQUEST_TIMEOUT,
         ))
         .merge(transfers)
-        .fallback(|| async { ApiError(Error::not_found("no such route")) })
+        // Unknown `/api` paths are JSON 404s; browser paths get the embedded UI.
+        .fallback(crate::web::fallback)
 }

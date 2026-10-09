@@ -16,7 +16,7 @@ React + TypeScript UI  ──REST (OpenAPI)──▶  akasha (single Rust binary
 
 - **Backend:** Rust, Axum, Tokio, SQLx, Postgres 17 + pgvector
 - **ML:** embeddings and reranking in-process via ONNX Runtime (`fastembed`, [ADR 0009](docs/adr/0009-embeddings-onnx-runtime.md)); LLMs via Ollama / Claude / Gemini (planned)
-- **Frontend:** React 19, TypeScript, Vite, Biome, Vitest
+- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS 4, Radix (shadcn/ui-style), TanStack Router + Query, Biome, Vitest, Playwright ([`web/DESIGN.md`](web/DESIGN.md))
 
 Design decisions are recorded in [`docs/adr/`](docs/adr).
 
@@ -32,6 +32,9 @@ just web                     # UI on http://localhost:5173
 ```
 
 Production-style run of the whole stack: `docker compose --profile app up --build`.
+The image is one binary serving both the API and the web UI (embedded at build time
+with the `embed-ui` cargo feature). Natively: `just build-ui`, then
+`target/debug/akasha serve` serves the UI on http://localhost:8080.
 
 ## ML models and offline installs
 

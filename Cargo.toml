@@ -37,11 +37,14 @@ thiserror = "2"
 time = "0.3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "net", "time", "sync"] }
 tower = { version = "0.5", features = ["util"] }
-tower-http = { version = "0.6", features = ["trace", "request-id", "timeout", "catch-panic", "propagate-header"] }
+tower-http = { version = "0.6", features = ["trace", "request-id", "timeout", "catch-panic", "propagate-header", "set-header"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 utoipa = { version = "5", features = ["axum_extras", "uuid", "chrono"] }
 http-body-util = "0.1"
+# The built web UI (web/dist) embedded in the binary (`akasha` feature `embed-ui`).
+rust-embed = { version = "8", features = ["debug-embed"] }
+mime_guess = "2"
 bytes = "1"
 futures-util = "0.3"
 hex = "0.4"
