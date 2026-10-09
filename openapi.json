@@ -675,7 +675,7 @@
           {
             "name": "tag",
             "in": "query",
-            "description": "Only files carrying this tag.",
+            "description": "Only files carrying this tag (their own or a suggested one).",
             "required": false,
             "schema": {
               "type": "string"
@@ -999,7 +999,7 @@
         "tags": [
           "files"
         ],
-        "summary": "Rename, pin/unpin or retag a file.",
+        "summary": "Rename, pin/unpin or retag a file (or drop model-suggested tags).",
         "operationId": "update",
         "parameters": [
           {
@@ -1110,6 +1110,94 @@
           },
           "404": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/files/{id}/enrich": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Ask the language model again for the file's summary and suggested tags\n(e.g. after a failure or a model change). Your own tags are never changed.\nThe result shows up on the file once the background job ran. Needs a\nconfigured language model; limited per user.",
+        "operationId": "enrich",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "File id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Enrichment queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The file is not ready yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No language model is configured",
             "content": {
               "application/json": {
                 "schema": {
@@ -2369,6 +2457,40 @@
           }
         }
       },
+      "EnrichmentInfo": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`provider/model` that wrote the summary and tags."
+          },
+          "status": {
+            "$ref": "#/components/schemas/EnrichmentStatus"
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "EnrichmentStatus": {
+        "type": "string",
+        "description": "How the last enrichment (summary and suggested tags) went.",
+        "enum": [
+          "done",
+          "skipped",
+          "failed"
+        ]
+      },
       "ErrorBody": {
         "type": "object",
         "required": [
@@ -2555,10 +2677,18 @@
           "size_bytes",
           "status",
           "tags",
+          "auto_tags",
           "is_pinned",
           "created_at"
         ],
         "properties": {
+          "auto_tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tags suggested by the language model."
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
@@ -2584,11 +2714,19 @@
             "type": "string",
             "description": "`pending`, `processing`, `ready` or `failed`."
           },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Model-written description of the file, when there is one."
+          },
           "tags": {
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "description": "The user's own tags."
           }
         }
       },
@@ -2625,10 +2763,18 @@
           "status",
           "is_pinned",
           "tags",
+          "auto_tags",
           "created_at",
           "updated_at"
         ],
         "properties": {
+          "auto_tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tags suggested by the language model, minus any already in `tags`.\nFiltering and searching by tag match both lists."
+          },
           "content_hash": {
             "type": "string",
             "description": "SHA-256 of the contents, lowercase hex."
@@ -2636,6 +2782,17 @@
           "created_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "enrichment": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EnrichmentInfo",
+                "description": "State of the model-written summary and tags; `null`: not enriched (yet)."
+              }
+            ]
           },
           "error": {
             "type": [
@@ -2666,11 +2823,19 @@
           "status": {
             "$ref": "#/components/schemas/FileStatus"
           },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A short model-written description, once the file was enriched."
+          },
           "tags": {
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "description": "The user's own tags (never changed by the model)."
           },
           "updated_at": {
             "type": "string",
@@ -3272,6 +3437,16 @@
       "UpdateFileRequest": {
         "type": "object",
         "properties": {
+          "auto_tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Replaces the model-suggested tags (e.g. to drop a wrong one); same rules\nas `tags`. Re-running enrichment replaces them again; to keep a\nsuggestion for good, add it to `tags`."
+          },
           "is_pinned": {
             "type": [
               "boolean",

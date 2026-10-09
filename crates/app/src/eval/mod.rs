@@ -11,6 +11,7 @@
 //! `overlap` reranker (no downloads; also run by `cargo test`, guarding fusion
 //! and ranking code); `--real-models` uses the configured models.
 
+pub mod gate;
 mod ingest;
 pub mod metrics;
 pub mod report;
@@ -50,7 +51,8 @@ pub struct EvalOptions {
 }
 
 /// The configuration the eval runs with: the deterministic models unless
-/// `real_models`, no OCR (the corpus is text), one worker job at a time.
+/// `real_models`, no OCR (the corpus is text), no language model, one worker
+/// job at a time.
 pub fn eval_config(mut config: Config, real_models: bool) -> Config {
     if !real_models {
         config.embed_model = akasha_ml::catalog::HASH_EMBED_MODEL.into();
@@ -58,6 +60,8 @@ pub fn eval_config(mut config: Config, real_models: bool) -> Config {
     }
     config.ocr_enabled = false;
     config.worker_concurrency = 1;
+    // The eval measures retrieval: no summaries, titles or other model calls.
+    config.llm_provider = akasha_core::LlmProvider::None;
     config
 }
 
@@ -92,6 +96,9 @@ pub async fn run_cli(config: Config, opts: EvalOptions) -> anyhow::Result<()> {
     let report = result?;
 
     println!("{}", report.table());
+    if let Some(gate) = &report.gate {
+        println!("{}", gate.table());
+    }
     let out = opts
         .out
         .unwrap_or_else(|| PathBuf::from(format!("target/eval/{key}.json")));
@@ -166,6 +173,7 @@ pub async fn evaluate(
         queries: suite.queries.len(),
         modes: BTreeMap::new(),
         per_query: Vec::new(),
+        gate: None,
     };
     for (name, mode, rerank) in modes {
         let (mode_report, outcomes) = run_mode(&pool, owner, suite, &models, name, mode, rerank)
@@ -173,6 +181,17 @@ pub async fn evaluate(
             .with_context(|| format!("mode {name}"))?;
         report.modes.insert(name.to_owned(), mode_report);
         report.per_query.extend(outcomes);
+    }
+    if let (Some(set), Ok(Some(reranker))) = (&suite.gate, &models.reranker) {
+        let name = reranker.name();
+        let threshold = state
+            .config
+            .chat_min_rerank_score
+            .or_else(|| crate::chat::evidence::default_min_score(name));
+        let gate = gate::run(&pool, owner, &models, name, threshold, set)
+            .await
+            .context("gate calibration")?;
+        report.gate = Some(gate);
     }
     Ok(report)
 }

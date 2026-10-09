@@ -17,39 +17,59 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 
 | | |
 |---|---|
-| **Current step** | Step 4: Grounded chat (4.1-4.3 done; auto tags/summary next) |
+| **Current step** | Step 5: New web UI (Step 4 done) |
 | **Last updated** | 2026-10-09 |
-| **`just check`** | passing (223 Rust tests + 3 ignored OCR + 2 ignored real-model tests, 1 web test) |
+| **`just check`** | passing (240 Rust tests + 3 ignored OCR + 2 ignored real-model tests, 1 web test) |
 | **Old code** | `legacy/` (read-only reference; deleted in step 7) |
 
 ## Next up
 
-**Step 4.4: Auto tags and summary per file** (replaces the legacy Gemini calls in the worker).
+**Step 5: the web UI redesign.** The API is feature-complete for the core screens
+(`openapi.json` + generated `web/src/api/schema.d.ts`). Work in this order; each task ends
+with `just check` green and a PROGRESS.md update.
 
-1. Job `summarize_file` enqueued by `embed_file` when a file becomes `ready` (same
-   transaction), only if a chat model is configured (`crate::llm::build`); idempotent
-   (skip when the stored summary was made from the same `file_extractions` row/extractor
-   version). Needs `JobContext` to carry the `ChatModel` (build it like `AppState`).
-2. Migration: `files.summary text`, `files.auto_tags text[]` (keep user `tags` separate),
-   `summary_model`. Prompt with the first N chunks (bounded characters), ask for a 2-3
-   sentence summary + up to 5 tags as JSON; parse defensively, normalise with
-   `normalize_tags`; use `ChatModel::complete` with low `max_tokens`. Strict offline:
-   nothing to do (the provider is already local or none).
-3. Expose on `GET /files/{id}` (+ list), allow filtering search by auto tags; tests with
-   the fake model (extend `FakeChatModel` with a JSON mode, or a scripted test model).
-4. Then: calibrate the real-reranker refusal threshold (`chat::evidence::default_min_score`,
-   currently a lenient -3 guess on logits) by adding unanswerable questions to `eval/` and
-   recording top rerank scores in `akasha eval --real-models` (the `eval.yml` workflow).
+1. **Design system** (`web/DESIGN.md`): Tailwind 4 + shadcn/ui, colour/spacing/radius tokens
+   as CSS variables, type scale, light + dark (system default, toggle), focus/motion rules.
+   A small `/_design` page rendering the primitives (button, input, card, badge, toast,
+   dialog, skeleton) doubles as a visual check. Add deps to `web/package.json` only.
+2. **App shell + API client**: TanStack Router (typed routes) + TanStack Query;
+   `openapi-fetch` (or a thin typed wrapper) over `schema.d.ts` that turns the
+   `{ error: { code, message } }` shape into typed errors; cookies (`credentials:
+   "include"`); Vite dev proxy `/api` → `http://localhost:8080`; 401 → login redirect.
+3. **Auth screens**: register, login, logout, session bootstrap via `GET /api/v1/me`;
+   rate-limit (429) and validation messages.
+4. **Library**: keyset-paged list (`next_cursor`, infinite query), filters (status,
+   category, tag), streaming upload with progress (XHR or fetch + `ReadableStream`),
+   duplicate (200) vs new (201), processing state polling (`processing.stage`), pin,
+   rename, bulk delete. Tags editor: user `tags` plus `auto_tags` shown as suggestions
+   (accept = add to `tags`, dismiss = `PATCH auto_tags` without it).
+5. **File detail**: metadata, `summary` + `enrichment` state with "regenerate"
+   (`POST /files/{id}/enrich`, handles 409/503), extraction viewer (windowed text, page
+   spans, notes), thumbnail, similar files, download, reindex.
+6. **Search**: query box with mode toggle, filters, file-grouped results with highlight
+   offsets rendered as `<mark>` (Unicode-character offsets!), "did you mean", degraded
+   warning, summary under each hit, paging.
+7. **Chat**: conversation list (keyset), message history, ask via `fetch` POST + streamed
+   body parsed as SSE (EventSource cannot POST), live deltas, sources panel with `[n]`
+   citations linking to file/page, refused/no_llm/error states, stop (AbortController),
+   rename/delete; titles refresh after the first answer (model-written titles arrive a
+   moment later).
+8. **Settings**: display name, password change, delete account. Collections and activity
+   screens wait for their APIs (step 6).
+9. **Single binary**: build `web/dist` and embed it with `rust-embed` (SPA fallback for
+   non-`/api` paths, immutable caching for hashed assets, `index.html` no-cache); Dockerfile
+   builds the web first; CI checks it.
+10. **Playwright e2e in CI**: register → upload → wait ready → search → chat (server with
+   `AKASHA_LLM_PROVIDER=fake`, deterministic models, `OCR_ENABLED=false`).
 
-Chat follow-ups (not blocking): LLM-generated conversation titles (currently the first
-question, shortened) via a job; per-conversation default file scope; a `fallback` from
-`no_llm` to a provider outage (currently `error` with `llm_unavailable`).
-
-Search follow-ups (not blocking): keyword search ANDs every word (`websearch_to_tsquery`),
-so long natural-language queries find nothing by keyword (eval: keyword MRR 0.57 vs hybrid
-0.82); consider an OR fallback when the AND query finds few chunks, and check it with
-`akasha eval`. Commit a real-model baseline for the default models (e5-small + jina) from the
-first `eval.yml` artifact (MiniLM's is committed and gated there).
+Open follow-ups (not blocking step 5):
+- Calibrate the real-reranker refusal threshold: `akasha eval --real-models` with
+  `AKASHA_RERANK_MODEL=jina-reranker-v1-turbo-en` prints the gate report (see gotchas);
+  needs a network that can reach Hugging Face (not this sandbox; use the `eval.yml` run).
+- Commit a real-model eval baseline for the default models from the first `eval.yml`
+  artifact. Keyword search ANDs every word (MRR 0.57 vs hybrid 0.82): consider an OR
+  fallback, check with `akasha eval`.
+- Chat: per-conversation default file scope; `no_llm` fallback on a provider outage.
 
 ## Roadmap
 
@@ -93,11 +113,11 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 - [x] Spelling suggestion ("did you mean"): per-owner `user_terms` vocabulary kept by triggers, `pg_trgm` lookup, `suggestion` on search responses (ADR 0011)
 - [x] `akasha eval` (corpus + queries in `eval/`, Recall@k/MRR/nDCG@10/latency, baselines), deterministic gate in `cargo test`, real-model tier in `eval.yml` (ADR 0011)
 
-### Step 4: Grounded chat
+### Step 4: Grounded chat ✅
 - [x] LLM provider trait in new `crates/llm` (ADR 0012): Ollama (offline), Claude, Gemini, OpenAI-compatible, fake; strict offline = local providers only
 - [x] Conversations + messages tables, streaming answers over SSE, inline citations
 - [x] Refusal when evidence is weak (reranker score threshold, calibrated for `overlap`), tested
-- [ ] Auto tags/summary per file (replaces the legacy Gemini calls in the worker)
+- [x] Auto tags/summary per file (`enrich_file`, separate `auto_tags`; replaces the legacy Gemini calls), model-written conversation titles, refusal-gate calibration report in `akasha eval` (ADR 0013)
 
 ### Step 5: New web UI (redesign)
 - [ ] Design system first (tokens, type scale, light + dark), documented in `web/DESIGN.md`
@@ -138,7 +158,8 @@ See [`docs/adr/`](docs/adr). Summary:
 0009 Embeddings via fastembed on runtime-loaded ONNX Runtime ·
 0010 Hybrid search (FTS + pgvector, RRF, rerank) in `crates/search` ·
 0011 Search eval tiers, spelling vocabulary, thumbnails ·
-0012 LLM providers (`crates/llm`) and grounded chat.
+0012 LLM providers (`crates/llm`) and grounded chat ·
+0013 Model-written file summaries, suggested tags and conversation titles.
 
 ## Known issues and gotchas
 
@@ -297,10 +318,42 @@ See [`docs/adr/`](docs/adr). Summary:
   "default"` + beta header only for the models in `anthropic::FALLBACK_MODELS`. Gemini keys
   go in `x-goog-api-key`, never the URL. OpenAI-compatible base URLs include `/v1`.
 - `Config` is no longer `Eq` (it has `f32` fields). Config types live in `core/src/config/types.rs`.
+- Anthropic default model is `claude-sonnet-5-5` (since step 4.4; cheaper and faster for
+  short grounded answers); `AKASHA_LLM_MODEL=claude-opus-5-5` selects Opus.
+
+- Enrichment (ADR 0013): `enrich_file` is queued by `embed_file` only when the file goes
+  `processing → ready` (`Finish::Done { became_ready }`) and a model is configured, so with
+  the default test config (fake model) a text upload now runs **3** jobs (extract, embed,
+  enrich); a re-embed adds an enrich job that skips (no model call). `TestApp::run_jobs`
+  uses the app's chat model (`TestApp::with_llm(.., None)` → no enrichment). Tests that
+  count model calls must reset their counter after seeding files.
+- Never write `files.tags` from a job: those are the user's. Model output goes to
+  `auto_tags`; tag filters use `tags || auto_tags`. `enriched_from` must equal
+  `file_extractions.created_at` (an upsert that keeps `created_at` would break staleness
+  detection, so extraction sets `created_at = now()` on conflict; keep it that way).
+- `ChatRequest.json`: Ollama/Gemini JSON mode only; not every OpenAI-compatible server accepts
+  `response_format: json_object`, and Anthropic structured outputs need a schema, so those
+  rely on the prompt and `enrich::parse` (defensive). `FakeChatModel` in JSON mode skips the
+  first prompt line (the file-name header) and answers first sentence + top-3 words.
+- Conversation titles: `conversations.title_source` (`user|question|model`); only a
+  `question` title is replaced by `title_conversation`. Renames set `user`.
+- `akasha eval` forces `llm_provider = none` and prints a refusal-gate report from
+  `eval/gate.json` when a reranker is loaded. To calibrate a real reranker: get the model
+  (`akasha models download`, needs Hugging Face), run `AKASHA_RERANK_MODEL=<model> cargo run
+  --release -p akasha -- eval --real-models`, read "best on this set", choose a value a bit
+  lower (refusing answerable questions is worse), put it in
+  `chat::evidence::default_min_score` for that model (or `AKASHA_CHAT_MIN_RERANK_SCORE`),
+  keep `tests/chat_gate.rs` green and record the numbers in `eval/README.md`. The ONNX
+  default (-3 logits) is still a guess.
+- Compose: the app container reaches host Ollama via `host.docker.internal`
+  (`extra_hosts: host-gateway`); host Ollama must listen on `0.0.0.0`. `--profile ollama`
+  runs `ollama/ollama:0.12.3` as service `ollama` (set `AKASHA_OLLAMA_URL=http://ollama:11434`).
 
 ## Session log
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
+
+- 2026-10-09 · Claude (cloud) · Step 4 done (4.4): default Claude model → `claude-sonnet-5-5`; migration 0010 (`files.summary/auto_tags/enrichment_*`, `conversations.title_source`); `enrich_file` job (first 8k chars + 3 later samples, JSON mode for Ollama/Gemini, defensive parsing/normalisation, idempotent per extraction, failures never touch file status), `auto_tags` in file/search responses and tag filters, `PATCH auto_tags`, `POST /files/{id}/enrich` (10/min/user); `title_conversation` job after the first answer; refusal-gate calibration report in `akasha eval` (`eval/gate.json`); compose `--profile ollama` + host-Ollama docs; ADR 0013. Real-reranker threshold still uncalibrated (HF blocked here).
 
 - 2026-10-09 · Claude (cloud) · Step 4.1-4.3: new crate `crates/llm` (async streaming `ChatModel`; Ollama NDJSON, Anthropic Messages SSE, Gemini SSE with header key, OpenAI-compatible SSE; retries/backoff, read timeouts, strict offline check, redacted keys, deterministic fake, mock-server wire tests), migration 0009 (conversations, messages), conversation CRUD + `POST /conversations/{id}/messages` streaming SSE (`sources`/`delta`/`done`/`error`) with `[n]` citations, follow-up rewriting, refusal gate (calibrated `overlap` threshold; overlap reranker now ignores stopwords, eval baseline re-recorded), `no_llm` mode, per-user chat rate limit, cancellation on disconnect, ADR 0012, README "Chat & LLM providers". Auto tags/summary (4.4) not started.
 

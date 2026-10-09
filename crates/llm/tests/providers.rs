@@ -19,6 +19,7 @@ fn request() -> ChatRequest {
         ],
         max_tokens: 256,
         temperature: Some(0.1),
+        json: false,
     }
 }
 
@@ -311,4 +312,50 @@ async fn unreachable_servers_are_reported_as_such() {
     let err = run(model.as_ref()).await.expect_err("refused");
     assert!(matches!(err, LlmError::Unreachable(_)), "{err}");
     assert_eq!(err.code(), "llm_unavailable");
+}
+
+#[tokio::test]
+async fn json_mode_is_requested_where_the_api_has_one() {
+    let ollama_body = concat!(
+        r#"{"message":{"content":"{}"},"done":false}"#,
+        "\n",
+        r#"{"message":{"content":""},"done":true,"done_reason":"stop"}"#,
+        "\n",
+    );
+    let cases = [
+        (Provider::Ollama, ollama_body, "/format", Some("json")),
+        (
+            Provider::Gemini,
+            GEMINI_STREAM,
+            "/generationConfig/responseMimeType",
+            Some("application/json"),
+        ),
+        (
+            Provider::Anthropic,
+            concat!(
+                "event: message_stop\n",
+                "data: {\"type\":\"message_stop\"}\n\n"
+            ),
+            "/output_config/format",
+            None,
+        ),
+    ];
+    for (provider, reply, pointer, expected) in cases {
+        let mock = Mock::start(vec![Reply::ok(split(reply, reply.len()))]).await;
+        let model = build(&mock.options(provider, ""))
+            .expect("build")
+            .expect("model");
+        let mut req = request();
+        req.json = true;
+        // Only the request matters here; the stream may end any way.
+        if let Ok(mut stream) = model.stream(&req).await {
+            while stream.next().await.is_some() {}
+        }
+        let body = &mock.requests()[0].body;
+        assert_eq!(
+            body.pointer(pointer).and_then(|v| v.as_str()),
+            expected,
+            "{provider:?}"
+        );
+    }
 }

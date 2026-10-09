@@ -2,6 +2,7 @@
 //! Every query is filtered by the signed-in owner; other users' files are 404.
 
 pub mod download;
+pub mod enrich;
 pub mod extraction;
 pub mod processing;
 pub mod similar;
@@ -28,7 +29,7 @@ use crate::{
     state::AppState,
 };
 use akasha_core::Error;
-use akasha_db::files::{self, ListFilter};
+use akasha_db::files::{self, FileChanges, ListFilter};
 
 const DEFAULT_PAGE: i64 = 50;
 const MAX_PAGE: i64 = 200;
@@ -106,7 +107,7 @@ pub async fn get(
     }))
 }
 
-/// Rename, pin/unpin or retag a file.
+/// Rename, pin/unpin or retag a file (or drop model-suggested tags).
 #[utoipa::path(
     patch, path = "/api/v1/files/{id}", tag = "files",
     params(("id" = Uuid, Path, description = "File id")),
@@ -124,21 +125,25 @@ pub async fn update(
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateFileRequest>,
 ) -> Result<Json<FileResponse>, ApiError> {
-    if req.name.is_none() && req.is_pinned.is_none() && req.tags.is_none() {
+    if req.name.is_none()
+        && req.is_pinned.is_none()
+        && req.tags.is_none()
+        && req.auto_tags.is_none()
+    {
         return Err(Error::bad_request("nothing to update").into());
     }
     let new_name = req.name.as_deref().map(name::validate_rename).transpose()?;
     let tags = req.tags.as_deref().map(normalize_tags).transpose()?;
-    let file = files::update(
-        &state.db,
-        auth.user_id,
-        id,
-        new_name.as_deref(),
-        req.is_pinned,
-        tags.as_deref(),
-    )
-    .await?
-    .ok_or_else(not_found)?;
+    let auto_tags = req.auto_tags.as_deref().map(normalize_tags).transpose()?;
+    let changes = FileChanges {
+        original_name: new_name.as_deref(),
+        is_pinned: req.is_pinned,
+        tags: tags.as_deref(),
+        auto_tags: auto_tags.as_deref(),
+    };
+    let file = files::update(&state.db, auth.user_id, id, changes)
+        .await?
+        .ok_or_else(not_found)?;
     Ok(Json(file.into()))
 }
 

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE files SET enrichment_status = $2, enriched_from = $3, enriched_at = now()\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9a7cc3b32381f621d138749aeb1b596353e38718f203e6ff25ed0e61ddf2c005"
+}

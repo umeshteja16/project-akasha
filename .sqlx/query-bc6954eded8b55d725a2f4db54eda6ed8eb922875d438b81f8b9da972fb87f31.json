@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT q.content AS question, a.content AS answer\n           FROM conversations c\n           CROSS JOIN LATERAL (\n               SELECT content, created_at FROM messages\n               WHERE conversation_id = c.id AND role = 'user'\n               ORDER BY created_at, id LIMIT 1) q\n           CROSS JOIN LATERAL (\n               SELECT content FROM messages\n               WHERE conversation_id = c.id AND role = 'assistant' AND status = 'answered'\n               ORDER BY created_at, id LIMIT 1) a\n           WHERE c.id = $1 AND c.title_source = 'question'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "question",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "answer",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "bc6954eded8b55d725a2f4db54eda6ed8eb922875d438b81f8b9da972fb87f31"
+}

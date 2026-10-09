@@ -5,6 +5,9 @@
 //! the last run stopped and never redoes finished chunks. Vectors are written only
 //! while the configured model is the one recorded in the database (ADR 0009).
 //!
+//! A file that becomes `ready` gets an `enrich_file` job in the same
+//! transaction when a language model is configured.
+//!
 //! Failure handling mirrors extraction: the file stays `processing` until the
 //! job's last attempt, then becomes `failed` with a user-safe message.
 
@@ -18,7 +21,10 @@ use akasha_jobs::{JobError, current_attempt};
 use akasha_ml::{Embedder, MlError};
 use uuid::Uuid;
 
-use super::{JobContext, kinds::EmbedFile};
+use super::{
+    JobContext,
+    kinds::{EmbedFile, EnrichFile},
+};
 
 /// Chunks per database round trip (and per call into the model, which batches
 /// further internally). Bounds memory: 64 × 2000 characters of text.
@@ -105,9 +111,21 @@ async fn run(ctx: &JobContext, id: Uuid) -> Result<(), Failure> {
 
     let mut tx = ctx.db.begin().await?;
     let finish = embeddings::finish(&mut tx, id).await?;
+    if finish == (Finish::Done { became_ready: true }) && ctx.enriches_files() {
+        // Same transaction: the summary job exists exactly when the file is ready.
+        akasha_jobs::enqueue(
+            &mut tx,
+            &EnrichFile {
+                file_id: id,
+                force: false,
+            },
+        )
+        .await
+        .map_err(Failure::retry)?;
+    }
     tx.commit().await?;
     match finish {
-        Finish::Done => tracing::info!(file_id = %id, chunks = embedded, "file embedded"),
+        Finish::Done { .. } => tracing::info!(file_id = %id, chunks = embedded, "file embedded"),
         Finish::Gone => tracing::debug!(file_id = %id, "file deleted during embedding"),
         Finish::Pending => {
             tracing::debug!(file_id = %id, "chunks changed during embedding; a newer job finishes")

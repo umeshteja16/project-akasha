@@ -29,6 +29,8 @@ pub struct ChunkRow {
     pub size_bytes: i64,
     pub status: String,
     pub tags: Vec<String>,
+    pub auto_tags: Vec<String>,
+    pub summary: Option<String>,
     pub is_pinned: bool,
     pub created_at: DateTime<Utc>,
 }
@@ -48,7 +50,7 @@ pub async fn chunks(
                       E'StartSel=, StopSel=, MaxWords=35, MinWords=15, '
                       'MaxFragments=2, FragmentDelimiter=" … "') AS "headline!",
                   f.original_name AS file_name, f.mime_type, f.size_bytes, f.status,
-                  f.tags, f.is_pinned, f.created_at
+                  f.tags, f.auto_tags, f.summary, f.is_pinned, f.created_at
            FROM file_chunks c
            JOIN files f ON f.id = c.file_id AND f.owner_id = $1
            CROSS JOIN websearch_to_tsquery('english', $3) AS q(tsq)
@@ -70,6 +72,8 @@ pub struct FileRow {
     pub size_bytes: i64,
     pub status: String,
     pub tags: Vec<String>,
+    pub auto_tags: Vec<String>,
+    pub summary: Option<String>,
     pub is_pinned: bool,
     pub created_at: DateTime<Utc>,
 }
@@ -82,7 +86,8 @@ pub async fn files_by_ids(
 ) -> Result<Vec<FileRow>, sqlx::Error> {
     sqlx::query_as!(
         FileRow,
-        "SELECT id, original_name, mime_type, size_bytes, status, tags, is_pinned, created_at
+        "SELECT id, original_name, mime_type, size_bytes, status, tags, auto_tags, summary,
+                is_pinned, created_at
          FROM files WHERE owner_id = $1 AND id = ANY($2)",
         owner_id,
         ids,

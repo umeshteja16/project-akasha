@@ -81,13 +81,61 @@ pub struct FileResponse {
     /// Why processing failed, when `status` is `failed`.
     pub error: Option<String>,
     pub is_pinned: bool,
+    /// The user's own tags (never changed by the model).
     pub tags: Vec<String>,
+    /// Tags suggested by the language model, minus any already in `tags`.
+    /// Filtering and searching by tag match both lists.
+    pub auto_tags: Vec<String>,
+    /// A short model-written description, once the file was enriched.
+    pub summary: Option<String>,
+    /// State of the model-written summary and tags; `null`: not enriched (yet).
+    pub enrichment: Option<EnrichmentInfo>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
+/// How the last enrichment (summary and suggested tags) went.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum EnrichmentStatus {
+    Done,
+    /// Nothing to describe (no extracted text).
+    Skipped,
+    /// The model failed or answered unusably; an earlier summary is kept.
+    Failed,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct EnrichmentInfo {
+    pub status: EnrichmentStatus,
+    /// `provider/model` that wrote the summary and tags.
+    pub model: Option<String>,
+    pub updated_at: Option<DateTime<Utc>>,
+}
+
+impl EnrichmentInfo {
+    fn from_db(f: &File) -> Option<Self> {
+        let status = match f.enrichment_status.as_deref()? {
+            "done" => EnrichmentStatus::Done,
+            "skipped" => EnrichmentStatus::Skipped,
+            _ => EnrichmentStatus::Failed,
+        };
+        Some(Self {
+            status,
+            model: f.enrichment_model.clone(),
+            updated_at: f.enriched_at,
+        })
+    }
+}
+
 impl From<File> for FileResponse {
     fn from(f: File) -> Self {
+        let enrichment = EnrichmentInfo::from_db(&f);
+        let auto_tags = f
+            .auto_tags
+            .into_iter()
+            .filter(|t| !f.tags.contains(t))
+            .collect();
         Self {
             id: f.id,
             name: f.original_name,
@@ -98,6 +146,9 @@ impl From<File> for FileResponse {
             error: f.error,
             is_pinned: f.is_pinned,
             tags: f.tags,
+            auto_tags,
+            summary: f.summary,
+            enrichment,
             created_at: f.created_at,
             updated_at: f.updated_at,
         }
@@ -118,7 +169,7 @@ pub struct UploadForm {
 pub struct ListQuery {
     pub status: Option<FileStatus>,
     pub pinned: Option<bool>,
-    /// Only files carrying this tag.
+    /// Only files carrying this tag (their own or a suggested one).
     pub tag: Option<String>,
     pub category: Option<FileCategory>,
     /// `next_cursor` from the previous page.
@@ -142,6 +193,10 @@ pub struct UpdateFileRequest {
     pub is_pinned: Option<bool>,
     /// Replaces all tags. Trimmed and lowercased; at most 32, each 1–50 characters.
     pub tags: Option<Vec<String>>,
+    /// Replaces the model-suggested tags (e.g. to drop a wrong one); same rules
+    /// as `tags`. Re-running enrichment replaces them again; to keep a
+    /// suggestion for good, add it to `tags`.
+    pub auto_tags: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

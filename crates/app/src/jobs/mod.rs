@@ -6,18 +6,21 @@
 
 pub mod blobs;
 mod embed;
+mod enrich;
 mod extract;
 pub mod kinds;
 mod maintenance;
 pub mod ml;
 pub mod ocr;
 pub mod thumbnail;
+mod title;
 
 use std::{sync::Arc, time::Duration};
 
 use akasha_core::Config;
 use akasha_db::PgPool;
 use akasha_jobs::{QueueError, Registry, Schedule, Worker, WorkerConfig};
+use akasha_llm::ChatModel;
 use akasha_storage::Storage;
 
 use self::kinds::{PruneJobs, PruneSessions, PruneStaging, SweepOrphanBlobs};
@@ -36,16 +39,33 @@ pub struct JobContext {
     pub ocr: Arc<OcrProvider>,
     /// Embedding model and reranker, loaded on first use (shared with the API).
     pub ml: Arc<MlProvider>,
+    /// The language model for summaries, tags and titles; `None`: those jobs
+    /// are not queued (and skip if they run anyway).
+    pub llm: Option<Arc<dyn ChatModel>>,
+    pub config: Arc<Config>,
 }
 
 impl JobContext {
+    /// A context without a language model (add one with [`Self::with_llm`]).
     pub fn new(db: PgPool, storage: Storage, config: &Config) -> Self {
         Self {
             db,
             storage,
             ocr: Arc::new(OcrProvider::from_config(config)),
             ml: Arc::new(MlProvider::from_config(config)),
+            llm: None,
+            config: Arc::new(config.clone()),
         }
+    }
+
+    pub fn with_llm(mut self, llm: Option<Arc<dyn ChatModel>>) -> Self {
+        self.llm = llm;
+        self
+    }
+
+    /// Files get a model-written summary and tags once indexed.
+    pub fn enriches_files(&self) -> bool {
+        self.llm.is_some() && self.config.llm_enrich_files
     }
 }
 
@@ -53,6 +73,8 @@ impl From<&AppState> for JobContext {
     fn from(state: &AppState) -> Self {
         Self {
             ml: Arc::clone(&state.ml),
+            llm: state.llm.clone(),
+            config: Arc::clone(&state.config),
             ..Self::new(state.db.clone(), state.storage.clone(), &state.config)
         }
     }
@@ -63,6 +85,8 @@ pub fn registry() -> Registry<JobContext> {
     Registry::new()
         .register(extract::extract_file)
         .register(embed::embed_file)
+        .register(enrich::enrich_file)
+        .register(title::title_conversation)
         .register(thumbnail::make_thumbnail)
         .register(blobs::delete_if_unreferenced)
         .register(blobs::sweep_orphans)

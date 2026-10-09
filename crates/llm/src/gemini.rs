@@ -75,6 +75,9 @@ impl Gemini {
         if let Some(t) = req.temperature {
             config["temperature"] = json!(t);
         }
+        if req.json {
+            config["responseMimeType"] = json!("application/json");
+        }
         let mut body = json!({ "contents": contents, "generationConfig": config });
         if !req.system.is_empty() {
             body["systemInstruction"] = json!({ "parts": [{ "text": req.system }] });

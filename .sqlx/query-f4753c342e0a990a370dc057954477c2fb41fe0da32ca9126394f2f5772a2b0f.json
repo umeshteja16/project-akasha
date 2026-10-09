@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE conversations SET title = $3 WHERE id = $1 AND owner_id = $2\n         RETURNING id, owner_id, title, created_at, updated_at",
+  "query": "UPDATE conversations SET title = $3, title_source = 'user' WHERE id = $1 AND owner_id = $2\n         RETURNING id, owner_id, title, created_at, updated_at",
   "describe": {
     "columns": [
       {
@@ -44,5 +44,5 @@
       false
     ]
   },
-  "hash": "b84b04220985241e95480f8cec03735c7686b432aa29ba015731cd19cc4b0371"
+  "hash": "f4753c342e0a990a370dc057954477c2fb41fe0da32ca9126394f2f5772a2b0f"
 }

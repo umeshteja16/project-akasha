@@ -81,6 +81,7 @@ async fn answers_stream_with_citations_and_are_stored(pool: PgPool) {
     let (model, calls) = counting(FakeChatModel::new());
     let app = TestApp::with_llm(pool, test_config(), Some(model));
     let (ada, burrows, _) = seeded(&app, "ada@example.com").await;
+    calls.store(0, Ordering::SeqCst); // seeding summarised the files
     let conv = conversation(&app, &ada).await;
 
     let (status, events) = ask(
@@ -181,6 +182,7 @@ async fn weak_evidence_is_refused_without_calling_the_model(pool: PgPool) {
     let (model, calls) = counting(FakeChatModel::new());
     let app = TestApp::with_llm(pool, test_config(), Some(model));
     let (ada, _, _) = seeded(&app, "ada@example.com").await;
+    calls.store(0, Ordering::SeqCst); // seeding summarised the files
     let conv = conversation(&app, &ada).await;
 
     let (_, events) = ask(

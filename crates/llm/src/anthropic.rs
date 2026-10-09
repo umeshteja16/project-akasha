@@ -19,7 +19,7 @@ use crate::{
 };
 
 /// Used when `AKASHA_LLM_MODEL` is empty.
-pub const DEFAULT_MODEL: &str = "claude-opus-5-5";
+pub const DEFAULT_MODEL: &str = "claude-sonnet-5-5";
 pub const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
 pub const API_VERSION: &str = "2023-06-01";
 /// Beta header that enables `fallbacks: "default"`.

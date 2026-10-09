@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, original_name, mime_type, size_bytes, status, tags, is_pinned, created_at\n         FROM files WHERE owner_id = $1 AND id = ANY($2)",
+  "query": "SELECT id, original_name, mime_type, size_bytes, status, tags, auto_tags, summary,\n                is_pinned, created_at\n         FROM files WHERE owner_id = $1 AND id = ANY($2)",
   "describe": {
     "columns": [
       {
@@ -35,11 +35,21 @@
       },
       {
         "ordinal": 6,
+        "name": "auto_tags",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 7,
+        "name": "summary",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
         "name": "is_pinned",
         "type_info": "Bool"
       },
       {
-        "ordinal": 7,
+        "ordinal": 9,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
@@ -58,8 +68,10 @@
       false,
       false,
       false,
+      true,
+      false,
       false
     ]
   },
-  "hash": "593bf8e978690feb0f8d243e5240475fcec44e5df673ebf2c89920c75724abda"
+  "hash": "a2199a0f48640d03f84c98e68bfc0ebf632335ba806c12bfa223255e0def8e1e"
 }

@@ -6,6 +6,7 @@
 
 pub mod chat;
 pub mod embeddings;
+pub mod enrichment;
 pub mod extraction;
 pub mod files;
 pub mod scratch;

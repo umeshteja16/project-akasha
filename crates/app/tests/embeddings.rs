@@ -72,7 +72,7 @@ async fn upload_is_extracted_embedded_and_ready(pool: PgPool) {
         .await
         .json());
 
-    assert_eq!(app.run_jobs().await, 2, "extract, then embed");
+    assert_eq!(app.run_jobs().await, 3, "extract, embed, then enrich");
     let detail = file(&app, &ada, &fid).await;
     assert_eq!(detail["status"], "ready");
     assert_eq!(detail["processing"]["stage"], "embed");
@@ -253,7 +253,8 @@ async fn switching_models_resizes_the_column_and_reembeds_everything(pool: PgPoo
     assert_eq!(file(&app, &ada, &fid).await["status"], "processing");
     assert!(vectors(&pool, &fid).await.iter().all(|r| r.2.is_none()));
 
-    assert_eq!(app.run_jobs().await, 1);
+    // Embed, then an enrich job that finds the summary current (no model call).
+    assert_eq!(app.run_jobs().await, 2);
     assert_eq!(file(&app, &ada, &fid).await["status"], "ready");
     assert!(vectors(&pool, &fid).await.iter().all(|r| r.2.is_some()));
     let indexed: bool = sqlx::query_scalar(

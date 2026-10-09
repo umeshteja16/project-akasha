@@ -80,6 +80,7 @@ pub fn answer_request(
         messages: alternate(messages),
         max_tokens,
         temperature: Some(temperature),
+        json: false,
     }
 }
 
@@ -107,6 +108,7 @@ pub fn condense_request(question: &str, history: &[StoredMessage]) -> ChatReques
         messages: vec![Message::user(prompt)],
         max_tokens: 100,
         temperature: Some(0.0),
+        json: false,
     }
 }
 

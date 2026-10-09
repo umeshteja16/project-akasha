@@ -108,7 +108,7 @@ pub async fn rename_conversation(
 ) -> Result<Option<Conversation>, sqlx::Error> {
     sqlx::query_as!(
         Conversation,
-        "UPDATE conversations SET title = $3 WHERE id = $1 AND owner_id = $2
+        "UPDATE conversations SET title = $3, title_source = 'user' WHERE id = $1 AND owner_id = $2
          RETURNING id, owner_id, title, created_at, updated_at",
         id,
         owner_id,
@@ -134,7 +134,8 @@ pub async fn delete_conversation(
     Ok(res.rows_affected() > 0)
 }
 
-/// Give an untitled conversation its first title (a rename by the user wins).
+/// Give an untitled conversation its first title, from the question (a rename
+/// by the user wins; a model-written title may replace it later, see [`titles`]).
 pub async fn set_title_if_empty(
     conn: &mut PgConnection,
     owner_id: Uuid,
@@ -142,7 +143,8 @@ pub async fn set_title_if_empty(
     title: &str,
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
-        "UPDATE conversations SET title = $3 WHERE id = $1 AND owner_id = $2 AND title = ''",
+        "UPDATE conversations SET title = $3, title_source = 'question'
+         WHERE id = $1 AND owner_id = $2 AND title = ''",
         id,
         owner_id,
         title
@@ -245,3 +247,5 @@ pub async fn history(
     rows.reverse();
     Ok(rows)
 }
+
+pub mod titles;

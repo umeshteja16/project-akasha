@@ -128,7 +128,12 @@ pub struct FileInfo {
     pub size_bytes: i64,
     /// `pending`, `processing`, `ready` or `failed`.
     pub status: String,
+    /// The user's own tags.
     pub tags: Vec<String>,
+    /// Tags suggested by the language model.
+    pub auto_tags: Vec<String>,
+    /// Model-written description of the file, when there is one.
+    pub summary: Option<String>,
     pub is_pinned: bool,
     pub created_at: DateTime<Utc>,
 }
@@ -142,6 +147,8 @@ impl From<FileRow> for FileInfo {
             size_bytes: f.size_bytes,
             status: f.status,
             tags: f.tags,
+            auto_tags: f.auto_tags,
+            summary: f.summary,
             is_pinned: f.is_pinned,
             created_at: f.created_at,
         }

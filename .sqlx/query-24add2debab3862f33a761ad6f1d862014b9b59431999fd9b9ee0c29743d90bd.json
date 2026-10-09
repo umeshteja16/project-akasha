@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE files SET summary = $3, auto_tags = $4, enrichment_status = 'done',\n                  enrichment_model = $5, enriched_from = $2, enriched_at = now()\n           WHERE id = $1\n             AND EXISTS (SELECT 1 FROM file_extractions\n                         WHERE file_id = $1 AND created_at = $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz",
+        "Text",
+        "TextArray",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "24add2debab3862f33a761ad6f1d862014b9b59431999fd9b9ee0c29743d90bd"
+}

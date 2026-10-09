@@ -62,6 +62,36 @@
         "ordinal": 11,
         "name": "updated_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "summary",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "auto_tags",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 14,
+        "name": "enrichment_status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "enrichment_model",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "enriched_from",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 17,
+        "name": "enriched_at",
+        "type_info": "Timestamptz"
       }
     ],
     "parameters": {
@@ -82,7 +112,13 @@
       false,
       false,
       false,
-      false
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true
     ]
   },
   "hash": "eeade0a4d3879c410fe16e2807c55480b9f5d15fc64ec7cf3db19cb0e225ea14"

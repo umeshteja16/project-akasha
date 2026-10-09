@@ -21,7 +21,7 @@ use super::{
     generate::generate,
     prompt,
 };
-use crate::{routes::search::models, state::AppState};
+use crate::{jobs::kinds::TitleConversation, routes::search::models, state::AppState};
 
 /// Candidates retrieved per question (sources are picked from these).
 const RETRIEVE: usize = 20;
@@ -239,20 +239,39 @@ impl Turn {
             output_tokens: o.usage.output_tokens.and_then(|n| i32::try_from(n).ok()),
             latency_ms: i32::try_from(latency_ms).ok(),
         };
-        let mut conn = match self.state.db.acquire().await {
-            Ok(conn) => conn,
-            Err(err) => {
-                tracing::error!(%err, "storing a chat answer failed");
-                return None;
-            }
-        };
-        match akasha_db::chat::insert_message(&mut conn, &new).await {
-            Ok(m) => m.map(|m| m.id),
+        match self.insert(&new, o.status).await {
+            Ok(id) => id,
             Err(err) => {
                 tracing::error!(%err, "storing a chat answer failed");
                 None
             }
         }
+    }
+
+    /// Store the answer; the first answered reply also queues a model-written
+    /// title (same transaction).
+    async fn insert(
+        &self,
+        new: &NewMessage<'_>,
+        status: AnswerStatus,
+    ) -> anyhow::Result<Option<Uuid>> {
+        let mut tx = self.state.db.begin().await?;
+        let Some(stored) = akasha_db::chat::insert_message(&mut tx, new).await? else {
+            return Ok(None);
+        };
+        let first_answer = !self.history.iter().any(|m| m.role == "assistant");
+        if status == AnswerStatus::Answered
+            && first_answer
+            && self.state.llm.is_some()
+            && self.state.config.llm_conversation_titles
+        {
+            let job = TitleConversation {
+                conversation_id: self.conversation_id,
+            };
+            akasha_jobs::enqueue(&mut tx, &job).await?;
+        }
+        tx.commit().await?;
+        Ok(Some(stored.id))
     }
 }
 

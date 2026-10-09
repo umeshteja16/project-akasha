@@ -178,7 +178,7 @@ export interface paths {
         delete: operations["delete"];
         options?: never;
         head?: never;
-        /** Rename, pin/unpin or retag a file. */
+        /** Rename, pin/unpin or retag a file (or drop model-suggested tags). */
         patch: operations["update"];
         trace?: never;
     };
@@ -193,6 +193,28 @@ export interface paths {
         get: operations["download"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/files/{id}/enrich": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask the language model again for the file's summary and suggested tags
+         *     (e.g. after a failure or a model change). Your own tags are never changed.
+         *     The result shows up on the file once the background job ran. Needs a
+         *     configured language model; limited per user.
+         */
+        post: operations["enrich"];
         delete?: never;
         options?: never;
         head?: never;
@@ -550,6 +572,18 @@ export interface components {
             /** @description Current password, to confirm. */
             password: string;
         };
+        EnrichmentInfo: {
+            /** @description `provider/model` that wrote the summary and tags. */
+            model?: string | null;
+            status: components["schemas"]["EnrichmentStatus"];
+            /** Format: date-time */
+            updated_at?: string | null;
+        };
+        /**
+         * @description How the last enrichment (summary and suggested tags) went.
+         * @enum {string}
+         */
+        EnrichmentStatus: "done" | "skipped" | "failed";
         ErrorBody: {
             error: components["schemas"]["ErrorDetail"];
         };
@@ -628,6 +662,8 @@ export interface components {
         };
         /** @description The file a result belongs to. */
         FileInfo: {
+            /** @description Tags suggested by the language model. */
+            auto_tags: string[];
             /** Format: date-time */
             created_at: string;
             /** Format: uuid */
@@ -639,6 +675,9 @@ export interface components {
             size_bytes: number;
             /** @description `pending`, `processing`, `ready` or `failed`. */
             status: string;
+            /** @description Model-written description of the file, when there is one. */
+            summary?: string | null;
+            /** @description The user's own tags. */
             tags: string[];
         };
         FileList: {
@@ -648,10 +687,16 @@ export interface components {
             next_cursor?: string | null;
         };
         FileResponse: {
+            /**
+             * @description Tags suggested by the language model, minus any already in `tags`.
+             *     Filtering and searching by tag match both lists.
+             */
+            auto_tags: string[];
             /** @description SHA-256 of the contents, lowercase hex. */
             content_hash: string;
             /** Format: date-time */
             created_at: string;
+            enrichment?: null | components["schemas"]["EnrichmentInfo"];
             /** @description Why processing failed, when `status` is `failed`. */
             error?: string | null;
             /** Format: uuid */
@@ -664,6 +709,9 @@ export interface components {
             /** Format: int64 */
             size_bytes: number;
             status: components["schemas"]["FileStatus"];
+            /** @description A short model-written description, once the file was enriched. */
+            summary?: string | null;
+            /** @description The user's own tags (never changed by the model). */
             tags: string[];
             /** Format: date-time */
             updated_at: string;
@@ -903,6 +951,12 @@ export interface components {
             title: string;
         };
         UpdateFileRequest: {
+            /**
+             * @description Replaces the model-suggested tags (e.g. to drop a wrong one); same rules
+             *     as `tags`. Re-running enrichment replaces them again; to keep a
+             *     suggestion for good, add it to `tags`.
+             */
+            auto_tags?: string[] | null;
             is_pinned?: boolean | null;
             /** @description New display name (sanitised like uploads). */
             name?: string | null;
@@ -1387,7 +1441,7 @@ export interface operations {
             query?: {
                 status?: components["schemas"]["FileStatus"];
                 pinned?: boolean;
-                /** @description Only files carrying this tag. */
+                /** @description Only files carrying this tag (their own or a suggested one). */
                 tag?: string;
                 category?: components["schemas"]["FileCategory"];
                 /** @description `next_cursor` from the previous page. */
@@ -1688,6 +1742,71 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    enrich: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description File id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Enrichment queued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileDetail"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The file is not ready yet */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No language model is configured */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

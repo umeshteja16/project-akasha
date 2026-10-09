@@ -23,7 +23,18 @@ pub struct File {
     pub status: String,
     pub error: Option<String>,
     pub is_pinned: bool,
+    /// The user's own tags.
     pub tags: Vec<String>,
+    /// Model-written description (see [`crate::enrichment`]).
+    pub summary: Option<String>,
+    /// Model-suggested tags, kept apart from the user's.
+    pub auto_tags: Vec<String>,
+    /// `done`, `skipped` or `failed`; `None`: never enriched.
+    pub enrichment_status: Option<String>,
+    pub enrichment_model: Option<String>,
+    /// `file_extractions.created_at` of the text that was described.
+    pub enriched_from: Option<DateTime<Utc>>,
+    pub enriched_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -55,6 +66,7 @@ impl Usage {
 pub struct ListFilter {
     pub status: Option<String>,
     pub pinned: Option<bool>,
+    /// Matches the user's tags and the model-suggested ones.
     pub tag: Option<String>,
     /// `LIKE` patterns on `mime_type`; a file matches if any pattern does.
     pub mime_patterns: Vec<String>,
@@ -173,7 +185,7 @@ pub async fn list(
            WHERE owner_id = $1
              AND ($2::text IS NULL OR status = $2)
              AND ($3::bool IS NULL OR is_pinned = $3)
-             AND ($4::text IS NULL OR tags @> ARRAY[$4::text])
+             AND ($4::text IS NULL OR tags @> ARRAY[$4::text] OR auto_tags @> ARRAY[$4::text])
              AND (cardinality($5::text[]) = 0 OR mime_type LIKE ANY($5))
              AND ($6::timestamptz IS NULL OR (created_at, id) < ($6, $7::uuid))
            ORDER BY created_at DESC, id DESC
@@ -191,28 +203,38 @@ pub async fn list(
     .await
 }
 
-/// Change any of name, pin and tags; `None` leaves a field as it is.
+/// What [`update`] changes; `None` leaves a field as it is.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct FileChanges<'a> {
+    pub original_name: Option<&'a str>,
+    pub is_pinned: Option<bool>,
+    pub tags: Option<&'a [String]>,
+    /// The user may drop (or edit) model-suggested tags.
+    pub auto_tags: Option<&'a [String]>,
+}
+
+/// Change any of name, pin, tags and suggested tags.
 pub async fn update(
     pool: &PgPool,
     owner_id: Uuid,
     id: Uuid,
-    original_name: Option<&str>,
-    is_pinned: Option<bool>,
-    tags: Option<&[String]>,
+    changes: FileChanges<'_>,
 ) -> Result<Option<File>, sqlx::Error> {
     sqlx::query_as!(
         File,
         r#"UPDATE files SET
                original_name = COALESCE($3, original_name),
                is_pinned = COALESCE($4, is_pinned),
-               tags = COALESCE($5, tags)
+               tags = COALESCE($5, tags),
+               auto_tags = COALESCE($6, auto_tags)
            WHERE owner_id = $1 AND id = $2
            RETURNING *"#,
         owner_id,
         id,
-        original_name,
-        is_pinned,
-        tags,
+        changes.original_name,
+        changes.is_pinned,
+        changes.tags,
+        changes.auto_tags,
     )
     .fetch_optional(pool)
     .await

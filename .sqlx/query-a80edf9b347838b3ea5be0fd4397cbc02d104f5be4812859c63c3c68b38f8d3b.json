@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT c.id, c.file_id, c.chunk_index, c.page, c.char_start, c.char_end, c.text,\n                  ts_headline('english', translate(c.text, E'', ''), q.tsq,\n                      E'StartSel=, StopSel=, MaxWords=35, MinWords=15, '\n                      'MaxFragments=2, FragmentDelimiter=\" … \"') AS \"headline!\",\n                  f.original_name AS file_name, f.mime_type, f.size_bytes, f.status,\n                  f.tags, f.is_pinned, f.created_at\n           FROM file_chunks c\n           JOIN files f ON f.id = c.file_id AND f.owner_id = $1\n           CROSS JOIN websearch_to_tsquery('english', $3) AS q(tsq)\n           WHERE c.owner_id = $1 AND c.id = ANY($2)",
+  "query": "SELECT c.id, c.file_id, c.chunk_index, c.page, c.char_start, c.char_end, c.text,\n                  ts_headline('english', translate(c.text, E'', ''), q.tsq,\n                      E'StartSel=, StopSel=, MaxWords=35, MinWords=15, '\n                      'MaxFragments=2, FragmentDelimiter=\" … \"') AS \"headline!\",\n                  f.original_name AS file_name, f.mime_type, f.size_bytes, f.status,\n                  f.tags, f.auto_tags, f.summary, f.is_pinned, f.created_at\n           FROM file_chunks c\n           JOIN files f ON f.id = c.file_id AND f.owner_id = $1\n           CROSS JOIN websearch_to_tsquery('english', $3) AS q(tsq)\n           WHERE c.owner_id = $1 AND c.id = ANY($2)",
   "describe": {
     "columns": [
       {
@@ -70,11 +70,21 @@
       },
       {
         "ordinal": 13,
+        "name": "auto_tags",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 14,
+        "name": "summary",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
         "name": "is_pinned",
         "type_info": "Bool"
       },
       {
-        "ordinal": 14,
+        "ordinal": 16,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
@@ -101,8 +111,10 @@
       false,
       false,
       false,
+      true,
+      false,
       false
     ]
   },
-  "hash": "f5eae6eb1d3f1563a4d1f5b322018fc7653531891bd82943a630ff33ec4c07a4"
+  "hash": "a80edf9b347838b3ea5be0fd4397cbc02d104f5be4812859c63c3c68b38f8d3b"
 }

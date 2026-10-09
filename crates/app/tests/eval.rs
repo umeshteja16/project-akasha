@@ -27,6 +27,14 @@ async fn search_quality_does_not_regress(pool: PgPool) {
 
     assert_eq!(report.files, names.len() as i64);
     assert_eq!(report.queries, suite.queries.len());
+    // The refusal-gate calibration ran for every gate question (informational).
+    let gate = report.gate.as_ref().expect("gate report");
+    let set = suite.gate.as_ref().expect("eval/gate.json");
+    assert_eq!(
+        gate.questions.len(),
+        set.answerable.len() + set.unanswerable.len()
+    );
+    assert!(gate.answerable.median > gate.unanswerable.median);
     let baseline =
         report::Report::load(&dir.join(format!("baselines/{key}.json"))).expect("baseline");
     let regressions = report::regressions(&report, &baseline, eval::DEFAULT_TOLERANCE);

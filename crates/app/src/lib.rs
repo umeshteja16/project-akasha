@@ -5,6 +5,7 @@
 pub mod admin;
 pub mod auth;
 pub mod chat;
+pub mod enrich;
 pub mod error;
 pub mod eval;
 pub mod extract;
@@ -113,7 +114,8 @@ pub async fn run_worker(config: Config) -> anyhow::Result<()> {
     akasha_db::migrate(&pool).await?;
     admin::check_embedding_model(&pool, &config).await?;
     let storage = akasha_storage::Storage::from_config(&config).context("opening storage")?;
-    let ctx = jobs::JobContext::new(pool, storage, &config);
+    let llm = llm::build(&config).context("configuring the language model")?;
+    let ctx = jobs::JobContext::new(pool, storage, &config).with_llm(llm);
     warm_up(&ctx);
     let stop = shutdown_trigger();
     jobs::worker(ctx, &config)?.run(wait_for(stop)).await?;

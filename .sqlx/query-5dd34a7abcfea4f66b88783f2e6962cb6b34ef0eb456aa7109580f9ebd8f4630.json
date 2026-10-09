@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT left(text, $4) AS \"text!\" FROM (\n               SELECT DISTINCT ON (bucket) text, char_start\n               FROM (SELECT text, char_start, ntile($3) OVER (ORDER BY char_start) AS bucket\n                     FROM file_chunks WHERE file_id = $1 AND char_start >= $2) runs\n               ORDER BY bucket, char_start\n           ) picked\n           ORDER BY char_start",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "text!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "5dd34a7abcfea4f66b88783f2e6962cb6b34ef0eb456aa7109580f9ebd8f4630"
+}

@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT f.owner_id, f.original_name, f.status, f.enrichment_status, f.enriched_from,\n                  e.created_at AS \"extracted_at?\", e.char_count AS \"char_count?\",\n                  substr(e.text, 1, $2) AS \"head?\"\n           FROM files f\n           LEFT JOIN file_extractions e ON e.file_id = f.id\n           WHERE f.id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "original_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "enrichment_status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "enriched_from",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "extracted_at?",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "char_count?",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "head?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "50ee60fe2de576d1e100bf87248f385828d4e0a2585c35c5f4925e94292d4276"
+}

@@ -52,6 +52,8 @@ impl Ranked {
             size_bytes: r.size_bytes,
             status: r.status.clone(),
             tags: r.tags.clone(),
+            auto_tags: r.auto_tags.clone(),
+            summary: r.summary.clone(),
             is_pinned: r.is_pinned,
             created_at: r.created_at,
         }

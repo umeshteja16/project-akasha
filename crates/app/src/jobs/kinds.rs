@@ -102,3 +102,45 @@ impl Job for MakeThumbnail {
         Some(self.hash.clone())
     }
 }
+
+/// Ask the language model for a summary and suggested tags of a file (see
+/// `jobs::enrich`). Enqueued when a file becomes `ready` (if a model is
+/// configured) and by `POST /files/{id}/enrich` (`force`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnrichFile {
+    pub file_id: Uuid,
+    /// Run even if the summary already describes the current text.
+    #[serde(default)]
+    pub force: bool,
+}
+
+impl Job for EnrichFile {
+    const KIND: &'static str = "enrich_file";
+    /// Model calls cost money; a few retries cover outages and bad JSON.
+    const MAX_ATTEMPTS: i32 = 3;
+
+    fn dedupe_key(&self) -> Option<String> {
+        // A forced re-run is not swallowed by a queued automatic one.
+        Some(if self.force {
+            format!("{}:force", self.file_id)
+        } else {
+            self.file_id.to_string()
+        })
+    }
+}
+
+/// Replace a conversation's question-based title with a model-written one
+/// (see `jobs::title`). Enqueued with the first answered reply.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TitleConversation {
+    pub conversation_id: Uuid,
+}
+
+impl Job for TitleConversation {
+    const KIND: &'static str = "title_conversation";
+    const MAX_ATTEMPTS: i32 = 2;
+
+    fn dedupe_key(&self) -> Option<String> {
+        Some(self.conversation_id.to_string())
+    }
+}

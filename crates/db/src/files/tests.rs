@@ -78,7 +78,17 @@ async fn owner_filter_applies_everywhere(pool: PgPool) {
 
     assert!(get(&pool, eve, file.id).await.expect("get").is_none());
     let tags = vec!["x".to_owned()];
-    let upd = update(&pool, eve, file.id, Some("pwn"), Some(true), Some(&tags));
+    let upd = update(
+        &pool,
+        eve,
+        file.id,
+        FileChanges {
+            original_name: Some("pwn"),
+            is_pinned: Some(true),
+            tags: Some(&tags),
+            auto_tags: None,
+        },
+    );
     assert!(upd.await.expect("update").is_none());
     let mut conn = pool.acquire().await.expect("conn");
     assert!(
@@ -121,9 +131,18 @@ async fn list_filters_and_paginates(pool: PgPool) {
     .expect("list");
     assert_eq!(f3.len(), 5);
     let tags = vec!["work".to_owned()];
-    update(&pool, ada, f3[0].id, None, Some(true), Some(&tags))
-        .await
-        .expect("update");
+    update(
+        &pool,
+        ada,
+        f3[0].id,
+        FileChanges {
+            is_pinned: Some(true),
+            tags: Some(&tags),
+            ..FileChanges::default()
+        },
+    )
+    .await
+    .expect("update");
 
     let mut seen = Vec::new();
     let mut filter = ListFilter {

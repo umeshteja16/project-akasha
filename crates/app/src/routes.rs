@@ -39,6 +39,7 @@ use akasha_core::Error;
         me::get_me, me::update_me, me::change_password, me::delete_me,
         files::upload::upload, files::list, files::get, files::update, files::delete,
         files::bulk_delete, files::download::download, files::processing::reindex,
+        files::enrich::enrich,
         files::extraction::get, files::similar::similar, files::thumbnail::thumbnail,
         search::search, search::search_chunks,
         chat::create, chat::list, chat::get, chat::update, chat::delete,
@@ -131,6 +132,7 @@ pub fn router(state: &AppState) -> Router<AppState> {
             "/api/v1/files/{id}/reindex",
             post(files::processing::reindex),
         )
+        .route("/api/v1/files/{id}/enrich", post(files::enrich::enrich))
         .route(
             "/api/v1/files/{id}",
             get(files::get).patch(files::update).delete(files::delete),

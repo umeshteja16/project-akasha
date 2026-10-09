@@ -75,6 +75,11 @@ pub struct ChatRequest {
     /// Sampling temperature where the provider accepts one (current Claude models
     /// do not: the Anthropic provider never sends it).
     pub temperature: Option<f32>,
+    /// Ask for a single JSON object as the whole answer. Providers with a JSON
+    /// mode that every server honours use it (Ollama `format: "json"`, Gemini
+    /// `responseMimeType`); the others rely on the prompt, so callers must still
+    /// parse defensively.
+    pub json: bool,
 }
 
 /// Token counts as reported by the provider (`None` when it did not say).

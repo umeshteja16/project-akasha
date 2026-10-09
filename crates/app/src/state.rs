@@ -10,6 +10,9 @@ use crate::{
     rate_limit::{self, AuthLimiter, UserLimiter},
 };
 
+/// `POST /files/{id}/enrich` calls per user per minute.
+const ENRICH_PER_MINUTE: u32 = 10;
+
 /// Shared, cheaply clonable application state handed to every handler.
 #[derive(Clone)]
 pub struct AppState {
@@ -23,6 +26,8 @@ pub struct AppState {
     pub search_limiter: UserLimiter,
     /// Per-user limiter for chat questions (`AKASHA_CHAT_RATE_PER_MINUTE`).
     pub chat_limiter: UserLimiter,
+    /// Per-user limiter for re-running file enrichment (model calls cost money).
+    pub enrich_limiter: UserLimiter,
     /// Embedding model and reranker, loaded on first use (shared with the worker).
     pub ml: Arc<MlProvider>,
     /// The chat model; `None`: chat answers with passages only.
@@ -51,6 +56,7 @@ impl AppState {
             llm,
             search_limiter: rate_limit::user_limiter(config.search_rate_per_minute),
             chat_limiter: rate_limit::user_limiter(config.chat_rate_per_minute),
+            enrich_limiter: rate_limit::user_limiter(ENRICH_PER_MINUTE),
             db,
             config: Arc::new(config),
             storage,

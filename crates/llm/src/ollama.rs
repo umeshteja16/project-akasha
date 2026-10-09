@@ -49,7 +49,11 @@ impl Ollama {
         if let Some(t) = req.temperature {
             options["temperature"] = json!(t);
         }
-        json!({ "model": self.model, "messages": messages, "stream": true, "options": options })
+        let mut body = json!({ "model": self.model, "messages": messages, "stream": true, "options": options });
+        if req.json {
+            body["format"] = json!("json");
+        }
+        body
     }
 }
 

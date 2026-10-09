@@ -1,0 +1,37 @@
+{
+  "description": "Refusal-gate calibration for `akasha eval` (informational, not gated): questions the corpus answers and questions it does not (several near a corpus topic). The report shows the top reranker score distribution of each group and the threshold that separates them best.",
+  "answerable": [
+    "How often should I feed the sourdough starter?",
+    "What does VACUUM FULL do to the table?",
+    "How long is the marathon taper?",
+    "When does the kitten need its booster vaccination?",
+    "What is the coffee to water ratio for pour-over?",
+    "What causes blossom end rot on tomatoes?",
+    "Is the rail pass worth it in Japan?",
+    "How many mutable references can I have in Rust?",
+    "What should I do if the starter smells of nail polish remover?",
+    "Why did my bread come out dense and gummy?",
+    "What can I put in the compost bin?",
+    "How do I undo a bad Kubernetes rollout?",
+    "What went wrong in the March 2024 incident?",
+    "How should I descale the espresso machine?",
+    "Which documents do I need for the tax filing?",
+    "What helps me fall asleep faster?",
+    "Who walked on the moon in 1969?",
+    "How do plants turn sunlight into sugar?"
+  ],
+  "unanswerable": [
+    "What is the capital of Australia?",
+    "Who won the football world cup in 2014?",
+    "How do I file my quarterly VAT return?",
+    "What is the boiling point of mercury?",
+    "Which vitamins are in spinach?",
+    "How do I change a car tyre?",
+    "What is my landlord's phone number?",
+    "Explain quantum entanglement simply.",
+    "How do I house-train a puppy?",
+    "How do I set up MySQL replication?",
+    "Which wine goes well with salmon?",
+    "How do I replace a bicycle chain?"
+  ]
+}

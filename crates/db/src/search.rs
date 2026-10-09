@@ -36,7 +36,7 @@ pub struct ChunkFilter {
     pub from: Option<DateTime<Utc>>,
     /// Uploaded before (exclusive).
     pub to: Option<DateTime<Utc>>,
-    /// The file must carry every one of these tags.
+    /// The file must carry every one of these tags (its own or model-suggested).
     pub tags: Vec<String>,
     pub pinned: Option<bool>,
     /// Only these files.
@@ -73,7 +73,7 @@ pub async fn keyword(
              AND (cardinality($3::text[]) = 0 OR f.mime_type LIKE ANY($3))
              AND ($4::timestamptz IS NULL OR f.created_at >= $4)
              AND ($5::timestamptz IS NULL OR f.created_at < $5)
-             AND f.tags @> $6::text[]
+             AND (f.tags || f.auto_tags) @> $6::text[]
              AND ($7::bool IS NULL OR f.is_pinned = $7)
              AND (cardinality($8::uuid[]) = 0 OR c.file_id = ANY($8))
              AND ($9::uuid IS NULL OR c.file_id <> $9)
@@ -117,7 +117,7 @@ pub async fn filename(
                  AND (cardinality($3::text[]) = 0 OR f.mime_type LIKE ANY($3))
                  AND ($4::timestamptz IS NULL OR f.created_at >= $4)
                  AND ($5::timestamptz IS NULL OR f.created_at < $5)
-                 AND f.tags @> $6::text[]
+                 AND (f.tags || f.auto_tags) @> $6::text[]
                  AND ($7::bool IS NULL OR f.is_pinned = $7)
                  AND (cardinality($8::uuid[]) = 0 OR f.id = ANY($8))
                  AND ($9::uuid IS NULL OR f.id <> $9)
@@ -193,7 +193,7 @@ pub async fn semantic(
                  AND (cardinality($3::text[]) = 0 OR f.mime_type LIKE ANY($3))
                  AND ($4::timestamptz IS NULL OR f.created_at >= $4)
                  AND ($5::timestamptz IS NULL OR f.created_at < $5)
-                 AND f.tags @> $6::text[]
+                 AND (f.tags || f.auto_tags) @> $6::text[]
                  AND ($7::bool IS NULL OR f.is_pinned = $7)
                  AND (cardinality($8::uuid[]) = 0 OR c.file_id = ANY($8))
                  AND ($9::uuid IS NULL OR c.file_id <> $9)
@@ -223,7 +223,7 @@ pub async fn semantic(
                  AND (cardinality($3::text[]) = 0 OR f.mime_type LIKE ANY($3))
                  AND ($4::timestamptz IS NULL OR f.created_at >= $4)
                  AND ($5::timestamptz IS NULL OR f.created_at < $5)
-                 AND f.tags @> $6::text[]
+                 AND (f.tags || f.auto_tags) @> $6::text[]
                  AND ($7::bool IS NULL OR f.is_pinned = $7)
                  AND (cardinality($8::uuid[]) = 0 OR c.file_id = ANY($8))
                  AND ($9::uuid IS NULL OR c.file_id <> $9)

@@ -25,7 +25,9 @@ stitched sentences together.
   OpenAI-compatible `/chat/completions` (SSE; covers vLLM, LM Studio, llama.cpp server,
   OpenRouter). A shared line splitter and SSE parser handle chunks split anywhere,
   including inside UTF-8 characters.
-- Anthropic: default model `claude-opus-5-5`; current Claude models reject sampling
+- Anthropic: default model `claude-sonnet-5-5` (changed from `claude-opus-5-5` in step 4.4:
+  per-turn RAG answers are short and grounded, so Sonnet's lower cost and latency win;
+  `AKASHA_LLM_MODEL=claude-opus-5-5` still selects Opus); current Claude models reject sampling
   parameters, so `temperature` is never sent; `output_config.effort` defaults to `low`
   (grounded Q&A needs little thinking); thinking deltas are ignored; models that support
   it opt into server-side refusal fallbacks (`fallbacks: "default"`). A `refusal` stop
@@ -62,7 +64,8 @@ stitched sentences together.
   (-3, on logits) is a lenient guess until real-model data exists.
 - No model configured: the sources are returned with status `no_llm` (never a 500).
 - Citations are parsed from `[n]` / `[1, 2]` markers; numbers without a source are dropped.
-- Conversation titles are the first question, shortened (no model call).
+- Conversation titles are the first question, shortened (no model call); since ADR 0013 a
+  job may replace that with a model-written title.
 - Per-user rate limit (`AKASHA_CHAT_RATE_PER_MINUTE`, default 20, legacy parity).
 
 ## Consequences
@@ -70,4 +73,4 @@ stitched sentences together.
 - Answers can only cite what retrieval found; answer quality depends on the search
   pipeline and the configured model. The real-reranker refusal threshold still needs
   calibration against `akasha eval --real-models` data with unanswerable questions.
-- Generated titles and per-file summaries (step 4.4) can reuse `ChatModel::complete`.
+- Generated titles and per-file summaries reuse `ChatModel::complete` (ADR 0013).

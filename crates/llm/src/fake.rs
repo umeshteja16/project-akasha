@@ -7,6 +7,11 @@
 //! "rewrite this question" prompts return the question). Output arrives one
 //! word per delta, optionally with a delay, so streaming and cancellation can
 //! be tested.
+//!
+//! With `json: true` it answers `{"summary": .., "tags": [..]}` about the last
+//! user message after its first line (the header line, e.g. a file name): the
+//! first sentence as the summary and the three most frequent words of five or
+//! more letters as tags.
 
 use std::time::Duration;
 
@@ -37,6 +42,9 @@ impl FakeChatModel {
             .rev()
             .find(|m| m.role == Role::User)
             .map_or("", |m| m.content.as_str());
+        if req.json {
+            return describe(last);
+        }
         let sources = source_numbers(last);
         if sources.is_empty() {
             return last
@@ -72,6 +80,34 @@ fn source_numbers(text: &str) -> Vec<u32> {
         }
     }
     found
+}
+
+/// The JSON-mode answer: a summary and tags for `text` without its first line.
+fn describe(text: &str) -> String {
+    let body = text.split_once('\n').map_or("", |(_, rest)| rest).trim();
+    let summary = body
+        .split_inclusive(['.', '!', '?'])
+        .next()
+        .unwrap_or("")
+        .split_whitespace()
+        .take(40)
+        .collect::<Vec<_>>()
+        .join(" ");
+    let mut counts: Vec<(String, usize)> = Vec::new();
+    for word in body.split(|c: char| !c.is_alphanumeric()) {
+        if word.chars().count() < 5 {
+            continue;
+        }
+        let word = word.to_lowercase();
+        match counts.iter_mut().find(|(w, _)| *w == word) {
+            Some((_, n)) => *n += 1,
+            None => counts.push((word, 1)),
+        }
+    }
+    // Most frequent first; ties keep first-seen order (the sort is stable).
+    counts.sort_by_key(|c| std::cmp::Reverse(c.1));
+    let tags: Vec<String> = counts.into_iter().take(3).map(|(w, _)| w).collect();
+    serde_json::json!({ "summary": summary, "tags": tags }).to_string()
 }
 
 fn words(text: &str) -> u32 {
@@ -142,6 +178,7 @@ mod tests {
             messages: vec![Message::user(text)],
             max_tokens: 100,
             temperature: None,
+            json: false,
         }
     }
 
@@ -162,6 +199,16 @@ mod tests {
             .await
             .expect("echo");
         assert_eq!(echo.text, "What is X?");
+    }
+
+    #[tokio::test]
+    async fn json_mode_describes_the_text_after_the_header() {
+        let mut request = req("notes.txt\nKittens sleep a lot. Kittens play with string.");
+        request.json = true;
+        let c = FakeChatModel::new().complete(&request).await.expect("json");
+        let v: serde_json::Value = serde_json::from_str(&c.text).expect("valid json");
+        assert_eq!(v["summary"], "Kittens sleep a lot.");
+        assert_eq!(v["tags"], serde_json::json!(["kittens", "sleep", "string"]));
     }
 
     #[tokio::test]

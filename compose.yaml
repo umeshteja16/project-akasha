@@ -1,5 +1,9 @@
 # Development: `just db-up` starts only Postgres.
-# Full stack:  `docker compose --profile app up --build`.
+# Full stack:  `docker compose --profile app up --build`
+#   (chat uses Ollama on the host: run it with OLLAMA_HOST=0.0.0.0, see README).
+# With Ollama in a container too:
+#   AKASHA_OLLAMA_URL=http://ollama:11434 docker compose --profile app --profile ollama up --build
+#   docker compose exec ollama ollama pull llama3.1:8b
 services:
   postgres:
     image: pgvector/pgvector:pg17
@@ -27,9 +31,15 @@ services:
       AKASHA_SERVE_WITH_WORKER: "true"
       # Set to true once the server is behind HTTPS.
       AKASHA_COOKIE_SECURE: ${AKASHA_COOKIE_SECURE:-false}
-      # Chat answers from Ollama on the host by default (see README, "Chat & LLM providers").
+      # Chat answers from Ollama on the host by default (see README, "Chat & LLM providers");
+      # AKASHA_OLLAMA_URL=http://ollama:11434 with `--profile ollama` uses the container below.
       AKASHA_LLM_PROVIDER: ${AKASHA_LLM_PROVIDER:-ollama}
       AKASHA_OLLAMA_URL: ${AKASHA_OLLAMA_URL:-http://host.docker.internal:11434}
+      AKASHA_LLM_MODEL: ${AKASHA_LLM_MODEL:-}
+      AKASHA_STRICT_OFFLINE: ${AKASHA_STRICT_OFFLINE:-false}
+      AKASHA_ANTHROPIC_API_KEY: ${AKASHA_ANTHROPIC_API_KEY:-}
+      AKASHA_GEMINI_API_KEY: ${AKASHA_GEMINI_API_KEY:-}
+    # host.docker.internal resolves to the host on Linux too (Docker Desktop has it built in).
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -44,7 +54,21 @@ services:
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
 
+  # Optional local model server: `--profile ollama`. Models persist in the `ollama` volume.
+  ollama:
+    profiles: ["ollama"]
+    image: ollama/ollama:0.12.3
+    volumes:
+      - ollama:/root/.ollama
+    # Not published on the host: only akasha talks to it (http://ollama:11434).
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
 volumes:
   pgdata:
   storage:
   models:
+  ollama:

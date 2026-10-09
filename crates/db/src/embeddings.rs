@@ -132,8 +132,9 @@ pub enum Finish {
     Gone,
     /// Chunks without vectors remain (e.g. re-extracted meanwhile).
     Pending,
-    /// Every chunk has a vector; a `processing` file is now `ready`.
-    Done,
+    /// Every chunk has a vector. `became_ready`: the file was `processing` and
+    /// is now `ready` (false for a repeat run, or a file put back to `pending`).
+    Done { became_ready: bool },
 }
 
 /// Mark the file `ready` if all its chunks have vectors (locks the file row).
@@ -157,13 +158,15 @@ pub async fn finish(conn: &mut PgConnection, file_id: Uuid) -> Result<Finish, sq
         return Ok(Finish::Pending);
     }
     // A file put back to `pending` (reindex) waits for its new extraction instead.
-    sqlx::query!(
+    let res = sqlx::query!(
         "UPDATE files SET status = 'ready', error = NULL WHERE id = $1 AND status = 'processing'",
         file_id
     )
     .execute(&mut *conn)
     .await?;
-    Ok(Finish::Done)
+    Ok(Finish::Done {
+        became_ready: res.rows_affected() > 0,
+    })
 }
 
 /// Switch the database to another model (admin, `akasha reembed`): drop every

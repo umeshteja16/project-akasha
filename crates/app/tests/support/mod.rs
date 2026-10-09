@@ -2,6 +2,7 @@
 #![allow(dead_code)] // each test crate uses a different subset
 
 pub mod chat;
+pub mod llm;
 
 use std::net::SocketAddr;
 
@@ -42,6 +43,8 @@ pub struct TestApp {
     pub router: Router,
     pub storage: Storage,
     pub db: PgPool,
+    /// The app's language model; background jobs run with it too.
+    pub llm: Option<std::sync::Arc<dyn akasha_llm::ChatModel>>,
 }
 
 pub struct Reply {
@@ -97,13 +100,14 @@ impl TestApp {
     }
 
     pub fn with_state(state: AppState) -> Self {
-        let (pool, storage) = (state.db.clone(), state.storage.clone());
+        let (pool, storage, llm) = (state.db.clone(), state.storage.clone(), state.llm.clone());
         let addr = SocketAddr::from(([127, 0, 0, 1], 40000));
         let router = app(state).layer(Extension(ConnectInfo(addr)));
         Self {
             router,
             storage,
             db: pool,
+            llm,
         }
     }
 
@@ -164,10 +168,12 @@ impl TestApp {
         self.run_jobs_with(&test_config()).await
     }
 
-    /// [`Self::run_jobs`] with a worker built from `config`.
+    /// [`Self::run_jobs`] with a worker built from `config` (and the app's
+    /// language model).
     pub async fn run_jobs_with(&self, config: &Config) -> usize {
         let config = config.clone();
-        let ctx = JobContext::new(self.db.clone(), self.storage.clone(), &config);
+        let ctx = JobContext::new(self.db.clone(), self.storage.clone(), &config)
+            .with_llm(self.llm.clone());
         akasha::jobs::worker(ctx, &config)
             .expect("worker")
             .run_until_idle()

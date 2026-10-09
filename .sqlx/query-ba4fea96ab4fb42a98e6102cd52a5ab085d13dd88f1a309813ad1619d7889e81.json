@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE files SET\n               original_name = COALESCE($3, original_name),\n               is_pinned = COALESCE($4, is_pinned),\n               tags = COALESCE($5, tags)\n           WHERE owner_id = $1 AND id = $2\n           RETURNING *",
+  "query": "UPDATE files SET\n               original_name = COALESCE($3, original_name),\n               is_pinned = COALESCE($4, is_pinned),\n               tags = COALESCE($5, tags),\n               auto_tags = COALESCE($6, auto_tags)\n           WHERE owner_id = $1 AND id = $2\n           RETURNING *",
   "describe": {
     "columns": [
       {
@@ -62,6 +62,36 @@
         "ordinal": 11,
         "name": "updated_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "summary",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "auto_tags",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 14,
+        "name": "enrichment_status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "enrichment_model",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "enriched_from",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 17,
+        "name": "enriched_at",
+        "type_info": "Timestamptz"
       }
     ],
     "parameters": {
@@ -70,6 +100,7 @@
         "Uuid",
         "Text",
         "Bool",
+        "TextArray",
         "TextArray"
       ]
     },
@@ -85,8 +116,14 @@
       false,
       false,
       false,
-      false
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true
     ]
   },
-  "hash": "a945bb1f42b125f7598aa28519f76eeb57d731fbf013a448c554f7b73c2bc092"
+  "hash": "ba4fea96ab4fb42a98e6102cd52a5ab085d13dd88f1a309813ad1619d7889e81"
 }

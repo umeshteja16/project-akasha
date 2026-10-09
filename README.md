@@ -70,7 +70,7 @@ AKASHA_OLLAMA_URL=http://localhost:11434
 AKASHA_LLM_MODEL=llama3.1:8b
 AKASHA_STRICT_OFFLINE=true        # refuse to start with any non-local provider
 
-# Anthropic Claude (default model claude-opus-5-5)
+# Anthropic Claude (default model claude-sonnet-5-5; set AKASHA_LLM_MODEL=claude-opus-5-5 for Opus)
 AKASHA_LLM_PROVIDER=anthropic
 AKASHA_ANTHROPIC_API_KEY=sk-ant-...   # or ANTHROPIC_API_KEY
 
@@ -92,8 +92,33 @@ With strict offline mode, Ollama and OpenAI-compatible servers are allowed only 
 private-network or single-label (Docker service) addresses. Requests are retried on
 connection errors, 429 and 5xx before output starts; `AKASHA_LLM_READ_TIMEOUT_SECS` bounds
 silence while streaming. Chat is limited per user (`AKASHA_CHAT_RATE_PER_MINUTE`, default 20);
-the refusal threshold is `AKASHA_CHAT_MIN_RERANK_SCORE` (default per reranker). See
-`.env.example` for every setting.
+the refusal threshold is `AKASHA_CHAT_MIN_RERANK_SCORE` (default per reranker; `akasha eval`
+prints a calibration report for it). See `.env.example` for every setting.
+
+With a model configured, every file also gets a short **summary and 3-5 suggested tags** once
+it is indexed (`enrich_file` job, one model call per file, `AKASHA_LLM_ENRICH_FILES=false` to
+turn off). Suggested tags (`auto_tags`) are kept apart from your own `tags`, which the model
+never changes; tag filters and search match both, and `PATCH /api/v1/files/{id}` with
+`auto_tags` drops wrong suggestions. `POST /api/v1/files/{id}/enrich` asks again. After the
+first answer, a conversation is renamed by the model (`AKASHA_LLM_CONVERSATION_TITLES`) unless
+you renamed it yourself.
+
+### Ollama with Docker Compose
+
+The `akasha` container reaches Ollama **on the host** at `http://host.docker.internal:11434`
+(`extra_hosts: host-gateway` makes that name work on Linux too). Ollama only listens on
+`127.0.0.1` by default, so start it with `OLLAMA_HOST=0.0.0.0 ollama serve` (or
+`systemctl edit ollama` → `Environment="OLLAMA_HOST=0.0.0.0"`) and keep port 11434
+firewalled from the network. Or run Ollama as a container next to Akasha:
+
+```sh
+AKASHA_OLLAMA_URL=http://ollama:11434 docker compose --profile app --profile ollama up -d --build
+docker compose exec ollama ollama pull llama3.1:8b   # once; models live in the `ollama` volume
+```
+
+Both work with `AKASHA_STRICT_OFFLINE=true` (`ollama` is a single-label Docker service name).
+The container runs on CPU; for a GPU, add a `deploy.resources.reservations.devices` entry
+(see the Ollama image docs) or keep using Ollama on the host.
 
 ## Development
 

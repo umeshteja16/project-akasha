@@ -20,6 +20,9 @@ pub struct Report {
     /// Every query's outcome (left out of baselines).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub per_query: Vec<QueryOutcome>,
+    /// Refusal-gate calibration (left out of baselines; needs a reranker).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gate: Option<super::gate::GateReport>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,6 +65,7 @@ impl Report {
     pub fn summary(&self) -> Self {
         Self {
             per_query: Vec::new(),
+            gate: None,
             ..self.clone()
         }
     }
@@ -161,6 +165,7 @@ mod tests {
             queries: 1,
             modes: BTreeMap::from([("hybrid".to_owned(), mode)]),
             per_query: Vec::new(),
+            gate: None,
         }
     }
 

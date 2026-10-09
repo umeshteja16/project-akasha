@@ -10,6 +10,9 @@ use serde::Deserialize;
 pub struct Suite {
     pub version: u32,
     pub queries: Vec<Query>,
+    /// Refusal-gate questions (`gate.json` next to `queries.json`), if present.
+    #[serde(skip)]
+    pub gate: Option<super::gate::GateSet>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -27,9 +30,12 @@ impl Suite {
     pub fn load(path: &Path, corpus: &[String]) -> anyhow::Result<Self> {
         let text =
             std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
-        let suite: Self =
+        let mut suite: Self =
             serde_json::from_str(&text).with_context(|| format!("parsing {}", path.display()))?;
         suite.check(corpus)?;
+        if let Some(dir) = path.parent() {
+            suite.gate = super::gate::GateSet::load(&dir.join("gate.json"))?;
+        }
         Ok(suite)
     }
 

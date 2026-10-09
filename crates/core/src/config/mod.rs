@@ -120,6 +120,12 @@ pub struct Config {
     pub llm_max_tokens: u32,
     /// Sampling temperature where the provider accepts one.
     pub llm_temperature: f32,
+    /// Summarise and tag every file with the language model once it is indexed
+    /// (one short model call per file; skipped without a model).
+    pub llm_enrich_files: bool,
+    /// Name conversations with the language model after their first answer (one
+    /// short model call; without it the first question, shortened, stays the title).
+    pub llm_conversation_titles: bool,
     /// Chat questions each user may ask per minute; 0: unlimited.
     pub chat_rate_per_minute: u32,
     /// Passages given to the model per answer.
@@ -184,6 +190,8 @@ impl Default for Config {
             llm_max_retries: 2,
             llm_max_tokens: 1024,
             llm_temperature: 0.1,
+            llm_enrich_files: true,
+            llm_conversation_titles: true,
             chat_rate_per_minute: 20,
             chat_context_chunks: 8,
             chat_history_messages: 6,

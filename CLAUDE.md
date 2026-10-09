@@ -20,9 +20,11 @@ crates/ml     embeddings + reranking (fastembed on runtime-loaded ONNX Runtime, 
               blocking traits, model catalog, downloader, deterministic fakes for tests
 crates/search hybrid retrieval (FTS + pgvector, RRF, rerank, snippets, similar files;
               ADR 0010); SQL in crates/db/src/search*, HTTP in app routes/search
+crates/llm    chat model providers (Ollama, Claude, Gemini, OpenAI-compatible, fake; ADR 0012)
 crates/app    the `akasha` binary: axum routes (src/routes/*), auth/, jobs/ (job kinds +
-              handlers), eval/ (`akasha eval`), state, telemetry
-eval/         search benchmark: corpus/, queries.json, baselines/ (ADR 0011)
+              handlers), chat/ (grounded answers), enrich/ (file summaries + suggested
+              tags, ADR 0013), eval/ (`akasha eval`), state, telemetry
+eval/         search benchmark: corpus/, queries.json, gate.json, baselines/ (ADR 0011)
 .sqlx/        offline cache of checked SQL queries (`just sqlx-prepare`)
 web/          React + TS frontend (Vite, Biome, Vitest)
 legacy/       old TypeScript implementation: read-only reference, do not edit
