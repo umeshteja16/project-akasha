@@ -33,4 +33,9 @@ export const USER = {
   created_at: "2026-10-01T10:00:00Z",
 };
 
-export const META = { version: "0.1.0", allow_registration: true, chat_model: false };
+export const META = {
+  version: "0.1.0",
+  allow_registration: true,
+  chat_model: false,
+  max_upload_bytes: 100 * 1024 * 1024,
+};

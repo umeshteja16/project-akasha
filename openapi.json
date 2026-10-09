@@ -176,7 +176,7 @@
           "chat"
         ],
         "summary": "List your conversations, most recently active first.",
-        "operationId": "list",
+        "operationId": "list_conversations",
         "parameters": [
           {
             "name": "cursor",
@@ -241,7 +241,7 @@
           "chat"
         ],
         "summary": "Start a conversation.",
-        "operationId": "create",
+        "operationId": "create_conversation",
         "requestBody": {
           "content": {
             "application/json": {
@@ -297,7 +297,7 @@
           "chat"
         ],
         "summary": "One of your conversations.",
-        "operationId": "get",
+        "operationId": "get_conversation",
         "parameters": [
           {
             "name": "id",
@@ -353,7 +353,7 @@
           "chat"
         ],
         "summary": "Delete a conversation and its messages.",
-        "operationId": "delete",
+        "operationId": "delete_conversation",
         "parameters": [
           {
             "name": "id",
@@ -402,7 +402,7 @@
           "chat"
         ],
         "summary": "Rename a conversation.",
-        "operationId": "update",
+        "operationId": "update_conversation",
         "parameters": [
           {
             "name": "id",
@@ -566,7 +566,7 @@
         ],
         "summary": "Ask a question about your files.",
         "description": "The answer streams as `text/event-stream`: one `sources` event (the\nnumbered passages the answer may cite, see `ChatSources`), `delta` events\nwith pieces of text (`ChatDelta`), then `done` (`ChatDone`: the stored\nmessage id, status, final text, citations and token usage) or `error`\n(`ChatError`). Answers cite sources as `[n]`.\n\nWhen the best passage is too weak, the answer is \"I couldn't find this in\nyour files.\" without asking the model (`status: refused`); with no model\nconfigured, the passages are returned with `status: no_llm`. Closing the\nconnection stops generation. Limited per user (`AKASHA_CHAT_RATE_PER_MINUTE`).",
-        "operationId": "post",
+        "operationId": "post_message",
         "parameters": [
           {
             "name": "id",
@@ -653,8 +653,8 @@
         "tags": [
           "files"
         ],
-        "summary": "List your files, newest first.",
-        "operationId": "list",
+        "summary": "List your files (newest first unless `sort` says otherwise).",
+        "operationId": "list_files",
         "parameters": [
           {
             "name": "status",
@@ -690,9 +690,18 @@
             }
           },
           {
+            "name": "sort",
+            "in": "query",
+            "description": "Order of the list (default `newest`).",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/FileSort"
+            }
+          },
+          {
             "name": "cursor",
             "in": "query",
-            "description": "`next_cursor` from the previous page.",
+            "description": "`next_cursor` from the previous page (of the same `sort`).",
             "required": false,
             "schema": {
               "type": "string"
@@ -895,7 +904,7 @@
           "files"
         ],
         "summary": "One of your files, with the state of its extraction job.",
-        "operationId": "get",
+        "operationId": "get_file",
         "parameters": [
           {
             "name": "id",
@@ -951,7 +960,7 @@
           "files"
         ],
         "summary": "Delete a file. Its contents are removed once no other file uses them.",
-        "operationId": "delete",
+        "operationId": "delete_file",
         "parameters": [
           {
             "name": "id",
@@ -1000,7 +1009,7 @@
           "files"
         ],
         "summary": "Rename, pin/unpin or retag a file (or drop model-suggested tags).",
-        "operationId": "update",
+        "operationId": "update_file",
         "parameters": [
           {
             "name": "id",
@@ -1077,7 +1086,7 @@
         "tags": [
           "files"
         ],
-        "summary": "Download a file's contents (always as an attachment, never rendered inline).",
+        "summary": "Download a file's contents: an attachment unless `inline=true` for a viewable type.",
         "operationId": "download",
         "parameters": [
           {
@@ -1088,6 +1097,15 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "inline",
+            "in": "query",
+            "description": "Ask to view the file in the browser (`Content-Disposition: inline`) instead\nof saving it. Honoured only for PDFs, raster images, audio, video and plain\ntext; other types are always attachments. Inline responses may be framed by\nthis site only.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -1220,7 +1238,7 @@
           "files"
         ],
         "summary": "The text extracted from one of your files, a window at a time.",
-        "operationId": "get",
+        "operationId": "get_extraction",
         "parameters": [
           {
             "name": "id",
@@ -2032,6 +2050,42 @@
         ]
       }
     },
+    "/api/v1/tags": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Every tag on your files (yours and suggested ones), with counts.",
+        "operationId": "list_tags",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
     "/healthz": {
       "get": {
         "tags": [
@@ -2762,7 +2816,7 @@
             "items": {
               "$ref": "#/components/schemas/FileResponse"
             },
-            "description": "Newest first."
+            "description": "In the requested `sort` order."
           },
           "next_cursor": {
             "type": [
@@ -2884,6 +2938,16 @@
               }
             }
           }
+        ]
+      },
+      "FileSort": {
+        "type": "string",
+        "description": "Sort order of the file list.",
+        "enum": [
+          "newest",
+          "oldest",
+          "name",
+          "size"
         ]
       },
       "FileStatus": {
@@ -3331,7 +3395,8 @@
         "required": [
           "version",
           "allow_registration",
-          "chat_model"
+          "chat_model",
+          "max_upload_bytes"
         ],
         "properties": {
           "allow_registration": {
@@ -3341,6 +3406,12 @@
           "chat_model": {
             "type": "boolean",
             "description": "Whether a language model is configured (chat answers and enrichment).\nWithout one, chat answers with passages only."
+          },
+          "max_upload_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Largest file `POST /api/v1/files` accepts, in bytes.",
+            "minimum": 0
           },
           "version": {
             "type": "string",
@@ -3398,6 +3469,45 @@
           "text": {
             "type": "string",
             "description": "Up to two fragments joined by \" … \"; the chunk's start when no term matched."
+          }
+        }
+      },
+      "TagList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TagSummary"
+            },
+            "description": "Most used first."
+          }
+        }
+      },
+      "TagSummary": {
+        "type": "object",
+        "description": "A tag and how many of your files carry it.",
+        "required": [
+          "tag",
+          "user_files",
+          "auto_files"
+        ],
+        "properties": {
+          "auto_files": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Files where it is only a model-suggested tag."
+          },
+          "tag": {
+            "type": "string"
+          },
+          "user_files": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Files with it as one of your own tags."
           }
         }
       },

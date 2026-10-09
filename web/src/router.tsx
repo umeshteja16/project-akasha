@@ -7,6 +7,7 @@ import {
   createRootRouteWithContext,
   createRoute,
   createRouter,
+  lazyRouteComponent,
   redirect,
 } from "@tanstack/react-router";
 import type { Api } from "@/api/client";
@@ -14,16 +15,10 @@ import { meQuery } from "@/api/queries";
 import { AppShell } from "@/components/shell/app-shell";
 import { safeRedirect } from "@/lib/session";
 import { AuthLayout } from "@/routes/auth/auth-layout";
-import { RegisterPage } from "@/routes/auth/register";
-import { SignInPage } from "@/routes/auth/sign-in";
-import { ChatPage } from "@/routes/chat";
-import { DesignPage } from "@/routes/design";
 import { ErrorPage } from "@/routes/error-page";
-import { LibraryPage } from "@/routes/library";
+import { validateLibrarySearch } from "@/routes/library/library-search";
 import { NotFoundPage } from "@/routes/not-found";
 import { RootLayout } from "@/routes/root";
-import { SearchPage } from "@/routes/search";
-import { SettingsPage } from "@/routes/settings/settings-page";
 
 export interface RouterContext {
   queryClient: QueryClient;
@@ -56,14 +51,14 @@ const signInRoute = createRoute({
   getParentRoute: () => authLayout,
   path: "/sign-in",
   validateSearch: validateRedirect,
-  component: SignInPage,
+  component: lazyRouteComponent(() => import("@/routes/auth/sign-in"), "SignInPage"),
 });
 
 const registerRoute = createRoute({
   getParentRoute: () => authLayout,
   path: "/register",
   validateSearch: validateRedirect,
-  component: RegisterPage,
+  component: lazyRouteComponent(() => import("@/routes/auth/register"), "RegisterPage"),
 });
 
 const appLayout = createRoute({
@@ -91,31 +86,40 @@ const indexRoute = createRoute({
 const libraryRoute = createRoute({
   getParentRoute: () => appLayout,
   path: "/library",
-  component: LibraryPage,
+  validateSearch: validateLibrarySearch,
+  component: lazyRouteComponent(() => import("@/routes/library/library-page"), "LibraryPage"),
+});
+
+const fileRoute = createRoute({
+  getParentRoute: () => appLayout,
+  path: "/files/$fileId",
+  component: lazyRouteComponent(() => import("@/routes/file/file-page"), "FilePage"),
 });
 
 const searchRoute = createRoute({
   getParentRoute: () => appLayout,
   path: "/search",
-  component: SearchPage,
+  validateSearch: (search: Record<string, unknown>): { q?: string } =>
+    typeof search.q === "string" && search.q.trim() ? { q: search.q.trim() } : {},
+  component: lazyRouteComponent(() => import("@/routes/search"), "SearchPage"),
 });
 
 const chatRoute = createRoute({
   getParentRoute: () => appLayout,
   path: "/chat",
-  component: ChatPage,
+  component: lazyRouteComponent(() => import("@/routes/chat"), "ChatPage"),
 });
 
 const settingsRoute = createRoute({
   getParentRoute: () => appLayout,
   path: "/settings",
-  component: SettingsPage,
+  component: lazyRouteComponent(() => import("@/routes/settings/settings-page"), "SettingsPage"),
 });
 
 const designRoute = createRoute({
   getParentRoute: () => appLayout,
   path: "/design",
-  component: DesignPage,
+  component: lazyRouteComponent(() => import("@/routes/design"), "DesignPage"),
 });
 
 const routeTree = rootRoute.addChildren([
@@ -123,6 +127,7 @@ const routeTree = rootRoute.addChildren([
   appLayout.addChildren([
     indexRoute,
     libraryRoute,
+    fileRoute,
     searchRoute,
     chatRoute,
     settingsRoute,

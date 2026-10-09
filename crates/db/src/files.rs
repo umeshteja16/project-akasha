@@ -61,20 +61,6 @@ impl Usage {
     }
 }
 
-/// Filters for [`list`]. `None` / empty means "any".
-#[derive(Debug, Default, Clone)]
-pub struct ListFilter {
-    pub status: Option<String>,
-    pub pinned: Option<bool>,
-    /// Matches the user's tags and the model-suggested ones.
-    pub tag: Option<String>,
-    /// `LIKE` patterns on `mime_type`; a file matches if any pattern does.
-    pub mime_patterns: Vec<String>,
-    /// Keyset cursor: only rows strictly older than `(created_at, id)`.
-    pub before: Option<(DateTime<Utc>, Uuid)>,
-    pub limit: i64,
-}
-
 /// Quota and usage. With `lock`, the user row is locked until the transaction ends,
 /// so concurrent uploads by one user cannot both squeeze under the quota.
 /// `None` if the user no longer exists.
@@ -169,37 +155,6 @@ pub async fn get(pool: &PgPool, owner_id: Uuid, id: Uuid) -> Result<Option<File>
         id
     )
     .fetch_optional(pool)
-    .await
-}
-
-/// Newest first, keyset-paginated on `(created_at, id)`.
-pub async fn list(
-    pool: &PgPool,
-    owner_id: Uuid,
-    filter: &ListFilter,
-) -> Result<Vec<File>, sqlx::Error> {
-    let (before_ts, before_id) = filter.before.unzip();
-    sqlx::query_as!(
-        File,
-        r#"SELECT * FROM files
-           WHERE owner_id = $1
-             AND ($2::text IS NULL OR status = $2)
-             AND ($3::bool IS NULL OR is_pinned = $3)
-             AND ($4::text IS NULL OR tags @> ARRAY[$4::text] OR auto_tags @> ARRAY[$4::text])
-             AND (cardinality($5::text[]) = 0 OR mime_type LIKE ANY($5))
-             AND ($6::timestamptz IS NULL OR (created_at, id) < ($6, $7::uuid))
-           ORDER BY created_at DESC, id DESC
-           LIMIT $8"#,
-        owner_id,
-        filter.status,
-        filter.pinned,
-        filter.tag,
-        &filter.mime_patterns,
-        before_ts,
-        before_id,
-        filter.limit,
-    )
-    .fetch_all(pool)
     .await
 }
 
@@ -306,7 +261,9 @@ pub async fn mark_pending(
     .await
 }
 
+mod list;
 mod refs;
+pub use list::{ListFilter, ListKey, ListOrder, TagCount, list, tag_counts};
 pub use refs::{hashes_owned_by, is_referenced, lock_hash, unreferenced};
 
 #[cfg(test)]

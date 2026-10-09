@@ -76,3 +76,22 @@ async fn openapi_document_lists_health_routes() {
     assert!(body["paths"]["/healthz"].is_object());
     assert!(body["paths"]["/readyz"].is_object());
 }
+
+#[tokio::test]
+async fn openapi_operation_ids_are_unique() {
+    // Generated clients key operations by id: a duplicate silently gives one
+    // route another route's types.
+    let (_, _, body) = get("/api/openapi.json").await;
+    let mut seen = std::collections::HashSet::new();
+    for (path, item) in body["paths"].as_object().expect("paths") {
+        for (method, op) in item.as_object().expect("item") {
+            if let Some(id) = op["operationId"].as_str() {
+                assert!(
+                    seen.insert(id.to_owned()),
+                    "duplicate operationId {id} ({method} {path})"
+                );
+            }
+        }
+    }
+    assert!(seen.len() > 20);
+}

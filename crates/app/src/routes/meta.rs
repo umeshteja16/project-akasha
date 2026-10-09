@@ -15,6 +15,8 @@ pub struct ServerMeta {
     /// Whether a language model is configured (chat answers and enrichment).
     /// Without one, chat answers with passages only.
     pub chat_model: bool,
+    /// Largest file `POST /api/v1/files` accepts, in bytes.
+    pub max_upload_bytes: u64,
 }
 
 /// Public server facts (no sign-in needed). Reveals nothing about accounts.
@@ -27,5 +29,6 @@ pub async fn get_meta(State(state): State<AppState>) -> Json<ServerMeta> {
         version: env!("CARGO_PKG_VERSION"),
         allow_registration: state.config.allow_registration,
         chat_model: state.llm.is_some(),
+        max_upload_bytes: state.config.max_upload_bytes(),
     })
 }

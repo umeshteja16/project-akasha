@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT * FROM files\n           WHERE owner_id = $1\n             AND ($2::text IS NULL OR status = $2)\n             AND ($3::bool IS NULL OR is_pinned = $3)\n             AND ($4::text IS NULL OR tags @> ARRAY[$4::text] OR auto_tags @> ARRAY[$4::text])\n             AND (cardinality($5::text[]) = 0 OR mime_type LIKE ANY($5))\n             AND ($6::timestamptz IS NULL OR (created_at, id) < ($6, $7::uuid))\n           ORDER BY created_at DESC, id DESC\n           LIMIT $8",
+  "query": "SELECT * FROM files\n                   WHERE owner_id = $1\n                     AND ($2::text IS NULL OR status = $2)\n                     AND ($3::bool IS NULL OR is_pinned = $3)\n                     AND ($4::text IS NULL OR tags @> ARRAY[$4::text] OR auto_tags @> ARRAY[$4::text])\n                     AND (cardinality($5::text[]) = 0 OR mime_type LIKE ANY($5))\n                     AND ($6::text IS NULL OR (lower(original_name), id) > (lower($6), $7::uuid))\n                   ORDER BY lower(original_name) ASC, id ASC\n                   LIMIT $8",
   "describe": {
     "columns": [
       {
@@ -101,7 +101,7 @@
         "Bool",
         "Text",
         "TextArray",
-        "Timestamptz",
+        "Text",
         "Uuid",
         "Int8"
       ]
@@ -127,5 +127,5 @@
       true
     ]
   },
-  "hash": "7198867af01ae263139fdacea0fe0e1dd920e73d05422fa89ddfdad0c9d8d781"
+  "hash": "258b51f7af8c07e68ef896cf34bffb66c852c32b77320f9d5403e7dbb1eeec49"
 }

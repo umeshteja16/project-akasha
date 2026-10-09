@@ -65,17 +65,17 @@ function hasErrorShape(body: unknown): body is Schemas["ErrorBody"] {
 
 /** Turn an error response (already parsed by openapi-fetch) into an `ApiError`. */
 export function toApiError(response: Response, body: unknown): ApiError {
-  const retry = Number.parseInt(response.headers.get("retry-after") ?? "", 10);
+  return errorFromBody(response.status, body, response.headers.get("retry-after"));
+}
+
+/** An `ApiError` from a status, a parsed body and the `Retry-After` header (XHR uploads). */
+export function errorFromBody(status: number, body: unknown, retryAfterHeader: string | null) {
+  const retry = Number.parseInt(retryAfterHeader ?? "", 10);
   const retryAfter = Number.isFinite(retry) ? retry : null;
   if (hasErrorShape(body)) {
-    return new ApiError(response.status, body.error.code, body.error.message, retryAfter);
+    return new ApiError(status, body.error.code, body.error.message, retryAfter);
   }
-  return new ApiError(
-    response.status,
-    `http_${response.status}`,
-    genericMessage(response.status),
-    retryAfter,
-  );
+  return new ApiError(status, `http_${status}`, genericMessage(status), retryAfter);
 }
 
 export function networkError(cause: unknown): ApiError {

@@ -19,7 +19,7 @@ use crate::{
     auth::AuthUser,
     error::{ApiError, ErrorBody},
     extract::{Json, Query},
-    routes::files::types::{decode_cursor, encode_cursor},
+    routes::cursor::{decode_cursor, encode_cursor},
     state::AppState,
 };
 use akasha_core::Error;
@@ -42,7 +42,7 @@ fn page_size(limit: Option<i64>, default: i64) -> Result<i64, ApiError> {
 
 /// Start a conversation.
 #[utoipa::path(
-    post, path = "/api/v1/conversations", tag = "chat",
+    post, path = "/api/v1/conversations", tag = "chat", operation_id = "create_conversation",
     request_body = CreateConversation,
     responses(
         (status = 201, body = ConversationResponse),
@@ -62,7 +62,7 @@ pub async fn create(
 
 /// List your conversations, most recently active first.
 #[utoipa::path(
-    get, path = "/api/v1/conversations", tag = "chat",
+    get, path = "/api/v1/conversations", tag = "chat", operation_id = "list_conversations",
     params(PageQuery),
     responses(
         (status = 200, body = ConversationList),
@@ -91,7 +91,7 @@ pub async fn list(
 
 /// One of your conversations.
 #[utoipa::path(
-    get, path = "/api/v1/conversations/{id}", tag = "chat",
+    get, path = "/api/v1/conversations/{id}", tag = "chat", operation_id = "get_conversation",
     params(("id" = Uuid, Path, description = "Conversation id")),
     responses(
         (status = 200, body = ConversationResponse),
@@ -112,7 +112,7 @@ pub async fn get(
 
 /// Rename a conversation.
 #[utoipa::path(
-    patch, path = "/api/v1/conversations/{id}", tag = "chat",
+    patch, path = "/api/v1/conversations/{id}", tag = "chat", operation_id = "update_conversation",
     params(("id" = Uuid, Path, description = "Conversation id")),
     request_body = UpdateConversation,
     responses(
@@ -137,7 +137,7 @@ pub async fn update(
 
 /// Delete a conversation and its messages.
 #[utoipa::path(
-    delete, path = "/api/v1/conversations/{id}", tag = "chat",
+    delete, path = "/api/v1/conversations/{id}", tag = "chat", operation_id = "delete_conversation",
     params(("id" = Uuid, Path, description = "Conversation id")),
     responses(
         (status = 204, description = "Deleted"),

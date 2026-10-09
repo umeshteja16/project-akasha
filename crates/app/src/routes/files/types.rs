@@ -1,6 +1,6 @@
 //! Request and response bodies for `/api/v1/files`.
 
-use akasha_db::files::File;
+use akasha_db::files::{File, ListKey, ListOrder};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -172,15 +172,51 @@ pub struct ListQuery {
     /// Only files carrying this tag (their own or a suggested one).
     pub tag: Option<String>,
     pub category: Option<FileCategory>,
-    /// `next_cursor` from the previous page.
+    /// Order of the list (default `newest`).
+    pub sort: Option<FileSort>,
+    /// `next_cursor` from the previous page (of the same `sort`).
     pub cursor: Option<String>,
     /// Page size, 1–200 (default 50).
     pub limit: Option<i64>,
 }
 
+/// Sort order of the file list.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum FileSort {
+    /// Most recently uploaded first.
+    #[default]
+    Newest,
+    Oldest,
+    /// By name, A to Z, ignoring case.
+    Name,
+    /// Largest first.
+    Size,
+}
+
+impl FileSort {
+    pub fn order(self) -> ListOrder {
+        match self {
+            Self::Newest => ListOrder::Newest,
+            Self::Oldest => ListOrder::Oldest,
+            Self::Name => ListOrder::Name,
+            Self::Size => ListOrder::Largest,
+        }
+    }
+
+    fn tag(self) -> char {
+        match self {
+            Self::Newest => 'n',
+            Self::Oldest => 'o',
+            Self::Name => 'a',
+            Self::Size => 's',
+        }
+    }
+}
+
 #[derive(Debug, Serialize, ToSchema)]
 pub struct FileList {
-    /// Newest first.
+    /// In the requested `sort` order.
     pub items: Vec<FileResponse>,
     /// Pass as `cursor` to get the next page; `null` on the last page.
     pub next_cursor: Option<String>,
@@ -211,20 +247,41 @@ pub struct BulkDeleteResponse {
     pub deleted: Vec<Uuid>,
 }
 
-/// Opaque keyset cursor: base64url of `<created_at µs>:<id>`.
-pub fn encode_cursor(created_at: DateTime<Utc>, id: Uuid) -> String {
-    URL_SAFE_NO_PAD.encode(format!("{}:{id}", created_at.timestamp_micros()))
+/// Opaque keyset cursor: base64url of `<sort tag>:<id>:<key>`, where the key is
+/// the creation time in µs, the size in bytes or the name (last, so it may hold `:`).
+pub fn encode_cursor(sort: FileSort, file: &File) -> String {
+    let key = match ListKey::of(file, sort.order()) {
+        ListKey::Created(ts) => ts.timestamp_micros().to_string(),
+        ListKey::Size(size) => size.to_string(),
+        ListKey::Name(name) => name,
+    };
+    URL_SAFE_NO_PAD.encode(format!("{}:{}:{key}", sort.tag(), file.id))
 }
 
-pub fn decode_cursor(cursor: &str) -> Result<(DateTime<Utc>, Uuid), Error> {
+/// Decode a cursor made by [`encode_cursor`] for the same `sort`.
+pub fn decode_cursor(sort: FileSort, cursor: &str) -> Result<(ListKey, Uuid), Error> {
     let invalid = || Error::bad_request("invalid cursor");
     let raw = URL_SAFE_NO_PAD.decode(cursor).map_err(|_| invalid())?;
     let raw = String::from_utf8(raw).map_err(|_| invalid())?;
-    let (micros, id) = raw.split_once(':').ok_or_else(invalid)?;
-    let micros: i64 = micros.parse().map_err(|_| invalid())?;
-    let created_at = DateTime::from_timestamp_micros(micros).ok_or_else(invalid)?;
-    let id = id.parse().map_err(|_| invalid())?;
-    Ok((created_at, id))
+    let mut parts = raw.splitn(3, ':');
+    let (Some(tag), Some(id), Some(key)) = (parts.next(), parts.next(), parts.next()) else {
+        return Err(invalid());
+    };
+    if tag.chars().ne(std::iter::once(sort.tag())) {
+        return Err(Error::bad_request(
+            "cursor belongs to a different sort order",
+        ));
+    }
+    let id: Uuid = id.parse().map_err(|_| invalid())?;
+    let key = match sort {
+        FileSort::Newest | FileSort::Oldest => {
+            let micros: i64 = key.parse().map_err(|_| invalid())?;
+            ListKey::Created(DateTime::from_timestamp_micros(micros).ok_or_else(invalid)?)
+        }
+        FileSort::Size => ListKey::Size(key.parse().map_err(|_| invalid())?),
+        FileSort::Name => ListKey::Name(key.to_owned()),
+    };
+    Ok((key, id))
 }
 
 const MAX_TAGS: usize = 32;
@@ -259,13 +316,48 @@ pub fn normalize_tags(raw: &[String]) -> Result<Vec<String>, Error> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn cursor_round_trips_and_rejects_garbage() {
+    fn file(name: &str, size: i64) -> File {
         let now = DateTime::from_timestamp_micros(1_760_000_000_123_456).expect("ts");
-        let id = Uuid::new_v4();
-        assert_eq!(decode_cursor(&encode_cursor(now, id)).ok(), Some((now, id)));
-        for bad in ["", "!!", "bm9wZQ", &URL_SAFE_NO_PAD.encode("1:not-a-uuid")] {
-            assert!(decode_cursor(bad).is_err(), "{bad}");
+        File {
+            id: Uuid::new_v4(),
+            owner_id: Uuid::new_v4(),
+            original_name: name.to_owned(),
+            content_hash: String::new(),
+            mime_type: "text/plain".into(),
+            size_bytes: size,
+            status: "ready".into(),
+            error: None,
+            is_pinned: false,
+            tags: vec![],
+            summary: None,
+            auto_tags: vec![],
+            enrichment_status: None,
+            enrichment_model: None,
+            enriched_from: None,
+            enriched_at: None,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    #[test]
+    fn cursor_round_trips_per_sort_and_rejects_garbage() {
+        let f = file("a:b.txt", 42);
+        let cases = [
+            (FileSort::Newest, ListKey::Created(f.created_at)),
+            (FileSort::Oldest, ListKey::Created(f.created_at)),
+            (FileSort::Name, ListKey::Name("a:b.txt".into())),
+            (FileSort::Size, ListKey::Size(42)),
+        ];
+        for (sort, key) in cases {
+            let cursor = encode_cursor(sort, &f);
+            assert_eq!(decode_cursor(sort, &cursor).ok(), Some((key, f.id)));
+        }
+        let newest = encode_cursor(FileSort::Newest, &f);
+        assert!(decode_cursor(FileSort::Size, &newest).is_err());
+        let bad_id = URL_SAFE_NO_PAD.encode("n:not-a-uuid:1");
+        for bad in ["", "!!", "bm9wZQ", &bad_id] {
+            assert!(decode_cursor(FileSort::Newest, bad).is_err(), "{bad}");
         }
     }
 

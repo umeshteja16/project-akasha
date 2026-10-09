@@ -3,6 +3,7 @@
 
 mod auth;
 pub(crate) mod chat;
+mod cursor;
 pub(crate) mod files;
 mod health;
 mod me;
@@ -36,12 +37,13 @@ use crate::{auth::session::COOKIE_NAME, error::ErrorBody, rate_limit, state::App
         files::bulk_delete, files::download::download, files::processing::reindex,
         files::enrich::enrich,
         files::extraction::get, files::similar::similar, files::thumbnail::thumbnail,
+        files::tags::list,
         search::search, search::search_chunks,
         chat::create, chat::list, chat::get, chat::update, chat::delete,
         chat::list_messages, chat::messages::post,
     ),
     components(schemas(
-        ErrorBody, health::Health, files::types::FileCategory,
+        ErrorBody, health::Health, files::types::FileCategory, files::types::FileSort,
         crate::chat::events::ChatSources, crate::chat::events::ChatDelta,
         crate::chat::events::ChatDone, crate::chat::events::ChatError,
     )),
@@ -107,6 +109,7 @@ pub fn router(state: &AppState) -> Router<AppState> {
         .route("/api/v1/me", get(me::get_me).patch(me::update_me))
         .route("/api/v1/files", get(files::list))
         .route("/api/v1/files/bulk-delete", post(files::bulk_delete))
+        .route("/api/v1/tags", get(files::tags::list))
         .route("/api/v1/files/{id}/extraction", get(files::extraction::get))
         .route("/api/v1/files/{id}/similar", get(files::similar::similar))
         .route(

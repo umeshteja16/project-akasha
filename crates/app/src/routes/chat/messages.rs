@@ -45,7 +45,7 @@ const BUFFER: usize = 64;
 /// configured, the passages are returned with `status: no_llm`. Closing the
 /// connection stops generation. Limited per user (`AKASHA_CHAT_RATE_PER_MINUTE`).
 #[utoipa::path(
-    post, path = "/api/v1/conversations/{id}/messages", tag = "chat",
+    post, path = "/api/v1/conversations/{id}/messages", tag = "chat", operation_id = "post_message",
     params(("id" = Uuid, Path, description = "Conversation id")),
     request_body = PostMessage,
     responses(

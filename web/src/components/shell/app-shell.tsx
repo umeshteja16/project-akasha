@@ -1,13 +1,27 @@
 import { Outlet } from "@tanstack/react-router";
+import { UploadProvider } from "@/features/upload/upload-context";
+import { UploadPanel } from "@/features/upload/upload-panel";
 import { CommandPaletteProvider } from "./command-palette";
 import { MobileHeader, MobileTabBar } from "./mobile-nav";
 import { Sidebar } from "./sidebar";
 import { UploadDropZone } from "./upload-drop-zone";
+import { useGlobalShortcuts } from "./use-global-shortcuts";
 
 /** The signed-in frame: sidebar (desktop) or top bar + tab bar (phone). */
 export function AppShell() {
   return (
-    <CommandPaletteProvider>
+    <UploadProvider>
+      <CommandPaletteProvider>
+        <Shell />
+      </CommandPaletteProvider>
+    </UploadProvider>
+  );
+}
+
+function Shell() {
+  useGlobalShortcuts();
+  return (
+    <>
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[70] focus:rounded-md focus:bg-surface focus:px-3 focus:py-2 focus:shadow-md"
@@ -31,6 +45,7 @@ export function AppShell() {
         <MobileTabBar />
       </div>
       <UploadDropZone />
-    </CommandPaletteProvider>
+      <UploadPanel />
+    </>
   );
 }

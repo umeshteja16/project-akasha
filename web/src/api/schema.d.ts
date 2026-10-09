@@ -63,10 +63,10 @@ export interface paths {
             cookie?: never;
         };
         /** List your conversations, most recently active first. */
-        get: operations["list"];
+        get: operations["list_conversations"];
         put?: never;
         /** Start a conversation. */
-        post: operations["create"];
+        post: operations["create_conversation"];
         delete?: never;
         options?: never;
         head?: never;
@@ -81,15 +81,15 @@ export interface paths {
             cookie?: never;
         };
         /** One of your conversations. */
-        get: operations["get"];
+        get: operations["get_conversation"];
         put?: never;
         post?: never;
         /** Delete a conversation and its messages. */
-        delete: operations["delete"];
+        delete: operations["delete_conversation"];
         options?: never;
         head?: never;
         /** Rename a conversation. */
-        patch: operations["update"];
+        patch: operations["update_conversation"];
         trace?: never;
     };
     "/api/v1/conversations/{id}/messages": {
@@ -115,7 +115,7 @@ export interface paths {
          *     configured, the passages are returned with `status: no_llm`. Closing the
          *     connection stops generation. Limited per user (`AKASHA_CHAT_RATE_PER_MINUTE`).
          */
-        post: operations["post"];
+        post: operations["post_message"];
         delete?: never;
         options?: never;
         head?: never;
@@ -129,8 +129,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List your files, newest first. */
-        get: operations["list"];
+        /** List your files (newest first unless `sort` says otherwise). */
+        get: operations["list_files"];
         put?: never;
         /**
          * Upload a file.
@@ -171,15 +171,15 @@ export interface paths {
             cookie?: never;
         };
         /** One of your files, with the state of its extraction job. */
-        get: operations["get"];
+        get: operations["get_file"];
         put?: never;
         post?: never;
         /** Delete a file. Its contents are removed once no other file uses them. */
-        delete: operations["delete"];
+        delete: operations["delete_file"];
         options?: never;
         head?: never;
         /** Rename, pin/unpin or retag a file (or drop model-suggested tags). */
-        patch: operations["update"];
+        patch: operations["update_file"];
         trace?: never;
     };
     "/api/v1/files/{id}/download": {
@@ -189,7 +189,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Download a file's contents (always as an attachment, never rendered inline). */
+        /** Download a file's contents: an attachment unless `inline=true` for a viewable type. */
         get: operations["download"];
         put?: never;
         post?: never;
@@ -229,7 +229,7 @@ export interface paths {
             cookie?: never;
         };
         /** The text extracted from one of your files, a window at a time. */
-        get: operations["get"];
+        get: operations["get_extraction"];
         put?: never;
         post?: never;
         delete?: never;
@@ -383,6 +383,23 @@ export interface paths {
          *     for agents and citations).
          */
         get: operations["search_chunks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every tag on your files (yours and suggested ones), with counts. */
+        get: operations["list_tags"];
         put?: never;
         post?: never;
         delete?: never;
@@ -698,7 +715,7 @@ export interface components {
             tags: string[];
         };
         FileList: {
-            /** @description Newest first. */
+            /** @description In the requested `sort` order. */
             items: components["schemas"]["FileResponse"][];
             /** @description Pass as `cursor` to get the next page; `null` on the last page. */
             next_cursor?: string | null;
@@ -737,6 +754,11 @@ export interface components {
             /** @description Best first. */
             results: components["schemas"]["FileHit"][];
         };
+        /**
+         * @description Sort order of the file list.
+         * @enum {string}
+         */
+        FileSort: "newest" | "oldest" | "name" | "size";
         /**
          * @description Processing state of a file.
          * @enum {string}
@@ -918,6 +940,11 @@ export interface components {
              *     Without one, chat answers with passages only.
              */
             chat_model: boolean;
+            /**
+             * Format: int64
+             * @description Largest file `POST /api/v1/files` accepts, in bytes.
+             */
+            max_upload_bytes: number;
             /** @description Server version (the `akasha` crate version). */
             version: string;
         };
@@ -939,6 +966,24 @@ export interface components {
             highlights: components["schemas"]["Highlight"][];
             /** @description Up to two fragments joined by " … "; the chunk's start when no term matched. */
             text: string;
+        };
+        TagList: {
+            /** @description Most used first. */
+            items: components["schemas"]["TagSummary"][];
+        };
+        /** @description A tag and how many of your files carry it. */
+        TagSummary: {
+            /**
+             * Format: int64
+             * @description Files where it is only a model-suggested tag.
+             */
+            auto_files: number;
+            tag: string;
+            /**
+             * Format: int64
+             * @description Files with it as one of your own tags.
+             */
+            user_files: number;
         };
         /** @description Milliseconds spent per stage (stages that did not run are 0). */
         Timings: {
@@ -1150,7 +1195,7 @@ export interface operations {
             };
         };
     };
-    list: {
+    list_conversations: {
         parameters: {
             query?: {
                 /** @description `next_cursor` from the previous page. */
@@ -1190,7 +1235,7 @@ export interface operations {
             };
         };
     };
-    create: {
+    create_conversation: {
         parameters: {
             query?: never;
             header?: never;
@@ -1229,7 +1274,7 @@ export interface operations {
             };
         };
     };
-    get: {
+    get_conversation: {
         parameters: {
             query?: never;
             header?: never;
@@ -1267,7 +1312,7 @@ export interface operations {
             };
         };
     };
-    delete: {
+    delete_conversation: {
         parameters: {
             query?: never;
             header?: never;
@@ -1304,7 +1349,7 @@ export interface operations {
             };
         };
     };
-    update: {
+    update_conversation: {
         parameters: {
             query?: never;
             header?: never;
@@ -1405,7 +1450,7 @@ export interface operations {
             };
         };
     };
-    post: {
+    post_message: {
         parameters: {
             query?: never;
             header?: never;
@@ -1464,7 +1509,7 @@ export interface operations {
             };
         };
     };
-    list: {
+    list_files: {
         parameters: {
             query?: {
                 status?: components["schemas"]["FileStatus"];
@@ -1472,7 +1517,9 @@ export interface operations {
                 /** @description Only files carrying this tag (their own or a suggested one). */
                 tag?: string;
                 category?: components["schemas"]["FileCategory"];
-                /** @description `next_cursor` from the previous page. */
+                /** @description Order of the list (default `newest`). */
+                sort?: components["schemas"]["FileSort"];
+                /** @description `next_cursor` from the previous page (of the same `sort`). */
                 cursor?: string;
                 /** @description Page size, 1–200 (default 50). */
                 limit?: number;
@@ -1615,7 +1662,7 @@ export interface operations {
             };
         };
     };
-    get: {
+    get_file: {
         parameters: {
             query?: never;
             header?: never;
@@ -1653,7 +1700,7 @@ export interface operations {
             };
         };
     };
-    delete: {
+    delete_file: {
         parameters: {
             query?: never;
             header?: never;
@@ -1690,7 +1737,7 @@ export interface operations {
             };
         };
     };
-    update: {
+    update_file: {
         parameters: {
             query?: never;
             header?: never;
@@ -1742,7 +1789,15 @@ export interface operations {
     };
     download: {
         parameters: {
-            query?: never;
+            query?: {
+                /**
+                 * @description Ask to view the file in the browser (`Content-Disposition: inline`) instead
+                 *     of saving it. Honoured only for PDFs, raster images, audio, video and plain
+                 *     text; other types are always attachments. Inline responses may be framed by
+                 *     this site only.
+                 */
+                inline?: boolean;
+            };
             header?: never;
             path: {
                 /** @description File id */
@@ -1844,7 +1899,7 @@ export interface operations {
             };
         };
     };
-    get: {
+    get_extraction: {
         parameters: {
             query?: {
                 /** @description First character to return (0-based, in Unicode characters). Default 0. */
@@ -2328,6 +2383,33 @@ export interface operations {
                 };
             };
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_tags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagList"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

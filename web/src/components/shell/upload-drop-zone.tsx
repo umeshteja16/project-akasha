@@ -1,18 +1,16 @@
 import { UploadCloudIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "@/components/ui/toast";
+import { useUploader } from "@/features/upload/upload-context";
 
 function hasFiles(event: DragEvent): boolean {
   return Array.from(event.dataTransfer?.types ?? []).includes("Files");
 }
 
-/**
- * Drop files anywhere in the app. For now it only acknowledges the drop: the
- * upload flow (progress, duplicates, processing) is the next UI task.
- */
+/** Drop files anywhere in the app to upload them. */
 export function UploadDropZone() {
   const [active, setActive] = useState(false);
   const depth = useRef(0);
+  const { add } = useUploader();
 
   useEffect(() => {
     const enter = (event: DragEvent) => {
@@ -34,11 +32,8 @@ export function UploadDropZone() {
       event.preventDefault();
       depth.current = 0;
       setActive(false);
-      const count = event.dataTransfer?.files.length ?? 0;
-      toast({
-        title: count === 1 ? "1 file received" : `${count} files received`,
-        description: "Uploading from here arrives with the next update of the library.",
-      });
+      const files = Array.from(event.dataTransfer?.files ?? []);
+      if (files.length > 0) add(files);
     };
     window.addEventListener("dragenter", enter);
     window.addEventListener("dragover", over);
@@ -50,7 +45,7 @@ export function UploadDropZone() {
       window.removeEventListener("dragleave", leave);
       window.removeEventListener("drop", drop);
     };
-  }, []);
+  }, [add]);
 
   if (!active) return null;
   return (
@@ -61,7 +56,7 @@ export function UploadDropZone() {
       <div className="flex w-full max-w-md flex-col items-center gap-3 rounded-xl border-2 border-dashed border-accent bg-surface/90 px-8 py-12 text-center shadow-lg">
         <UploadCloudIcon className="size-8 text-accent-text" strokeWidth={1.5} />
         <p className="display text-2xl text-fg">Drop to add to your library</p>
-        <p className="text-sm text-fg-muted">PDFs, images, notes and text files.</p>
+        <p className="text-sm text-fg-muted">PDFs, images, audio, video, notes and text files.</p>
       </div>
     </div>
   );

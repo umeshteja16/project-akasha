@@ -14,7 +14,21 @@ export default defineConfig({
     // In development the Rust server runs separately; proxy API calls to it.
     proxy: { "/api": api, "/healthz": api, "/readyz": api },
   },
-  build: { sourcemap: false, chunkSizeWarningLimit: 700 },
+  build: {
+    sourcemap: false,
+    chunkSizeWarningLimit: 400,
+    rollupOptions: {
+      output: {
+        // Long-lived vendor chunks: an app release does not re-download React or TanStack.
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+          if (/[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return "vendor-react";
+          if (id.includes("@tanstack")) return "vendor-tanstack";
+          return undefined;
+        },
+      },
+    },
+  },
   test: {
     environment: "jsdom",
     globals: true,

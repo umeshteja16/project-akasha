@@ -80,7 +80,7 @@ pub struct ExtractionResponse {
 
 /// The text extracted from one of your files, a window at a time.
 #[utoipa::path(
-    get, path = "/api/v1/files/{id}/extraction", tag = "files",
+    get, path = "/api/v1/files/{id}/extraction", tag = "files", operation_id = "get_extraction",
     params(("id" = Uuid, Path, description = "File id"), ExtractionQuery),
     responses(
         (status = 200, body = ExtractionResponse),

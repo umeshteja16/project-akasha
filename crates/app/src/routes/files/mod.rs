@@ -6,6 +6,7 @@ pub mod enrich;
 pub mod extraction;
 pub mod processing;
 pub mod similar;
+pub mod tags;
 pub mod thumbnail;
 pub mod types;
 pub mod upload;
@@ -39,9 +40,9 @@ pub(super) fn not_found() -> ApiError {
     Error::not_found("file not found").into()
 }
 
-/// List your files, newest first.
+/// List your files (newest first unless `sort` says otherwise).
 #[utoipa::path(
-    get, path = "/api/v1/files", tag = "files",
+    get, path = "/api/v1/files", tag = "files", operation_id = "list_files",
     params(ListQuery),
     responses(
         (status = 200, body = FileList),
@@ -58,6 +59,7 @@ pub async fn list(
     if !(1..=MAX_PAGE).contains(&limit) {
         return Err(Error::bad_request(format!("limit must be 1-{MAX_PAGE}")).into());
     }
+    let sort = query.sort.unwrap_or_default();
     let filter = ListFilter {
         status: query.status.map(|s| s.as_str().to_owned()),
         pinned: query.pinned,
@@ -66,7 +68,12 @@ pub async fn list(
             .category
             .map(|c| c.mime_patterns())
             .unwrap_or_default(),
-        before: query.cursor.as_deref().map(decode_cursor).transpose()?,
+        order: sort.order(),
+        after: query
+            .cursor
+            .as_deref()
+            .map(|c| decode_cursor(sort, c))
+            .transpose()?,
         // One extra row tells us whether there is a next page.
         limit: limit + 1,
     };
@@ -74,7 +81,7 @@ pub async fn list(
     let has_more = rows.len() as i64 > limit;
     rows.truncate(usize::try_from(limit).unwrap_or(0));
     let next_cursor = has_more
-        .then(|| rows.last().map(|f| encode_cursor(f.created_at, f.id)))
+        .then(|| rows.last().map(|f| encode_cursor(sort, f)))
         .flatten();
     Ok(Json(FileList {
         items: rows.into_iter().map(Into::into).collect(),
@@ -84,7 +91,7 @@ pub async fn list(
 
 /// One of your files, with the state of its extraction job.
 #[utoipa::path(
-    get, path = "/api/v1/files/{id}", tag = "files",
+    get, path = "/api/v1/files/{id}", tag = "files", operation_id = "get_file",
     params(("id" = Uuid, Path, description = "File id")),
     responses(
         (status = 200, body = FileDetail),
@@ -109,7 +116,7 @@ pub async fn get(
 
 /// Rename, pin/unpin or retag a file (or drop model-suggested tags).
 #[utoipa::path(
-    patch, path = "/api/v1/files/{id}", tag = "files",
+    patch, path = "/api/v1/files/{id}", tag = "files", operation_id = "update_file",
     params(("id" = Uuid, Path, description = "File id")),
     request_body = UpdateFileRequest,
     responses(
@@ -149,7 +156,7 @@ pub async fn update(
 
 /// Delete a file. Its contents are removed once no other file uses them.
 #[utoipa::path(
-    delete, path = "/api/v1/files/{id}", tag = "files",
+    delete, path = "/api/v1/files/{id}", tag = "files", operation_id = "delete_file",
     params(("id" = Uuid, Path, description = "File id")),
     responses(
         (status = 204, description = "Deleted"),

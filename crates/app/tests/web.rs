@@ -179,6 +179,10 @@ async fn meta_is_public_and_reflects_registration() {
     assert_eq!(body["allow_registration"], true);
     assert_eq!(body["chat_model"], false);
     assert_eq!(body["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(
+        body["max_upload_bytes"],
+        Config::default().max_upload_bytes()
+    );
 
     let closed = Config {
         allow_registration: false,

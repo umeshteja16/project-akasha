@@ -19,7 +19,7 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 |---|---|
 | **Current step** | Step 5: New web UI (Step 4 done) |
 | **Last updated** | 2026-10-09 |
-| **`just check`** | passing (247 Rust tests + 3 ignored OCR + 2 ignored real-model tests, 17 web tests); `just e2e` 4 Playwright tests |
+| **`just check`** | passing (254 Rust tests + 5 ignored OCR/real-model tests, 41 web tests); `just e2e` 6 Playwright tests |
 | **Old code** | `legacy/` (read-only reference; deleted in step 7) |
 
 ## Next up
@@ -27,33 +27,21 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 **Step 5: the web UI redesign.** The foundation is done (5.1): design system
 (`web/DESIGN.md`), Tailwind 4 tokens, owned Radix primitives, TanStack Router + Query, typed
 `openapi-fetch` client, app shell, auth + settings screens, embedded single-binary serving,
-Vitest + Playwright. Remaining, in order; each ends with `just check` green, `just e2e`
+Vitest + Playwright. The library and file detail screens (5.2) are done. Remaining, in order
+(**next: Step 5c, the search and chat screens**); each ends with `just check` green, `just e2e`
 green and a PROGRESS.md update:
 
-1. **Library + upload** (`src/routes/library.tsx` is a placeholder): keyset-paged list
-   (`GET /files`, `next_cursor`, `useInfiniteQuery`), filters (status, category, tag),
-   upload with progress via XHR `upload.onprogress` (fetch has no upload progress) wired
-   into the existing global drop zone (`components/shell/upload-drop-zone.tsx`, today it only
-   toasts) and the Upload button; duplicate (200) vs new (201) toasts; processing polling
-   (`refetchInterval` while any file is `processing`, show `processing.stage`); pin,
-   rename, bulk delete (dialog). Tags editor: user `tags` + `auto_tags` as suggestions
-   (accept = add to `tags`, dismiss = `PATCH auto_tags` without it). E2E: upload a `.txt`,
-   wait for ready.
-2. **File detail** (`/library/$fileId`): metadata, `summary` + `enrichment` with
-   "regenerate" (`POST /files/{id}/enrich`, 409/503), extraction viewer (windowed text,
-   page spans; offsets are Unicode characters), thumbnail, similar files, download, reindex.
-3. **Search** (`/search` placeholder): query box (also from the ⌘K palette: add a
+1. **Search** (`/search`: today only a query box that puts `?q=` in the URL): query box (also from the ⌘K palette: add a
    "Search for …" item), mode toggle, filters, file-grouped results, highlight offsets
    rendered as `<mark>` (convert Unicode-character offsets to JS string indices!),
    "did you mean", degraded warning, summaries, paging. Search state in the URL
    (`validateSearch`).
-4. **Chat** (`/chat` placeholder): conversation list (keyset), history, ask via `fetch`
+2. **Chat** (`/chat` placeholder): conversation list (keyset), history, ask via `fetch`
    POST + SSE parsing of the streamed body (EventSource cannot POST), live deltas,
    sources panel with `[n]` citations linking to file/page, refused/no_llm/error states
    (`meta.chat_model` tells whether a model exists), stop (AbortController), rename/delete,
    title refresh after the first answer. E2E: ask with the fake model.
-5. **Polish**: route-level code splitting (`lazyRouteComponent`; the bundle is ~560 kB /
-   180 kB gzip), gzip/brotli for embedded assets (`tower-http` compression), a keyboard
+3. **Polish**: gzip/brotli for embedded assets (`tower-http` compression), a keyboard
    shortcuts sheet, collections/activity screens once their APIs exist (step 6).
 
 Open follow-ups (not blocking step 5):
@@ -116,8 +104,10 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 ### Step 5: New web UI (redesign)
 - [x] Design system first (tokens, type scale, light + dark), documented in `web/DESIGN.md`
 - [x] TanStack Router + Query, shadcn/ui on Tailwind 4, typed client from `openapi.json`
-- [~] Screens: auth, settings, 404, error boundary and the app shell done; library, file
-      detail, search, chat are placeholders; collections, activity wait for step 6
+- [~] Screens: auth, settings, 404, error boundary, app shell, library (upload, grid/list,
+      filters, bulk delete) and file detail done; search and chat are placeholders;
+      collections, activity wait for step 6
+- [x] Route-level code splitting (`lazyRouteComponent`) and long-lived vendor chunks
 - [x] Rust binary serves the built UI (`rust-embed`, feature `embed-ui`), so production is a single binary
 - [x] Playwright end-to-end tests in CI (auth + settings flow; extend per screen)
 
@@ -367,12 +357,33 @@ See [`docs/adr/`](docs/adr). Summary:
   `target/debug/akasha` on port 8091 (`AKASHA_E2E_PORT`) against `DATABASE_URL`, with a
   temp storage dir. Credential endpoints are rate-limited per IP (burst 10, then 1/6 s): keep
   the e2e suite under ~10 sign-in/register/password calls or tests start getting 429s.
+- Library (step 5.2): `GET /files` takes `sort` (`newest|oldest|name|size`); the cursor
+  embeds the sort (`n|o|a|s:<id>:<key>`) and is rejected for another sort. Name order is
+  `lower(original_name), id`. `GET /api/v1/tags` lists tags with own/suggested counts.
+  Conversation/message cursors moved to `routes/cursor.rs`. Every route now has a unique
+  `operationId` (test in `tests/http.rs`): openapi-typescript keys operations by it.
+- `GET /files/{id}/download?inline=true` (a bool: `inline=1` is a 400) is honoured only
+  for PDFs, raster images, audio, video and text/plain; inline responses get
+  `frame-ancestors 'self'` + `X-Frame-Options: SAMEORIGIN`, and PDFs drop `sandbox`
+  (Chrome's PDF viewer refuses sandboxed documents). `nosniff` and the stored type stay.
+- Uploads go through XHR (`features/upload/xhr-upload.ts`) for progress + abort; the queue
+  (`upload-queue.ts`, 3 at a time, size pre-check against `meta.max_upload_bytes`) is a
+  plain class read via `useSyncExternalStore`. New files are put into every cached list
+  page (`features/files/cache.ts`), then lists poll every 2 s only while a loaded file is
+  `pending`/`processing` (`pollWhileProcessing`). The file page also polls ~90 s after
+  `ready` for the summary.
+- Markdown previews use our own tiny renderer (`lib/markdown.tsx`: headings, lists, code,
+  quotes, emphasis, links with http(s)/mailto only); it never emits raw HTML.
+- Library view and sort are per-browser preferences (`localStorage`); filters live in the
+  URL (`?category=&tag=&pinned=`).
 - The Docker image builds `web/` in a `node:22` stage and embeds it; the Docker build could
   not be run in the cloud sandbox (no daemon), CI's docker job covers it.
 
 ## Session log
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
+
+- 2026-10-09 · Claude (cloud) · Step 5.2: library + file detail. API: `sort` + per-sort keyset cursors on `GET /files`, `GET /tags`, `meta.max_upload_bytes`, inline download for viewable types, unique operationIds. UI: global drop zone + Upload button (`u`), XHR upload queue with per-file progress, cancel, retry, mapped API errors and duplicate links; library grid/list (persisted), thumbnails with type-icon fallback, sort, category/tag/pinned filters, infinite scroll, multi-select bulk delete, pin, arrow-key grid navigation, `/` search focus, Delete with confirmation, teaching empty state; file page with image/PDF/text/Markdown/audio/video preview, summary, tags editor (keep/dismiss suggestions), rename, download, delete, reindex, regenerate summary, similar files, extracted-text viewer with page markers, processing timeline; lazy routes + vendor chunks. Vitest 41, e2e 6 (upload text + PNG → ready → rename/tag/pin → delete). Resumed after a usage-limit cut (the first session wrote most of it; the second finished tests, e2e, screenshots).
 
 - 2026-10-09 · Claude (cloud) · Step 5.1: UI foundation. `web/DESIGN.md` (paper/ink palette with one verdigris accent, Newsreader + Inter + JetBrains Mono self-hosted, verified AA contrast, 4px spacing, radii, elevation, motion with reduced-motion), Tailwind 4 tokens, owned Radix primitives (button, input, field, dialog, dropdown, toast, tooltip, tabs, segmented, skeleton, card, badge, kbd), TanStack Router (typed, code-based, guarded layouts) + Query, `openapi-fetch` client with `ApiError` mapping and session-expiry redirect, app shell (sidebar / phone tab bar, ⌘K palette, theme toggle, user menu, global drop zone placeholder), sign-in, register (honours `allow_registration` via new public `GET /api/v1/meta`), settings (profile, theme, password, delete account), 404, error boundary, `/design` reference page, placeholders for library/search/chat; UI embedded in the binary (`embed-ui` feature, SPA fallback, immutable hashed assets, ETag, CSP and security headers on every response), Dockerfile web stage, Vitest (17) + Playwright e2e (4) with `just e2e` and a CI `e2e` job. Library/search/chat screens next.
 
