@@ -97,9 +97,19 @@ export const fileQuery = (api: Api, id: string, pollMs: number = POLL_MS) =>
     },
   });
 
+/**
+ * Whether a ready file had text to index. Files without text (media, blank
+ * images) go straight from extraction to ready, so their latest job is the
+ * extraction; the server also marks their enrichment `skipped` (since 5c).
+ */
+export function hasText(file: FileItem | FileDetail): boolean {
+  if (file.enrichment?.status === "skipped") return false;
+  return !("processing" in file) || file.processing?.stage !== "extract";
+}
+
 /** A file that just became ready may still get a summary for a minute or so. */
 export function awaitingEnrichment(file: FileItem, now: number = Date.now()): boolean {
-  if (file.status !== "ready" || file.enrichment) return false;
+  if (file.status !== "ready" || file.enrichment || !hasText(file)) return false;
   return now - Date.parse(file.updated_at) < 90_000;
 }
 

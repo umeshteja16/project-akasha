@@ -1,12 +1,13 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { ScanTextIcon } from "lucide-react";
-import { Fragment } from "react";
+import { Fragment, useEffect, useRef } from "react";
 import { useApi } from "@/api/context";
 import { extractionQuery, type FileItem } from "@/api/files";
 import { EmptyState } from "@/components/common/empty-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { segmentByPages } from "./extraction-segments";
+import type { Passage } from "@/features/files/passage";
+import { segmentByPages, splitAtPassage } from "./extraction-segments";
 
 const SOURCE_NOTES: Record<string, string> = {
   ocr: "read from the scan",
@@ -16,10 +17,42 @@ const SOURCE_NOTES: Record<string, string> = {
 
 const nf = new Intl.NumberFormat();
 
-/** The text Akasha extracted, with page markers for PDFs. */
-export function ExtractionViewer({ file }: { file: FileItem }) {
+/** Load further windows (50k characters each) to reach a linked passage, up to this many. */
+const MAX_AUTO_WINDOWS = 20;
+
+/**
+ * The text Akasha extracted, with page markers for PDFs. With a `passage` (from a
+ * search result or citation link) it loads text up to it, marks it and scrolls to it.
+ */
+export function ExtractionViewer({ file, passage }: { file: FileItem; passage?: Passage | null }) {
   const api = useApi();
   const query = useInfiniteQuery(extractionQuery(api, file.id, file.status === "ready"));
+  const articleRef = useRef<HTMLElement | null>(null);
+  const scrolledTo = useRef<string | null>(null);
+
+  const loaded = query.data?.pages.filter((p) => p !== null) ?? [];
+  const last = loaded[loaded.length - 1];
+  const loadedEnd = last ? last.offset + Array.from(last.text).length : 0;
+  const needMore =
+    passage != null &&
+    query.hasNextPage &&
+    !query.isFetchingNextPage &&
+    loadedEnd < passage.end &&
+    loaded.length < MAX_AUTO_WINDOWS;
+  useEffect(() => {
+    if (needMore) void query.fetchNextPage();
+  }, [needMore, query.fetchNextPage]);
+
+  const passageKey = passage ? `${passage.start}-${passage.end}` : null;
+  const ready = query.isSuccess && !needMore;
+  useEffect(() => {
+    if (!ready || !passageKey || scrolledTo.current === passageKey) return;
+    const el = articleRef.current?.querySelector<HTMLElement>("[data-passage]");
+    if (!el) return;
+    scrolledTo.current = passageKey;
+    const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ block: "center", behavior: smooth ? "smooth" : "auto" });
+  }, [ready, passageKey]);
 
   if (file.status !== "ready") {
     return (
@@ -69,7 +102,10 @@ export function ExtractionViewer({ file }: { file: FileItem }) {
           {first.notes.join(" ")}
         </p>
       ) : null}
-      <article className="rounded-lg border border-border bg-surface px-5 py-5 shadow-xs sm:px-8 sm:py-7">
+      <article
+        ref={articleRef}
+        className="rounded-lg border border-border bg-surface px-5 py-5 shadow-xs sm:px-8 sm:py-7"
+      >
         <div className="mx-auto max-w-[var(--reading-max)] font-display text-base leading-[1.7] text-fg">
           {windows.map((win) => (
             <Fragment key={win.offset}>
@@ -85,7 +121,23 @@ export function ExtractionViewer({ file }: { file: FileItem }) {
                       <span className="h-px flex-1 bg-border" />
                     </div>
                   ) : null}
-                  <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{seg.text}</p>
+                  <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">
+                    {splitAtPassage(seg, passage ?? null).map((piece, j) =>
+                      piece.passage ? (
+                        <mark
+                          // biome-ignore lint/suspicious/noArrayIndexKey: pieces never reorder
+                          key={j}
+                          data-passage
+                          className="scroll-mt-24 rounded-xs bg-mark px-0.5 py-px shadow-[0_0_0_3px_var(--mark)]"
+                        >
+                          {piece.text}
+                        </mark>
+                      ) : (
+                        // biome-ignore lint/suspicious/noArrayIndexKey: pieces never reorder
+                        <Fragment key={j}>{piece.text}</Fragment>
+                      ),
+                    )}
+                  </p>
                 </section>
               ))}
             </Fragment>

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE files f SET enrichment_status = 'skipped', enriched_from = e.created_at,\n                enriched_at = now()\n         FROM file_extractions e\n         WHERE f.id = $1 AND e.file_id = f.id",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "77ae59563e7cb6e4aa52a7acdf53fd486bd4c6c92f1a0de34c865870f809ea01"
+}

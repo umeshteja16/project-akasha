@@ -35,3 +35,4 @@ if (!("ResizeObserver" in window)) {
 Element.prototype.scrollIntoView ??= () => {};
 // jsdom does not implement scrolling (router scroll restoration calls it).
 window.scrollTo = () => {};
+Element.prototype.scrollTo ??= () => {};

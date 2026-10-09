@@ -13,8 +13,11 @@ import {
 import type { Api } from "@/api/client";
 import { meQuery } from "@/api/queries";
 import { AppShell } from "@/components/shell/app-shell";
+import { validateFileSearch } from "@/features/files/passage";
+import { validateSearchParams } from "@/features/search/search-params";
 import { safeRedirect } from "@/lib/session";
 import { AuthLayout } from "@/routes/auth/auth-layout";
+import { validateChatSearch } from "@/routes/chat/chat-search";
 import { ErrorPage } from "@/routes/error-page";
 import { validateLibrarySearch } from "@/routes/library/library-search";
 import { NotFoundPage } from "@/routes/not-found";
@@ -93,21 +96,37 @@ const libraryRoute = createRoute({
 const fileRoute = createRoute({
   getParentRoute: () => appLayout,
   path: "/files/$fileId",
+  validateSearch: validateFileSearch,
   component: lazyRouteComponent(() => import("@/routes/file/file-page"), "FilePage"),
 });
 
 const searchRoute = createRoute({
   getParentRoute: () => appLayout,
   path: "/search",
-  validateSearch: (search: Record<string, unknown>): { q?: string } =>
-    typeof search.q === "string" && search.q.trim() ? { q: search.q.trim() } : {},
-  component: lazyRouteComponent(() => import("@/routes/search"), "SearchPage"),
+  validateSearch: validateSearchParams,
+  component: lazyRouteComponent(() => import("@/routes/search/search-page"), "SearchPage"),
 });
 
 const chatRoute = createRoute({
   getParentRoute: () => appLayout,
   path: "/chat",
-  component: lazyRouteComponent(() => import("@/routes/chat"), "ChatPage"),
+  validateSearch: validateChatSearch,
+  component: lazyRouteComponent(() => import("@/routes/chat/chat-layout"), "ChatLayout"),
+});
+
+const chatIndexRoute = createRoute({
+  getParentRoute: () => chatRoute,
+  path: "/",
+  component: lazyRouteComponent(() => import("@/routes/chat/chat-home"), "ChatHome"),
+});
+
+const conversationRoute = createRoute({
+  getParentRoute: () => chatRoute,
+  path: "$conversationId",
+  component: lazyRouteComponent(
+    () => import("@/routes/chat/conversation-page"),
+    "ConversationPage",
+  ),
 });
 
 const settingsRoute = createRoute({
@@ -129,7 +148,7 @@ const routeTree = rootRoute.addChildren([
     libraryRoute,
     fileRoute,
     searchRoute,
-    chatRoute,
+    chatRoute.addChildren([chatIndexRoute, conversationRoute]),
     settingsRoute,
     designRoute,
   ]),

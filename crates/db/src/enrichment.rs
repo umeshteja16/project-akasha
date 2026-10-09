@@ -131,3 +131,19 @@ pub async fn mark(
     .await?;
     Ok(())
 }
+
+/// Record enrichment as `skipped` for the file's current extraction, inside the
+/// transaction that stores a text-less extraction (nothing to describe, so no
+/// job is queued and clients know at once that no summary is coming).
+pub async fn skip_current(conn: &mut sqlx::PgConnection, file_id: Uuid) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "UPDATE files f SET enrichment_status = 'skipped', enriched_from = e.created_at,
+                enriched_at = now()
+         FROM file_extractions e
+         WHERE f.id = $1 AND e.file_id = f.id",
+        file_id,
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}

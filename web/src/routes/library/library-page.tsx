@@ -126,6 +126,12 @@ export function LibraryPage() {
               onSelectAll={() => setSelected(new Set(files.map((f) => f.id)))}
               onClear={() => setSelected(new Set())}
               onDelete={() => setDeleting([...selected])}
+              onAsk={() =>
+                void navigate({
+                  to: "/chat",
+                  search: { files: [...selected].slice(0, 100).join(",") },
+                })
+              }
             />
           ) : null}
           {files.length === 0 ? (

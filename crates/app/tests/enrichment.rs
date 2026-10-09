@@ -148,6 +148,27 @@ async fn user_tags_are_never_overwritten_and_suggestions_can_be_dropped(pool: Pg
 }
 
 #[sqlx::test(migrator = "akasha_db::MIGRATOR")]
+async fn files_without_text_are_skipped_without_a_job(pool: PgPool) {
+    let app = TestApp::new(pool.clone());
+    let ada = app.user("ada@example.com").await;
+    let fid = id(&app.upload(&ada, "blank.txt", b"   \n\n\t  \n").await.json());
+    // Extraction only: nothing to embed, and no enrich job for a file with no text.
+    assert_eq!(app.run_jobs().await, 1, "extract");
+    let f = file(&app, &ada, &fid).await;
+    assert_eq!(f["status"], "ready");
+    assert_eq!(
+        f["enrichment"]["status"], "skipped",
+        "known from the start: {f}"
+    );
+    assert_eq!(f["summary"], Value::Null);
+    let queued: i64 = sqlx::query_scalar("SELECT count(*) FROM jobs WHERE kind = 'enrich_file'")
+        .fetch_one(&pool)
+        .await
+        .expect("count");
+    assert_eq!(queued, 0);
+}
+
+#[sqlx::test(migrator = "akasha_db::MIGRATOR")]
 async fn unusable_answers_fail_enrichment_but_not_the_file(pool: PgPool) {
     let model = Scripted::new(Some("I think this is about bread."));
     let app = with(&pool, &model);

@@ -1,3 +1,4 @@
+import { CheckIcon } from "lucide-react";
 import { DropdownMenu as Menu } from "radix-ui";
 import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
@@ -56,6 +57,21 @@ export function DropdownMenuRadioItem({
       {children}
       <Menu.ItemIndicator className="absolute right-2.5 size-1.5 rounded-full bg-accent" />
     </Menu.RadioItem>
+  );
+}
+
+export function DropdownMenuCheckboxItem({
+  className,
+  children,
+  ...props
+}: ComponentProps<typeof Menu.CheckboxItem>) {
+  return (
+    <Menu.CheckboxItem className={cn(itemClass, "pr-8", className)} {...props}>
+      {children}
+      <Menu.ItemIndicator className="absolute right-2.5 text-accent-text">
+        <CheckIcon className="size-3.5 text-accent-text" aria-hidden />
+      </Menu.ItemIndicator>
+    </Menu.CheckboxItem>
   );
 }
 

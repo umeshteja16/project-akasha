@@ -39,6 +39,7 @@ import {
   useReindex,
   useTogglePin,
 } from "@/features/files/mutations";
+import { parsePassage } from "@/features/files/passage";
 import { StatusBadge } from "@/features/files/status-badge";
 import { formatBytes, formatDateTime, formatRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -91,6 +92,13 @@ function FileView({ file }: { file: FileDetail }) {
   const reindex = useReindex();
   const enrich = useEnrich();
   const [enrichedAt, setEnrichedAt] = useState(0);
+  const { at, page } = route.useSearch();
+  const passage = parsePassage(at);
+  // A link to a passage (search result, citation) opens the text at that passage.
+  const [tab, setTab] = useState(passage ? "text" : "preview");
+  useEffect(() => {
+    if (at) setTab("text");
+  }, [at]);
   const kind = kindOf(file.mime_type);
   const category = categoryOf(file.mime_type);
 
@@ -236,16 +244,16 @@ function FileView({ file }: { file: FileDetail }) {
       ) : null}
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_19rem]">
-        <Tabs defaultValue="preview" className="min-w-0">
+        <Tabs value={tab} onValueChange={setTab} className="min-w-0">
           <TabsList className="w-full">
             <TabsTrigger value="preview">Preview</TabsTrigger>
             <TabsTrigger value="text">Text</TabsTrigger>
           </TabsList>
           <TabsContent value="preview">
-            <FilePreview file={file} />
+            <FilePreview file={file} page={page} />
           </TabsContent>
           <TabsContent value="text">
-            <ExtractionViewer file={file} />
+            <ExtractionViewer file={file} passage={passage} />
           </TabsContent>
         </Tabs>
 

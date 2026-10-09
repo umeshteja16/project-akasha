@@ -4,7 +4,14 @@ import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 import { fakeFetch, json } from "@/test/fetch";
 import { createApi } from "./client";
-import { awaitingEnrichment, type FileItem, filesQuery, pollWhileProcessing } from "./files";
+import {
+  awaitingEnrichment,
+  type FileDetail,
+  type FileItem,
+  filesQuery,
+  hasText,
+  pollWhileProcessing,
+} from "./files";
 
 function fileItem(status: FileItem["status"], overrides: Partial<FileItem> = {}): FileItem {
   return {
@@ -43,6 +50,24 @@ describe("awaitingEnrichment", () => {
       enrichment: { status: "done", model: "fake", updated_at: "2026-10-09T10:00:20Z" },
     });
     expect(awaitingEnrichment(enriched, now)).toBe(false);
+  });
+
+  it("never waits for files without text", () => {
+    const textless: FileDetail = {
+      ...fileItem("ready", { mime_type: "image/png" }),
+      processing: {
+        stage: "extract",
+        state: "succeeded",
+        attempts: 1,
+        max_attempts: 5,
+        updated_at: "2026-10-09T10:00:10Z",
+      },
+    };
+    expect(hasText(textless)).toBe(false);
+    expect(awaitingEnrichment(textless, now)).toBe(false);
+    const skipped = fileItem("ready", { enrichment: { status: "skipped" } });
+    expect(hasText(skipped)).toBe(false);
+    expect(hasText(fileItem("ready"))).toBe(true);
   });
 });
 

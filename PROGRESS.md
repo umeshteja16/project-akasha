@@ -19,30 +19,22 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 |---|---|
 | **Current step** | Step 5: New web UI (Step 4 done) |
 | **Last updated** | 2026-10-09 |
-| **`just check`** | passing (254 Rust tests + 5 ignored OCR/real-model tests, 41 web tests); `just e2e` 6 Playwright tests |
+| **`just check`** | passing (255 Rust tests + 5 ignored OCR/real-model tests, 89 web tests); `just e2e` 8 Playwright tests |
 | **Old code** | `legacy/` (read-only reference; deleted in step 7) |
 
 ## Next up
 
-**Step 5: the web UI redesign.** The foundation is done (5.1): design system
-(`web/DESIGN.md`), Tailwind 4 tokens, owned Radix primitives, TanStack Router + Query, typed
-`openapi-fetch` client, app shell, auth + settings screens, embedded single-binary serving,
-Vitest + Playwright. The library and file detail screens (5.2) are done. Remaining, in order
-(**next: Step 5c, the search and chat screens**); each ends with `just check` green, `just e2e`
-green and a PROGRESS.md update:
+**Step 5d: remaining screens and polish.** Done so far: foundation (5.1), library + file
+detail (5.2), search + chat (5c). Remaining, in order; each ends with `just check` green,
+`just e2e` green and a PROGRESS.md update:
 
-1. **Search** (`/search`: today only a query box that puts `?q=` in the URL): query box (also from the ⌘K palette: add a
-   "Search for …" item), mode toggle, filters, file-grouped results, highlight offsets
-   rendered as `<mark>` (convert Unicode-character offsets to JS string indices!),
-   "did you mean", degraded warning, summaries, paging. Search state in the URL
-   (`validateSearch`).
-2. **Chat** (`/chat` placeholder): conversation list (keyset), history, ask via `fetch`
-   POST + SSE parsing of the streamed body (EventSource cannot POST), live deltas,
-   sources panel with `[n]` citations linking to file/page, refused/no_llm/error states
-   (`meta.chat_model` tells whether a model exists), stop (AbortController), rename/delete,
-   title refresh after the first answer. E2E: ask with the fake model.
-3. **Polish**: gzip/brotli for embedded assets (`tower-http` compression), a keyboard
-   shortcuts sheet, collections/activity screens once their APIs exist (step 6).
+1. **Polish**: gzip/brotli for embedded assets (`tower-http` compression), a keyboard
+   shortcuts sheet (`?`), focus management review (palette → result → back), a11y pass with
+   axe in Playwright, empty/error states audit across screens, bundle size check.
+2. **Chat extras**: per-conversation default file scope (API: store `file_ids` on the
+   conversation; today the scope lives in the URL `?files=` only), edit-and-resend a
+   question, message keyset paging UI test with > 50 messages.
+3. Collections and activity screens wait for their APIs (step 6).
 
 Open follow-ups (not blocking step 5):
 - Calibrate the real-reranker refusal threshold: `akasha eval --real-models` with
@@ -105,7 +97,8 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 - [x] Design system first (tokens, type scale, light + dark), documented in `web/DESIGN.md`
 - [x] TanStack Router + Query, shadcn/ui on Tailwind 4, typed client from `openapi.json`
 - [~] Screens: auth, settings, 404, error boundary, app shell, library (upload, grid/list,
-      filters, bulk delete) and file detail done; search and chat are placeholders;
+      filters, bulk delete), file detail, search (URL state, filters, highlights, ⌘K live
+      results) and chat (streaming, citations, conversations) done; polish (5d) left;
       collections, activity wait for step 6
 - [x] Route-level code splitting (`lazyRouteComponent`) and long-lived vendor chunks
 - [x] Rust binary serves the built UI (`rust-embed`, feature `embed-ui`), so production is a single binary
@@ -379,9 +372,42 @@ See [`docs/adr/`](docs/adr). Summary:
 - The Docker image builds `web/` in a `node:22` stage and embeds it; the Docker build could
   not be run in the cloud sandbox (no daemon), CI's docker job covers it.
 
+- Search UI (5c): all state is in the URL (`features/search/search-params.ts`,
+  `validateSearch`); the box debounces 300 ms and *replaces* the history entry while typing,
+  filters/page/suggestion *push*. `searchQuery` passes the AbortSignal (stale requests are
+  cancelled), keeps previous results (`keepPreviousData`), never retries 4xx and retries a
+  `rate_limited` search after the server's "retry in Ns". Highlight offsets are code points:
+  `lib/highlight.ts` converts them (emoji/astral characters count once on the server).
+- Passage links: `/files/<id>?at=<start>-<end>&page=<n>` (`features/files/passage.ts`), from
+  search results and citations. The file page opens the Text tab, loads further extraction
+  windows until the passage is loaded (max 20 × 50k chars), marks it (`mark[data-passage]`)
+  and scrolls to it; PDFs open at `#page=n`.
+- Chat UI (5c): answers stream via `fetch` + `lib/sse.ts` (EventSource cannot POST);
+  `openapi-fetch` with `parseAs: "stream"` keeps the typed client and session-expiry
+  middleware. A stream that ends without `done`/`error` is `stream_interrupted`. Live answers
+  live in `ChatSessions` (`features/chat/chat-session.ts`, held by the `/chat` layout route),
+  so a new chat keeps streaming across `/chat` → `/chat/<id>`; leaving the chat area or
+  pressing stop aborts (server stores `cancelled`). After an answer settles the messages are
+  refetched, the live turn is dropped, and the list is refreshed at 2.5 s/6 s for the
+  model-written title. Stored messages with the live turn's ids are hidden (no duplicates).
+- `/chat` routes render full-bleed: `AppShell` drops the page padding for `/chat*` and the
+  chat layout sizes itself (`100dvh` minus the phone header and tab bar).
+- `?files=` on `/chat` scopes answers (library "Ask about these", max 100 ids); it is sent as
+  `file_ids` with every question and is not stored on the conversation yet.
+- Textless files (images without OCR text, media) now get `enrichment_status = skipped` in
+  the extraction transaction (`enrichment::skip_current`), so the UI never shows "Writing a
+  summary" for them; the timeline also treats ready files whose last job is `extract` as
+  textless (older data).
+- Screenshots in cloud sessions: a tiny OpenAI-compatible mock server (scratch, not
+  committed) with `AKASHA_LLM_PROVIDER=openai AKASHA_OPENAI_BASE_URL=http://127.0.0.1:8093/v1`
+  gives realistic streamed answers; Playwright scripts must live under `web/` to resolve
+  `@playwright/test`. Never `pkill -f` a pattern that also matches your own shell command.
+
 ## Session log
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
+
+- 2026-10-09 · Claude (cloud) · Step 5c: search + chat screens. Search: debounced as-you-type with URL state (q, mode in "Advanced", type, date range, tags, pinned, page), cancelled stale requests, rate-limit notice with auto retry, file-grouped results with summaries, page numbers and safe `<mark>` highlights (code-point offsets), "did you mean", degraded notice, empty/no-result guidance, timing disclosure; passage links open the file's text marked and scrolled (PDF at the page); ⌘K live results + "Search for", new chat action. Chat: conversation list (rail / phone sheet) with rename/delete, new chat with suggestions, composer (Enter/Shift+Enter, stop), SSE streaming via fetch, safe Markdown answers with citation chips (hover/tap quote, click opens passage), sources panel, refusal/no_llm/error/cancelled states, copy, ask again, jump to latest, library "Ask about these" scope. Textless files get enrichment `skipped` at once (fix from review). Vitest 89 (SSE parser, stream, citations, highlights, URL state, search page, answers), e2e 8 (search + chat flows, refusal).
 
 - 2026-10-09 · Claude (cloud) · Step 5.2: library + file detail. API: `sort` + per-sort keyset cursors on `GET /files`, `GET /tags`, `meta.max_upload_bytes`, inline download for viewable types, unique operationIds. UI: global drop zone + Upload button (`u`), XHR upload queue with per-file progress, cancel, retry, mapped API errors and duplicate links; library grid/list (persisted), thumbnails with type-icon fallback, sort, category/tag/pinned filters, infinite scroll, multi-select bulk delete, pin, arrow-key grid navigation, `/` search focus, Delete with confirmation, teaching empty state; file page with image/PDF/text/Markdown/audio/video preview, summary, tags editor (keep/dismiss suggestions), rename, download, delete, reindex, regenerate summary, similar files, extracted-text viewer with page markers, processing timeline; lazy routes + vendor chunks. Vitest 41, e2e 6 (upload text + PNG → ready → rename/tag/pin → delete). Resumed after a usage-limit cut (the first session wrote most of it; the second finished tests, e2e, screenshots).
 

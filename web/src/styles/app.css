@@ -96,6 +96,8 @@
   --animate-fade-out: fade-out var(--motion-fast) ease-in;
   --animate-rise-in: rise-in var(--motion-slow) var(--ease-out-soft);
   --animate-pulse-soft: pulse-soft 1.6s ease-in-out infinite;
+  --animate-sheet-in: sheet-in var(--motion-slow) var(--ease-out-soft);
+  --animate-caret: caret 1s steps(1) infinite;
 
   @keyframes fade-in {
     from {
@@ -111,6 +113,16 @@
     from {
       opacity: 0;
       transform: translateY(6px) scale(0.985);
+    }
+  }
+  @keyframes sheet-in {
+    from {
+      transform: translateX(-100%);
+    }
+  }
+  @keyframes caret {
+    50% {
+      opacity: 0;
     }
   }
   @keyframes pulse-soft {

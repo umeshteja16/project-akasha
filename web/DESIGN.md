@@ -21,7 +21,8 @@ at `/design` (command palette → "Design system").
    it comes from colour, boxes or icons.
 3. **One accent.** Verdigris (a deep teal-green) marks the primary action, the active
    place and focus. If two things on screen are accent-coloured, one of them is wrong.
-   The saffron *highlight* appears only as the wordmark dot and search `<mark>`s.
+   The saffron *highlight* appears only as the wordmark dot (also echoed as the dot before
+   "Akasha" on chat answers) and search/passage `<mark>`s.
 4. **Hairlines, not boxes.** Separate with 1px rules and whitespace; cards only where
    content is a unit (a settings group, a file).
 5. **Quiet motion.** Short, eased fades and rises that confirm a change; nothing loops
@@ -146,15 +147,32 @@ Re-run the check (a 20-line relative-luminance script) whenever a token changes.
 ## Components
 
 `src/components/ui/`: `button` (primary, secondary, ghost, danger, link; sm/md/lg/icon),
-`input`, `label`, `field` (label + input + hint/error with ARIA wiring), `card`, `badge`,
-`kbd`, `dialog`, `dropdown-menu`, `tooltip`, `tabs`, `segmented` (single-choice toggle
-group), `skeleton`, `toast` (`toast()` callable from anywhere + `<Toaster/>`).
+`input`, `textarea`, `label`, `field` (label + input + hint/error with ARIA wiring), `card`,
+`badge`, `kbd`, `chip` (pill filter toggle, `aria-pressed`), `dialog`, `sheet` (left panel
+on phones), `popover`, `dropdown-menu` (incl. checkbox items), `tooltip`, `tabs`,
+`segmented` (single-choice toggle group), `skeleton`, `toast` (`toast()` callable from
+anywhere + `<Toaster/>`).
+`src/components/common/highlighted.tsx` renders search highlight offsets as `<mark>` (text
+nodes only, never HTML).
 `src/components/common/`: `wordmark`, `page-header`, `empty-state`, `avatar`.
 `src/components/shell/`: sidebar, mobile header/tab bar, user menu, theme toggle,
 command palette, upload drop zone.
 
 Rules: compose from these before writing new styles; add a variant rather than a
 one-off class soup; keep components under ~300 lines.
+
+## Search and chat
+
+- **Search results** are file-grouped: type icon/thumbnail, name, meta line (kind, pages,
+  passages, added, pinned), summary (2 lines), up to three passages as serif quotes with a
+  hairline on the left (accent on hover) and `<mark>` hits, then tags. Passages link to the
+  file at that passage (`?at=start-end&page=n`); the file page opens its text there and marks it.
+- **Answers** are reading text (serif, 17px, 1.7 leading). Citations are small mono chips
+  in `accent-soft`; hover (mouse) previews the quote, click opens the passage; tap/Enter
+  toggles the preview, which links on. Questions sit right-aligned in `surface-2` bubbles.
+- **Chat layout** fills the viewport (no page padding): conversation list (desktop rail,
+  phone sheet), a 46rem column of messages that follows new text until the reader scrolls
+  up ("Jump to latest"), and a floating composer card.
 
 ## Voice
 

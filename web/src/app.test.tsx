@@ -67,7 +67,7 @@ describe("auth routing", () => {
       "GET /api/v1/me": () => json(USER),
       "GET /api/v1/files": unauthorized,
     });
-    await screen.findByRole("heading", { level: 1, name: "Chat" });
+    await screen.findByRole("heading", { level: 1, name: "New conversation" });
     await act(async () => {
       await unwrap(deps.api.GET("/api/v1/files", { params: { query: {} } })).catch(() => undefined);
     });

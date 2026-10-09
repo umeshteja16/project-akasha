@@ -4,6 +4,7 @@
 // emphasis, inline code and links (http, https and mailto only).
 
 import { Fragment, type ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 export type Block =
   | { kind: "heading"; level: 1 | 2 | 3 | 4 | 5 | 6; text: string }
@@ -102,18 +103,26 @@ const SAFE_URL = /^(https?:|mailto:)/i;
 const INLINE =
   /(`[^`]+`)|(\*\*[^*]+\*\*|__[^_]+__)|(\*[^*\s][^*]*\*|_[^_\s][^_]*_)|(\[[^\]]+\]\([^)\s]+\))/;
 
+/** Renders a run of plain text (e.g. to turn `[n]` into citation chips). */
+export type TextRenderer = (text: string, key: string) => ReactNode;
+
 /** Render inline Markdown as React nodes. */
-export function renderInline(text: string, keyPrefix = "i"): ReactNode[] {
+export function renderInline(
+  text: string,
+  keyPrefix = "i",
+  renderText?: TextRenderer,
+): ReactNode[] {
   const out: ReactNode[] = [];
   let rest = text;
   let n = 0;
+  const plain = (t: string) => (renderText ? renderText(t, `${keyPrefix}-t${n++}`) : t);
   while (rest) {
     const match = INLINE.exec(rest);
     if (!match) {
-      out.push(rest);
+      out.push(plain(rest));
       break;
     }
-    if (match.index > 0) out.push(rest.slice(0, match.index));
+    if (match.index > 0) out.push(plain(rest.slice(0, match.index)));
     const token = match[0];
     const key = `${keyPrefix}-${n++}`;
     if (match[1]) {
@@ -123,9 +132,9 @@ export function renderInline(text: string, keyPrefix = "i"): ReactNode[] {
         </code>,
       );
     } else if (match[2]) {
-      out.push(<strong key={key}>{renderInline(token.slice(2, -2), key)}</strong>);
+      out.push(<strong key={key}>{renderInline(token.slice(2, -2), key, renderText)}</strong>);
     } else if (match[3]) {
-      out.push(<em key={key}>{renderInline(token.slice(1, -1), key)}</em>);
+      out.push(<em key={key}>{renderInline(token.slice(1, -1), key, renderText)}</em>);
     } else {
       const link = /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(token);
       const label = link?.[1] ?? token;
@@ -161,9 +170,18 @@ const HEADING_CLASS: Record<number, string> = {
 };
 
 /** Markdown as a styled, safe React tree. */
-export function Markdown({ source }: { source: string }) {
+export function Markdown({
+  source,
+  renderText,
+  className,
+}: {
+  source: string;
+  renderText?: TextRenderer;
+  className?: string;
+}) {
+  const inline = (text: string, key: string) => renderInline(text, key, renderText);
   return (
-    <div className="grid gap-4 text-base text-fg [overflow-wrap:anywhere]">
+    <div className={cn("grid gap-4 text-base text-fg [overflow-wrap:anywhere]", className)}>
       {parseBlocks(source).map((block, index) => {
         const key = `b${index}`;
         switch (block.kind) {
@@ -171,12 +189,12 @@ export function Markdown({ source }: { source: string }) {
             const Tag = `h${Math.min(block.level + 1, 6)}` as "h2";
             return (
               <Tag key={key} className={`${HEADING_CLASS[block.level]} mt-2 text-fg`}>
-                {renderInline(block.text, key)}
+                {inline(block.text, key)}
               </Tag>
             );
           }
           case "paragraph":
-            return <p key={key}>{renderInline(block.text, key)}</p>;
+            return <p key={key}>{inline(block.text, key)}</p>;
           case "code":
             return (
               <pre
@@ -192,7 +210,7 @@ export function Markdown({ source }: { source: string }) {
                 key={key}
                 className="border-l-2 border-border-strong/50 pl-4 text-fg-muted italic"
               >
-                {renderInline(block.text, key)}
+                {inline(block.text, key)}
               </blockquote>
             );
           case "list": {
@@ -204,7 +222,7 @@ export function Markdown({ source }: { source: string }) {
               >
                 {block.items.map((item, i) => (
                   // biome-ignore lint/suspicious/noArrayIndexKey: list items have no identity
-                  <li key={i}>{renderInline(item, `${key}-${i}`)}</li>
+                  <li key={i}>{inline(item, `${key}-${i}`)}</li>
                 ))}
               </List>
             );

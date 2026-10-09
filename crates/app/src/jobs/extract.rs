@@ -11,7 +11,10 @@
 
 use std::sync::Arc;
 
-use akasha_db::extraction::{self, NewChunk, NewExtraction};
+use akasha_db::{
+    enrichment,
+    extraction::{self, NewChunk, NewExtraction},
+};
 use akasha_ingest::{
     Chunk, ChunkOptions, EXTRACTOR_VERSION, Extraction, IngestError, Kind, Ocr, Options,
 };
@@ -209,8 +212,10 @@ async fn store(
         return Ok(());
     }
     if chunks.is_empty() {
-        // Nothing to embed (media, empty or text-less files).
+        // Nothing to embed (media, empty or text-less files), and nothing to
+        // summarise: enrichment is `skipped` from the moment the file is ready.
         extraction::mark_ready(&mut tx, id).await?;
+        enrichment::skip_current(&mut tx, id).await?;
     } else {
         // The file stays `processing` until its chunks have vectors.
         akasha_jobs::enqueue(&mut tx, &EmbedFile { file_id: id })

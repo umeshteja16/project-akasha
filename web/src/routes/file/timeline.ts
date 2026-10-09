@@ -1,6 +1,6 @@
 // The processing story of one file, step by step.
 
-import type { FileDetail } from "@/api/files";
+import { type FileDetail, hasText } from "@/api/files";
 import { formatRelative } from "@/lib/format";
 
 export type StepState = "done" | "active" | "failed" | "waiting" | "skipped";
@@ -74,6 +74,9 @@ export function timelineSteps(file: FileDetail, chatModel: boolean, now = Date.n
   } else if (!chatModel) {
     enrich.state = "skipped";
     enrich.detail = "No language model configured";
+  } else if (ready && !hasText(file)) {
+    enrich.state = "skipped";
+    enrich.detail = "Nothing to describe";
   } else if (ready) {
     const recent = now - Date.parse(file.updated_at) < 90_000;
     enrich.state = recent ? "active" : "waiting";

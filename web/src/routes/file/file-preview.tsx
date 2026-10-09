@@ -62,7 +62,7 @@ function TextPreview({ file }: { file: FileItem }) {
 }
 
 /** The file itself: image, PDF viewer, player, or rendered text. */
-export function FilePreview({ file }: { file: FileItem }) {
+export function FilePreview({ file, page }: { file: FileItem; page?: number }) {
   const category = categoryOf(file.mime_type);
   const frame = "overflow-hidden rounded-lg border border-border bg-surface shadow-xs";
 
@@ -81,7 +81,8 @@ export function FilePreview({ file }: { file: FileItem }) {
       return (
         <div className={frame}>
           <iframe
-            src={downloadUrl(file.id, true)}
+            key={page ?? 0}
+            src={`${downloadUrl(file.id, true)}${page ? `#page=${page}` : ""}`}
             title={`PDF preview of ${file.name}`}
             className="block h-[75vh] w-full bg-surface-2"
           />

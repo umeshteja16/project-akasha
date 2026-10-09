@@ -1,6 +1,7 @@
-import { Outlet } from "@tanstack/react-router";
+import { Outlet, useRouterState } from "@tanstack/react-router";
 import { UploadProvider } from "@/features/upload/upload-context";
 import { UploadPanel } from "@/features/upload/upload-panel";
+import { cn } from "@/lib/utils";
 import { CommandPaletteProvider } from "./command-palette";
 import { MobileHeader, MobileTabBar } from "./mobile-nav";
 import { Sidebar } from "./sidebar";
@@ -18,8 +19,16 @@ export function AppShell() {
   );
 }
 
+/** Screens that manage their own height and scrolling (chat): no page padding. */
+function useFullBleed(): boolean {
+  return useRouterState({
+    select: (s) => s.location.pathname === "/chat" || s.location.pathname.startsWith("/chat/"),
+  });
+}
+
 function Shell() {
   useGlobalShortcuts();
+  const fullBleed = useFullBleed();
   return (
     <>
       <a
@@ -35,11 +44,18 @@ function Shell() {
           <main
             id="main"
             tabIndex={-1}
-            className="flex-1 px-4 pt-6 pb-28 outline-none sm:px-8 md:pt-12 md:pb-16 lg:px-12"
+            className={cn(
+              "flex-1 outline-none",
+              fullBleed ? "min-h-0" : "px-4 pt-6 pb-28 sm:px-8 md:pt-12 md:pb-16 lg:px-12",
+            )}
           >
-            <div className="mx-auto w-full max-w-[var(--content-max)] animate-fade-in">
+            {fullBleed ? (
               <Outlet />
-            </div>
+            ) : (
+              <div className="mx-auto w-full max-w-[var(--content-max)] animate-fade-in">
+                <Outlet />
+              </div>
+            )}
           </main>
         </div>
         <MobileTabBar />

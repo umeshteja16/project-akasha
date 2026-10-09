@@ -75,7 +75,7 @@ test("register → settings → sign out → sign in", async ({ page }) => {
   await expect(page.getByRole("alert")).toContainText("don't match");
   await signIn(page, email, NEW_PASSWORD);
   await expect(page).toHaveURL(/\/chat$/);
-  await expect(page.getByRole("heading", { level: 1, name: "Chat" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "New conversation" })).toBeVisible();
 
   expect(problems).toEqual([]);
 });
