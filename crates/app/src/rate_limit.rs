@@ -61,7 +61,8 @@ pub fn user_limiter(per_minute: u32) -> UserLimiter {
 }
 
 /// Count one request by `user`; `rate_limited` once the user is over the limit.
-pub fn check_user(limiter: &UserLimiter, user: Uuid) -> Result<(), Error> {
+/// `what` names the requests in the error ("searches", "questions").
+pub fn check_user(limiter: &UserLimiter, user: Uuid, what: &str) -> Result<(), Error> {
     let Some(limiter) = limiter else {
         return Ok(());
     };
@@ -69,19 +70,19 @@ pub fn check_user(limiter: &UserLimiter, user: Uuid) -> Result<(), Error> {
         let wait = not_until.wait_time_from(DefaultClock::default().now());
         Error::new(
             ErrorCode::RateLimited,
-            format!("too many searches, retry in {}s", wait.as_secs().max(1)),
+            format!("too many {what}, retry in {}s", wait.as_secs().max(1)),
         )
     })
 }
 
 /// Periodically forget idle clients so the limiters' memory stays bounded.
-pub fn spawn_cleanup(limiter: AuthLimiter, users: UserLimiter) {
+pub fn spawn_cleanup(limiter: AuthLimiter, users: Vec<UserLimiter>) {
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(Duration::from_secs(60));
         loop {
             tick.tick().await;
             limiter.limiter().retain_recent();
-            if let Some(users) = &users {
+            for users in users.iter().flatten() {
                 users.retain_recent();
             }
         }
@@ -96,15 +97,15 @@ mod tests {
     fn user_limiter_counts_per_user() {
         let limiter = user_limiter(2);
         let (ada, bob) = (Uuid::new_v4(), Uuid::new_v4());
-        assert!(check_user(&limiter, ada).is_ok());
-        assert!(check_user(&limiter, ada).is_ok());
-        let err = check_user(&limiter, ada).expect_err("third in a minute");
+        assert!(check_user(&limiter, ada, "searches").is_ok());
+        assert!(check_user(&limiter, ada, "searches").is_ok());
+        let err = check_user(&limiter, ada, "searches").expect_err("third in a minute");
         assert_eq!(err.code, ErrorCode::RateLimited);
         assert!(
-            check_user(&limiter, bob).is_ok(),
+            check_user(&limiter, bob, "searches").is_ok(),
             "other users are unaffected"
         );
         let unlimited = user_limiter(0);
-        assert!((0..100).all(|_| check_user(&unlimited, ada).is_ok()));
+        assert!((0..100).all(|_| check_user(&unlimited, ada, "searches").is_ok()));
     }
 }

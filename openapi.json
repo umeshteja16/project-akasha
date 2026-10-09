@@ -170,6 +170,484 @@
         }
       }
     },
+    "/api/v1/conversations": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "List your conversations, most recently active first.",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "`next_cursor` from the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1–100 (default 30 conversations, 50 messages).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Start a conversation.",
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConversation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/conversations/{id}": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "One of your conversations.",
+        "operationId": "get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Conversation id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Delete a conversation and its messages.",
+        "operationId": "delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Conversation id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Rename a conversation.",
+        "operationId": "update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Conversation id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConversation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/conversations/{id}/messages": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "The messages of a conversation, newest page first (oldest first within a page).",
+        "operationId": "list_messages",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Conversation id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "`next_cursor` from the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1–100 (default 30 conversations, 50 messages).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Ask a question about your files.",
+        "description": "The answer streams as `text/event-stream`: one `sources` event (the\nnumbered passages the answer may cite, see `ChatSources`), `delta` events\nwith pieces of text (`ChatDelta`), then `done` (`ChatDone`: the stored\nmessage id, status, final text, citations and token usage) or `error`\n(`ChatError`). Answers cite sources as `[n]`.\n\nWhen the best passage is too weak, the answer is \"I couldn't find this in\nyour files.\" without asking the model (`status: refused`); with no model\nconfigured, the passages are returned with `status: no_llm`. Closing the\nconnection stops generation. Limited per user (`AKASHA_CHAT_RATE_PER_MINUTE`).",
+        "operationId": "post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Conversation id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostMessage"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Server-Sent Events: `sources`, `delta`*, then `done` or `error`",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
     "/api/v1/files": {
       "get": {
         "tags": [
@@ -1500,6 +1978,17 @@
   },
   "components": {
     "schemas": {
+      "AnswerStatus": {
+        "type": "string",
+        "description": "How an answer ended.",
+        "enum": [
+          "answered",
+          "refused",
+          "no_llm",
+          "cancelled",
+          "error"
+        ]
+      },
       "BulkDeleteRequest": {
         "type": "object",
         "required": [
@@ -1544,6 +2033,121 @@
           },
           "new_password": {
             "type": "string"
+          }
+        }
+      },
+      "ChatDelta": {
+        "type": "object",
+        "description": "`event: delta`: the next piece of the answer text.",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "ChatDone": {
+        "type": "object",
+        "description": "`event: done`: the stored answer.",
+        "required": [
+          "message_id",
+          "status",
+          "content",
+          "citations",
+          "usage",
+          "latency_ms"
+        ],
+        "properties": {
+          "citations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "description": "The sources the answer cites, in order of first citation (for `no_llm`:\nevery source)."
+          },
+          "content": {
+            "type": "string",
+            "description": "The final answer text. Use it instead of the concatenated deltas: a\nrefusal replaces partial output."
+          },
+          "latency_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "message_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`provider/model` that wrote the answer; `null` when none did."
+          },
+          "status": {
+            "$ref": "#/components/schemas/AnswerStatus"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/TokenUsage"
+          }
+        }
+      },
+      "ChatError": {
+        "type": "object",
+        "description": "`event: error`: the answer failed. Partial output is stored with status `error`.",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "`llm_unavailable`, `llm_rate_limited`, `llm_error`, `llm_misconfigured`\nor `internal`."
+          },
+          "message": {
+            "type": "string"
+          },
+          "message_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The stored (partial) answer, if it could be saved."
+          }
+        }
+      },
+      "ChatSources": {
+        "type": "object",
+        "description": "`event: sources`: the passages the answer may cite (empty when refused).",
+        "required": [
+          "conversation_id",
+          "user_message_id",
+          "search_query",
+          "sources"
+        ],
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "search_query": {
+            "type": "string",
+            "description": "The query that was searched (the question, or a standalone rewrite of a\nfollow-up)."
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            }
+          },
+          "user_message_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The stored question."
           }
         }
       },
@@ -1637,6 +2241,121 @@
             }
           }
         ]
+      },
+      "Citation": {
+        "type": "object",
+        "description": "A numbered passage from the user's files: shown to the model as `[n]`, and\nstored with an answer that cites it.",
+        "required": [
+          "n",
+          "chunk_id",
+          "file_id",
+          "file_name",
+          "char_start",
+          "char_end",
+          "quote"
+        ],
+        "properties": {
+          "char_end": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "char_start": {
+            "type": "integer",
+            "format": "int32",
+            "description": "`[char_start, char_end)` of the passage in the file's extracted text (characters)."
+          },
+          "chunk_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "file_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "file_name": {
+            "type": "string"
+          },
+          "n": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The number the answer uses (`[n]`).",
+            "minimum": 0
+          },
+          "page": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "1-based PDF page; `null` for formats without pages."
+          },
+          "quote": {
+            "type": "string",
+            "description": "The start of the passage."
+          }
+        }
+      },
+      "ConversationList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConversationResponse"
+            },
+            "description": "Most recently active first."
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass as `cursor` to get the next page; `null` on the last page."
+          }
+        }
+      },
+      "ConversationResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "description": "Empty until the first question (or a rename) names it."
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last activity (new message or rename)."
+          }
+        }
+      },
+      "CreateConversation": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional; otherwise the first question becomes the title."
+          }
+        }
       },
       "DeleteAccountRequest": {
         "type": "object",
@@ -2052,6 +2771,92 @@
           }
         }
       },
+      "MessageList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageResponse"
+            },
+            "description": "Oldest first within the page; pages go back in time."
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass as `cursor` to get older messages; `null` when there are none."
+          }
+        }
+      },
+      "MessageResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "role",
+          "content",
+          "status",
+          "citations",
+          "usage",
+          "created_at"
+        ],
+        "properties": {
+          "citations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "description": "Sources cited by an answer (empty for questions)."
+          },
+          "content": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "latency_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`provider/model` that wrote an answer."
+          },
+          "role": {
+            "$ref": "#/components/schemas/MessageRole"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AnswerStatus",
+            "description": "For questions always `answered`."
+          },
+          "usage": {
+            "$ref": "#/components/schemas/TokenUsage"
+          }
+        }
+      },
+      "MessageRole": {
+        "type": "string",
+        "description": "`user` or `assistant`.",
+        "enum": [
+          "user",
+          "assistant"
+        ]
+      },
       "PageSource": {
         "type": "string",
         "description": "Where a PDF page's text came from.",
@@ -2090,6 +2895,50 @@
           },
           "source": {
             "$ref": "#/components/schemas/PageSource"
+          }
+        }
+      },
+      "PostMessage": {
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "The question, 1–4000 characters."
+          },
+          "file_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Only answer from these files (up to 100)."
+          },
+          "tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Only answer from files carrying all of these tags."
+          },
+          "type": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FileCategory",
+                "description": "Only answer from files of this kind."
+              }
+            ]
           }
         }
       },
@@ -2383,6 +3232,40 @@
           "total_ms": {
             "type": "number",
             "format": "double"
+          }
+        }
+      },
+      "TokenUsage": {
+        "type": "object",
+        "description": "Token counts reported by the provider.",
+        "properties": {
+          "input_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "output_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "UpdateConversation": {
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "1–200 characters."
           }
         }
       },

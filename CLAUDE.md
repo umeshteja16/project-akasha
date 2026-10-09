@@ -62,7 +62,8 @@ jobs with `TestApp::run_jobs()`.
   intended change, and say so in the commit.
 - **Tests**: DB tests use `#[sqlx::test]` (fresh database per test). HTTP tests drive the router
   with `tower::ServiceExt::oneshot` (see `crates/app/tests/http.rs`). Tests never download
-  models: `support::test_config()` uses the `hash-384` embedder and `overlap` reranker.
+  models or call LLM providers: `support::test_config()` uses the `hash-384` embedder,
+  `overlap` reranker and the `fake` chat model (provider HTTP is tested against local mocks).
 - **Small files**: split a file once it passes ~300 lines.
 - **Frontend**: TS strict, no `any`, server state via TanStack Query, generated API types only.
 - **Dependencies**: add to `[workspace.dependencies]` in the root `Cargo.toml`; `cargo-deny`

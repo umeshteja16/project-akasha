@@ -6,5 +6,5 @@
 pub mod config;
 pub mod error;
 
-pub use config::{Config, LogFormat, Secret, StorageBackend};
+pub use config::{Config, LlmProvider, LogFormat, Secret, StorageBackend};
 pub use error::{Error, ErrorCode};

@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use akasha_core::Config;
 use akasha_db::PgPool;
+use akasha_llm::ChatModel;
 use akasha_storage::Storage;
 
 use crate::{
@@ -20,15 +21,36 @@ pub struct AppState {
     pub auth_limiter: AuthLimiter,
     /// Per-user limiter for search (`AKASHA_SEARCH_RATE_PER_MINUTE`).
     pub search_limiter: UserLimiter,
+    /// Per-user limiter for chat questions (`AKASHA_CHAT_RATE_PER_MINUTE`).
+    pub chat_limiter: UserLimiter,
     /// Embedding model and reranker, loaded on first use (shared with the worker).
     pub ml: Arc<MlProvider>,
+    /// The chat model; `None`: chat answers with passages only.
+    pub llm: Option<Arc<dyn ChatModel>>,
 }
 
 impl AppState {
+    /// State with the configured chat model. A model that cannot be built is
+    /// logged and left out (`serve` checks it first with [`crate::llm::build`]).
     pub fn new(db: PgPool, config: Config, storage: Storage) -> Self {
+        let llm = crate::llm::build(&config).unwrap_or_else(|err| {
+            tracing::error!(%err, "chat model unavailable");
+            None
+        });
+        Self::with_llm(db, config, storage, llm)
+    }
+
+    pub fn with_llm(
+        db: PgPool,
+        config: Config,
+        storage: Storage,
+        llm: Option<Arc<dyn ChatModel>>,
+    ) -> Self {
         Self {
             ml: Arc::new(MlProvider::from_config(&config)),
+            llm,
             search_limiter: rate_limit::user_limiter(config.search_rate_per_minute),
+            chat_limiter: rate_limit::user_limiter(config.chat_rate_per_minute),
             db,
             config: Arc::new(config),
             storage,

@@ -27,6 +27,11 @@ services:
       AKASHA_SERVE_WITH_WORKER: "true"
       # Set to true once the server is behind HTTPS.
       AKASHA_COOKIE_SECURE: ${AKASHA_COOKIE_SECURE:-false}
+      # Chat answers from Ollama on the host by default (see README, "Chat & LLM providers").
+      AKASHA_LLM_PROVIDER: ${AKASHA_LLM_PROVIDER:-ollama}
+      AKASHA_OLLAMA_URL: ${AKASHA_OLLAMA_URL:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "127.0.0.1:8080:8080"
     volumes:

@@ -1,6 +1,8 @@
 //! Shared helpers for the file HTTP tests.
 #![allow(dead_code)] // each test crate uses a different subset
 
+pub mod chat;
+
 use std::net::SocketAddr;
 
 use akasha::{AppState, app, jobs::JobContext};
@@ -29,6 +31,9 @@ pub fn test_config() -> Config {
         embed_model: akasha_ml::catalog::HASH_EMBED_MODEL.into(),
         rerank_model: akasha_ml::catalog::OVERLAP_RERANK_MODEL.into(),
         ml_models_url: String::new(),
+        // Deterministic chat model; tests never call a real provider.
+        llm_provider: akasha_core::LlmProvider::Fake,
+        chat_rate_per_minute: 0,
         ..Config::default()
     }
 }
@@ -79,9 +84,22 @@ impl TestApp {
 
     pub fn with_config(pool: PgPool, config: Config) -> Self {
         let storage = Storage::in_memory();
+        Self::with_state(AppState::new(pool, config, storage))
+    }
+
+    /// With a specific chat model (`None`: no model).
+    pub fn with_llm(
+        pool: PgPool,
+        config: Config,
+        llm: Option<std::sync::Arc<dyn akasha_llm::ChatModel>>,
+    ) -> Self {
+        Self::with_state(AppState::with_llm(pool, config, Storage::in_memory(), llm))
+    }
+
+    pub fn with_state(state: AppState) -> Self {
+        let (pool, storage) = (state.db.clone(), state.storage.clone());
         let addr = SocketAddr::from(([127, 0, 0, 1], 40000));
-        let router = app(AppState::new(pool.clone(), config, storage.clone()))
-            .layer(Extension(ConnectInfo(addr)));
+        let router = app(state).layer(Extension(ConnectInfo(addr)));
         Self {
             router,
             storage,

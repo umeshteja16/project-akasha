@@ -4,11 +4,13 @@
 
 pub mod admin;
 pub mod auth;
+pub mod chat;
 pub mod error;
 pub mod eval;
 pub mod extract;
 pub mod files;
 pub mod jobs;
+pub mod llm;
 pub mod rate_limit;
 pub mod routes;
 pub mod state;
@@ -62,6 +64,7 @@ pub async fn run_serve(config: Config, with_worker: bool) -> anyhow::Result<()> 
         .context("connecting to database")?;
     akasha_db::migrate(&pool).await?;
     admin::check_embedding_model(&pool, &config).await?;
+    let llm = llm::build(&config).context("configuring the chat model")?;
     let storage = akasha_storage::Storage::from_config(&config).context("opening storage")?;
 
     let listener = tokio::net::TcpListener::bind(&config.bind_addr)
@@ -69,8 +72,11 @@ pub async fn run_serve(config: Config, with_worker: bool) -> anyhow::Result<()> 
         .with_context(|| format!("binding {}", config.bind_addr))?;
     tracing::info!(addr = %config.bind_addr, with_worker, "listening");
 
-    let state = AppState::new(pool, config, storage);
-    rate_limit::spawn_cleanup(state.auth_limiter.clone(), state.search_limiter.clone());
+    let state = AppState::with_llm(pool, config, storage, llm);
+    rate_limit::spawn_cleanup(
+        state.auth_limiter.clone(),
+        vec![state.search_limiter.clone(), state.chat_limiter.clone()],
+    );
     let stop = shutdown_trigger();
 
     warm_up_search(&state);

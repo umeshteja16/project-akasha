@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE conversations SET title = $3 WHERE id = $1 AND owner_id = $2 AND title = ''",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "138991a372929134e452edd319f053ea49ba5d86be4c57aa74b3b033dc341ddd"
+}

@@ -41,7 +41,7 @@ pub async fn search(
     auth: AuthUser,
     Query(query): Query<SearchQuery>,
 ) -> Result<Json<FileResults>, ApiError> {
-    rate_limit::check_user(&state.search_limiter, auth.user_id)?;
+    rate_limit::check_user(&state.search_limiter, auth.user_id, "searches")?;
     let req = query.into_request()?;
     let models = models(&state).await;
     let res = akasha_search::search_files(&state.db, auth.user_id, &req, &models).await?;
@@ -66,7 +66,7 @@ pub async fn search_chunks(
     auth: AuthUser,
     Query(query): Query<SearchQuery>,
 ) -> Result<Json<ChunkResults>, ApiError> {
-    rate_limit::check_user(&state.search_limiter, auth.user_id)?;
+    rate_limit::check_user(&state.search_limiter, auth.user_id, "searches")?;
     let req = query.into_request()?;
     let models = models(&state).await;
     let res = akasha_search::search_chunks(&state.db, auth.user_id, &req, &models).await?;

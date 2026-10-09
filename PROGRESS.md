@@ -17,24 +17,33 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 
 | | |
 |---|---|
-| **Current step** | Step 4: Grounded chat (steps 0-3 done) |
+| **Current step** | Step 4: Grounded chat (4.1-4.3 done; auto tags/summary next) |
 | **Last updated** | 2026-10-09 |
-| **`just check`** | passing (185 Rust tests + 3 ignored OCR + 2 ignored real-model tests, 1 web test) |
+| **`just check`** | passing (223 Rust tests + 3 ignored OCR + 2 ignored real-model tests, 1 web test) |
 | **Old code** | `legacy/` (read-only reference; deleted in step 7) |
 
 ## Next up
 
-**Step 4: Grounded chat.** Retrieve with `akasha_search::search_chunks` (chunk-level, full
-text, page + char offsets for citations; pass `filter.file_ids` to scope a chat). In order:
+**Step 4.4: Auto tags and summary per file** (replaces the legacy Gemini calls in the worker).
 
-1. **LLM provider trait** in `crates/ml` (streaming completions): Ollama first (offline
-   mode = Ollama only), then Claude and Gemini behind config; a deterministic fake for tests
-   (like `hash-384`), so tests never call a network.
-2. **Conversations + messages** tables (owner-scoped, cascade on account delete), SSE
-   streaming answers with inline citations `[n]` mapped to chunk ids/pages.
-3. **Refusal when evidence is weak** (fused/rerank score threshold), tested; extend
-   `eval/` with answerable/unanswerable questions once answers exist.
-4. Auto tags/summary per file (a job after `embed_file`).
+1. Job `summarize_file` enqueued by `embed_file` when a file becomes `ready` (same
+   transaction), only if a chat model is configured (`crate::llm::build`); idempotent
+   (skip when the stored summary was made from the same `file_extractions` row/extractor
+   version). Needs `JobContext` to carry the `ChatModel` (build it like `AppState`).
+2. Migration: `files.summary text`, `files.auto_tags text[]` (keep user `tags` separate),
+   `summary_model`. Prompt with the first N chunks (bounded characters), ask for a 2-3
+   sentence summary + up to 5 tags as JSON; parse defensively, normalise with
+   `normalize_tags`; use `ChatModel::complete` with low `max_tokens`. Strict offline:
+   nothing to do (the provider is already local or none).
+3. Expose on `GET /files/{id}` (+ list), allow filtering search by auto tags; tests with
+   the fake model (extend `FakeChatModel` with a JSON mode, or a scripted test model).
+4. Then: calibrate the real-reranker refusal threshold (`chat::evidence::default_min_score`,
+   currently a lenient -3 guess on logits) by adding unanswerable questions to `eval/` and
+   recording top rerank scores in `akasha eval --real-models` (the `eval.yml` workflow).
+
+Chat follow-ups (not blocking): LLM-generated conversation titles (currently the first
+question, shortened) via a job; per-conversation default file scope; a `fallback` from
+`no_llm` to a provider outage (currently `error` with `llm_unavailable`).
 
 Search follow-ups (not blocking): keyword search ANDs every word (`websearch_to_tsquery`),
 so long natural-language queries find nothing by keyword (eval: keyword MRR 0.57 vs hybrid
@@ -85,9 +94,9 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 - [x] `akasha eval` (corpus + queries in `eval/`, Recall@k/MRR/nDCG@10/latency, baselines), deterministic gate in `cargo test`, real-model tier in `eval.yml` (ADR 0011)
 
 ### Step 4: Grounded chat
-- [ ] LLM provider trait in `crates/ml`: Ollama (offline), Claude, Gemini; offline mode = Ollama only
-- [ ] Conversations + messages tables, streaming answers over SSE, inline citations
-- [ ] Refusal when evidence is weak (score threshold), tested
+- [x] LLM provider trait in new `crates/llm` (ADR 0012): Ollama (offline), Claude, Gemini, OpenAI-compatible, fake; strict offline = local providers only
+- [x] Conversations + messages tables, streaming answers over SSE, inline citations
+- [x] Refusal when evidence is weak (reranker score threshold, calibrated for `overlap`), tested
 - [ ] Auto tags/summary per file (replaces the legacy Gemini calls in the worker)
 
 ### Step 5: New web UI (redesign)
@@ -128,7 +137,8 @@ See [`docs/adr/`](docs/adr). Summary:
 0008 Pure-Rust extraction (pdf-extract, ocrs, text-splitter) ·
 0009 Embeddings via fastembed on runtime-loaded ONNX Runtime ·
 0010 Hybrid search (FTS + pgvector, RRF, rerank) in `crates/search` ·
-0011 Search eval tiers, spelling vocabulary, thumbnails.
+0011 Search eval tiers, spelling vocabulary, thumbnails ·
+0012 LLM providers (`crates/llm`) and grounded chat.
 
 ## Known issues and gotchas
 
@@ -269,9 +279,30 @@ See [`docs/adr/`](docs/adr). Summary:
   `thumbs/ab/cd/<hash>/256` and are deleted with the blob. `run_jobs()` now returns one
   more job per new image upload.
 
+- Chat (ADR 0012): providers live in `crates/llm` (async, `reqwest` streaming), not
+  `crates/ml` (blocking ONNX). `serve` refuses to start on an unusable provider config
+  (`llm::build`: strict offline violation, missing key); `AppState::new` logs it and runs
+  without a model. Tests use `AKASHA_LLM_PROVIDER=fake` (`support::test_config()`) and
+  `TestApp::with_llm` to inject a model; provider wire tests run against local axum mock
+  servers (`crates/llm/tests/mock`). Never call a real provider from tests.
+- The chat answer runs in a spawned task feeding the SSE body through a channel; the 30 s
+  request timeout only covers the response head. Disconnect = channel closed = model
+  stream dropped, answer stored as `cancelled`. Clients should use `done.content` as the
+  final text (a refusal replaces streamed partial output).
+- Refusal gate thresholds are per reranker (`chat::evidence::default_min_score`). The
+  `overlap` test reranker now ignores stopwords and plural `s` (changed in step 4; the
+  deterministic eval baseline was re-recorded, hybrid_rerank MRR 0.88 → 0.94). Keep
+  `tests/chat_gate.rs` passing when touching it. The ONNX default (-3) is uncalibrated.
+- Anthropic: current models reject `temperature`, so it is never sent; `fallbacks:
+  "default"` + beta header only for the models in `anthropic::FALLBACK_MODELS`. Gemini keys
+  go in `x-goog-api-key`, never the URL. OpenAI-compatible base URLs include `/v1`.
+- `Config` is no longer `Eq` (it has `f32` fields). Config types live in `core/src/config/types.rs`.
+
 ## Session log
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
+
+- 2026-10-09 · Claude (cloud) · Step 4.1-4.3: new crate `crates/llm` (async streaming `ChatModel`; Ollama NDJSON, Anthropic Messages SSE, Gemini SSE with header key, OpenAI-compatible SSE; retries/backoff, read timeouts, strict offline check, redacted keys, deterministic fake, mock-server wire tests), migration 0009 (conversations, messages), conversation CRUD + `POST /conversations/{id}/messages` streaming SSE (`sources`/`delta`/`done`/`error`) with `[n]` citations, follow-up rewriting, refusal gate (calibrated `overlap` threshold; overlap reranker now ignores stopwords, eval baseline re-recorded), `no_llm` mode, per-user chat rate limit, cancellation on disconnect, ADR 0012, README "Chat & LLM providers". Auto tags/summary (4.4) not started.
 
 - 2026-10-09 · Claude (cloud) · Step 3 done + step 2 thumbnails. `akasha eval` (32-doc corpus, 46 queries incl. the ported legacy benchmark, Recall@1/5/10, MRR, nDCG@10, latency, scratch database, baselines with tolerance), deterministic gate in `cargo test`, nightly/on-demand `eval.yml` for real models (MiniLM baseline committed, `eval/README.md`); spelling suggestions (`user_terms` + triggers, `pg_trgm`/`btree_gin`, migration 0008, `suggestion` on search responses); thumbnails (`make_thumbnail` job, `akasha_ingest::thumbnail` with decode-bomb limits, `thumbs/` objects, `GET /files/{id}/thumbnail` with ETag/304); 10k-chunk test 20 s → 4 s; local Postgres now UTF-8; ADR 0011. (Finished in a second session after a usage-limit cut: sqlx cache, openapi, MiniLM baseline, eval README.)
 

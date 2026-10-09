@@ -12,7 +12,11 @@ use figment::{
 };
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+mod types;
+
+pub use types::{LlmProvider, LogFormat, Secret, StorageBackend};
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Config {
     /// Postgres connection string.
     pub database_url: String,
@@ -81,47 +85,53 @@ pub struct Config {
     pub ml_threads: u32,
     /// Searches each user may run per minute (burst of the same size); 0: unlimited.
     pub search_rate_per_minute: u32,
-}
 
-/// Blob storage backend.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum StorageBackend {
-    /// A directory on the local filesystem.
-    Local,
-    /// Amazon S3 or an S3-compatible service.
-    S3,
-}
-
-/// A configuration value that must never appear in logs (`Debug` prints `[redacted]`).
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(transparent)]
-pub struct Secret(String);
-
-impl Secret {
-    pub fn new(value: impl Into<String>) -> Self {
-        Self(value.into())
-    }
-
-    /// The secret value. Only call this where the value is actually used.
-    pub fn expose(&self) -> &str {
-        &self.0
-    }
-}
-
-impl std::fmt::Debug for Secret {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("[redacted]")
-    }
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum LogFormat {
-    /// Human-readable, for local development.
-    Pretty,
-    /// One JSON object per line, for production log shipping.
-    Json,
+    // Chat and language models (ADR 0012).
+    /// Who writes chat answers: `ollama` (default, local), `anthropic`, `gemini`,
+    /// `openai` (any OpenAI-compatible server) or `none` (chat returns passages only).
+    pub llm_provider: LlmProvider,
+    /// Model id for the provider; empty: the provider's default (OpenAI-compatible
+    /// servers need one).
+    pub llm_model: String,
+    /// Only local language models: refuse to start with a cloud provider or a
+    /// non-local server address.
+    pub strict_offline: bool,
+    /// Ollama server.
+    pub ollama_url: String,
+    /// Context window requested from Ollama, in tokens.
+    pub ollama_num_ctx: u32,
+    pub anthropic_api_key: Option<Secret>,
+    pub anthropic_base_url: String,
+    /// Claude `output_config.effort` (`low`, `medium`, `high`, ...); empty: the model default.
+    pub anthropic_effort: String,
+    pub gemini_api_key: Option<Secret>,
+    pub gemini_base_url: String,
+    /// Optional for local servers.
+    pub openai_api_key: Option<Secret>,
+    /// Including the version path, e.g. `http://localhost:1234/v1`.
+    pub openai_base_url: String,
+    /// Seconds to wait for a connection to the model server.
+    pub llm_connect_timeout_secs: u64,
+    /// Seconds of silence (no new output) after which a generation is abandoned.
+    pub llm_read_timeout_secs: u64,
+    /// Retries after connection errors, 429 and 5xx (before any output).
+    pub llm_max_retries: u32,
+    /// Longest answer, in tokens.
+    pub llm_max_tokens: u32,
+    /// Sampling temperature where the provider accepts one.
+    pub llm_temperature: f32,
+    /// Chat questions each user may ask per minute; 0: unlimited.
+    pub chat_rate_per_minute: u32,
+    /// Passages given to the model per answer.
+    pub chat_context_chunks: u32,
+    /// Earlier messages (user and assistant) sent along with a question.
+    pub chat_history_messages: u32,
+    /// Rewrite follow-up questions into standalone ones with the model before
+    /// searching (one extra short model call per follow-up).
+    pub chat_condense_question: bool,
+    /// Refuse to answer ("not in your files") unless the best passage's reranker
+    /// score reaches this. Unset: the reranker's calibrated default.
+    pub chat_min_rerank_score: Option<f32>,
 }
 
 impl Default for Config {
@@ -157,6 +167,28 @@ impl Default for Config {
             ort_dylib_path: String::new(),
             ml_threads: 0,
             search_rate_per_minute: 30,
+            llm_provider: LlmProvider::Ollama,
+            llm_model: String::new(),
+            strict_offline: false,
+            ollama_url: "http://localhost:11434".into(),
+            ollama_num_ctx: 8192,
+            anthropic_api_key: None,
+            anthropic_base_url: "https://api.anthropic.com".into(),
+            anthropic_effort: "low".into(),
+            gemini_api_key: None,
+            gemini_base_url: "https://generativelanguage.googleapis.com".into(),
+            openai_api_key: None,
+            openai_base_url: "https://api.openai.com/v1".into(),
+            llm_connect_timeout_secs: 10,
+            llm_read_timeout_secs: 120,
+            llm_max_retries: 2,
+            llm_max_tokens: 1024,
+            llm_temperature: 0.1,
+            chat_rate_per_minute: 20,
+            chat_context_chunks: 8,
+            chat_history_messages: 6,
+            chat_condense_question: true,
+            chat_min_rerank_score: None,
         }
     }
 }
@@ -223,6 +255,25 @@ mod tests {
             assert_eq!(config.storage_s3_bucket.as_deref(), Some("akasha"));
             let secret = config.storage_s3_secret_access_key.clone();
             assert_eq!(secret.as_ref().map(Secret::expose), Some("hunter2"));
+            assert!(!format!("{config:?}").contains("hunter2"));
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn llm_settings_come_from_env_and_keys_are_redacted() {
+        figment::Jail::expect_with(|jail| {
+            jail.set_env("AKASHA_LLM_PROVIDER", "anthropic");
+            jail.set_env("AKASHA_ANTHROPIC_API_KEY", "sk-ant-hunter2");
+            jail.set_env("AKASHA_STRICT_OFFLINE", "true");
+            jail.set_env("AKASHA_CHAT_MIN_RERANK_SCORE", "0.25");
+
+            let config = Config::figment().extract::<Config>()?;
+            assert_eq!(config.llm_provider, LlmProvider::Anthropic);
+            assert!(config.strict_offline);
+            assert_eq!(config.chat_min_rerank_score, Some(0.25));
+            let key = config.anthropic_api_key.as_ref().map(Secret::expose);
+            assert_eq!(key, Some("sk-ant-hunter2"));
             assert!(!format!("{config:?}").contains("hunter2"));
             Ok(())
         });

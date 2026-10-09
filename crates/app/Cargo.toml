@@ -19,6 +19,7 @@ akasha-core.workspace = true
 akasha-db.workspace = true
 akasha-ingest.workspace = true
 akasha-jobs.workspace = true
+akasha-llm.workspace = true
 akasha-ml.workspace = true
 akasha-search.workspace = true
 akasha-storage.workspace = true

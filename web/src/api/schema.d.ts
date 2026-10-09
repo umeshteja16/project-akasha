@@ -55,6 +55,73 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List your conversations, most recently active first. */
+        get: operations["list"];
+        put?: never;
+        /** Start a conversation. */
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One of your conversations. */
+        get: operations["get"];
+        put?: never;
+        post?: never;
+        /** Delete a conversation and its messages. */
+        delete: operations["delete"];
+        options?: never;
+        head?: never;
+        /** Rename a conversation. */
+        patch: operations["update"];
+        trace?: never;
+    };
+    "/api/v1/conversations/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The messages of a conversation, newest page first (oldest first within a page). */
+        get: operations["list_messages"];
+        put?: never;
+        /**
+         * Ask a question about your files.
+         * @description The answer streams as `text/event-stream`: one `sources` event (the
+         *     numbered passages the answer may cite, see `ChatSources`), `delta` events
+         *     with pieces of text (`ChatDelta`), then `done` (`ChatDone`: the stored
+         *     message id, status, final text, citations and token usage) or `error`
+         *     (`ChatError`). Answers cite sources as `[n]`.
+         *
+         *     When the best passage is too weak, the answer is "I couldn't find this in
+         *     your files." without asking the model (`status: refused`); with no model
+         *     configured, the passages are returned with `status: no_llm`. Closing the
+         *     connection stops generation. Limited per user (`AKASHA_CHAT_RATE_PER_MINUTE`).
+         */
+        post: operations["post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/files": {
         parameters: {
             query?: never;
@@ -323,6 +390,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description How an answer ended.
+         * @enum {string}
+         */
+        AnswerStatus: "answered" | "refused" | "no_llm" | "cancelled" | "error";
         BulkDeleteRequest: {
             /** @description Up to 100 file ids. Ids that are unknown (or not yours) are ignored. */
             ids: string[];
@@ -334,6 +406,61 @@ export interface components {
         ChangePasswordRequest: {
             current_password: string;
             new_password: string;
+        };
+        /** @description `event: delta`: the next piece of the answer text. */
+        ChatDelta: {
+            text: string;
+        };
+        /** @description `event: done`: the stored answer. */
+        ChatDone: {
+            /**
+             * @description The sources the answer cites, in order of first citation (for `no_llm`:
+             *     every source).
+             */
+            citations: components["schemas"]["Citation"][];
+            /**
+             * @description The final answer text. Use it instead of the concatenated deltas: a
+             *     refusal replaces partial output.
+             */
+            content: string;
+            /** Format: int64 */
+            latency_ms: number;
+            /** Format: uuid */
+            message_id: string;
+            /** @description `provider/model` that wrote the answer; `null` when none did. */
+            model?: string | null;
+            status: components["schemas"]["AnswerStatus"];
+            usage: components["schemas"]["TokenUsage"];
+        };
+        /** @description `event: error`: the answer failed. Partial output is stored with status `error`. */
+        ChatError: {
+            /**
+             * @description `llm_unavailable`, `llm_rate_limited`, `llm_error`, `llm_misconfigured`
+             *     or `internal`.
+             */
+            code: string;
+            message: string;
+            /**
+             * Format: uuid
+             * @description The stored (partial) answer, if it could be saved.
+             */
+            message_id?: string | null;
+        };
+        /** @description `event: sources`: the passages the answer may cite (empty when refused). */
+        ChatSources: {
+            /** Format: uuid */
+            conversation_id: string;
+            /**
+             * @description The query that was searched (the question, or a standalone rewrite of a
+             *     follow-up).
+             */
+            search_query: string;
+            sources: components["schemas"]["Citation"][];
+            /**
+             * Format: uuid
+             * @description The stored question.
+             */
+            user_message_id: string;
         };
         /** @description A chunk-level result: the chunk, its full text and its file. */
         ChunkHit: components["schemas"]["ChunkMatch"] & {
@@ -365,6 +492,59 @@ export interface components {
         ChunkResults: components["schemas"]["SearchMeta"] & {
             /** @description Best first. */
             results: components["schemas"]["ChunkHit"][];
+        };
+        /**
+         * @description A numbered passage from the user's files: shown to the model as `[n]`, and
+         *     stored with an answer that cites it.
+         */
+        Citation: {
+            /** Format: int32 */
+            char_end: number;
+            /**
+             * Format: int32
+             * @description `[char_start, char_end)` of the passage in the file's extracted text (characters).
+             */
+            char_start: number;
+            /** Format: int64 */
+            chunk_id: number;
+            /** Format: uuid */
+            file_id: string;
+            file_name: string;
+            /**
+             * Format: int32
+             * @description The number the answer uses (`[n]`).
+             */
+            n: number;
+            /**
+             * Format: int32
+             * @description 1-based PDF page; `null` for formats without pages.
+             */
+            page?: number | null;
+            /** @description The start of the passage. */
+            quote: string;
+        };
+        ConversationList: {
+            /** @description Most recently active first. */
+            items: components["schemas"]["ConversationResponse"][];
+            /** @description Pass as `cursor` to get the next page; `null` on the last page. */
+            next_cursor?: string | null;
+        };
+        ConversationResponse: {
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            id: string;
+            /** @description Empty until the first question (or a rename) names it. */
+            title: string;
+            /**
+             * Format: date-time
+             * @description Last activity (new message or rename).
+             */
+            updated_at: string;
+        };
+        CreateConversation: {
+            /** @description Optional; otherwise the first question becomes the title. */
+            title?: string | null;
         };
         DeleteAccountRequest: {
             /** @description Current password, to confirm. */
@@ -517,6 +697,34 @@ export interface components {
             email: string;
             password: string;
         };
+        MessageList: {
+            /** @description Oldest first within the page; pages go back in time. */
+            items: components["schemas"]["MessageResponse"][];
+            /** @description Pass as `cursor` to get older messages; `null` when there are none. */
+            next_cursor?: string | null;
+        };
+        MessageResponse: {
+            /** @description Sources cited by an answer (empty for questions). */
+            citations: components["schemas"]["Citation"][];
+            content: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: int32 */
+            latency_ms?: number | null;
+            /** @description `provider/model` that wrote an answer. */
+            model?: string | null;
+            role: components["schemas"]["MessageRole"];
+            /** @description For questions always `answered`. */
+            status: components["schemas"]["AnswerStatus"];
+            usage: components["schemas"]["TokenUsage"];
+        };
+        /**
+         * @description `user` or `assistant`.
+         * @enum {string}
+         */
+        MessageRole: "user" | "assistant";
         /**
          * @description Where a PDF page's text came from.
          * @enum {string}
@@ -534,6 +742,15 @@ export interface components {
              */
             number: number;
             source: components["schemas"]["PageSource"];
+        };
+        PostMessage: {
+            /** @description The question, 1–4000 characters. */
+            content: string;
+            /** @description Only answer from these files (up to 100). */
+            file_ids?: string[] | null;
+            /** @description Only answer from files carrying all of these tags. */
+            tags?: string[] | null;
+            type?: null | components["schemas"]["FileCategory"];
         };
         ProcessingJob: {
             /**
@@ -673,6 +890,17 @@ export interface components {
             semantic_ms: number;
             /** Format: double */
             total_ms: number;
+        };
+        /** @description Token counts reported by the provider. */
+        TokenUsage: {
+            /** Format: int32 */
+            input_tokens?: number | null;
+            /** Format: int32 */
+            output_tokens?: number | null;
+        };
+        UpdateConversation: {
+            /** @description 1–200 characters. */
+            title: string;
         };
         UpdateFileRequest: {
             is_pinned?: boolean | null;
@@ -823,6 +1051,320 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                /** @description `next_cursor` from the previous page. */
+                cursor?: string;
+                /** @description Page size, 1–100 (default 30 conversations, 50 messages). */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateConversation"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Conversation id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Conversation id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Conversation id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateConversation"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_messages: {
+        parameters: {
+            query?: {
+                /** @description `next_cursor` from the previous page. */
+                cursor?: string;
+                /** @description Page size, 1–100 (default 30 conversations, 50 messages). */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Conversation id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Conversation id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PostMessage"];
+            };
+        };
+        responses: {
+            /** @description Server-Sent Events: `sources`, `delta`*, then `done` or `error` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

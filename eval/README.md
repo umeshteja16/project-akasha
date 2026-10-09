@@ -31,14 +31,16 @@ CI run guards fusion and ranking. The real-model tier runs nightly and on demand
 
 ## Baselines (2026-10-09)
 
-Deterministic: `hash-384` + `overlap` (measures plumbing, not semantics):
+Deterministic: `hash-384` + `overlap` (measures plumbing, not semantics). Since step 4 the
+`overlap` reranker ignores stopwords and plural `s` (it also drives the chat refusal gate
+test), which lifted `hybrid_rerank`:
 
 | mode          | R@1   | R@5   | R@10  | MRR   | nDCG@10 |
 |---------------|-------|-------|-------|-------|---------|
 | keyword       | 0.565 | 0.565 | 0.565 | 0.565 | 0.565   |
 | semantic      | 0.598 | 0.728 | 0.848 | 0.713 | 0.728   |
 | hybrid        | 0.750 | 0.772 | 0.870 | 0.817 | 0.813   |
-| hybrid_rerank | 0.793 | 0.935 | 0.978 | 0.883 | 0.903   |
+| hybrid_rerank | 0.859 | 0.978 | 0.978 | 0.935 | 0.943   |
 
 Real model: `all-minilm-l6-v2`, no reranker (local run, release build):
 

@@ -47,7 +47,9 @@ impl Embedder for HashEmbedder {
     }
 }
 
-/// Scores a document by the share of query words it contains.
+/// Scores a document by the share of the query's content words it contains
+/// (stopwords like "what" or "the" are ignored unless the query has nothing
+/// else; a trailing plural "s" is ignored too). 1.0: every word is there.
 pub struct OverlapReranker;
 
 impl Reranker for OverlapReranker {
@@ -56,18 +58,44 @@ impl Reranker for OverlapReranker {
     }
 
     fn score(&self, query: &str, documents: &[&str]) -> Result<Vec<f32>, MlError> {
-        let query: Vec<String> = words(query).collect();
+        let mut query: Vec<String> = words(query).map(|w| stem(&w)).collect();
+        query.sort_unstable();
+        query.dedup();
+        let content: Vec<String> = query
+            .iter()
+            .filter(|w| !STOPWORDS.contains(&w.as_str()))
+            .cloned()
+            .collect();
+        let query = if content.is_empty() { query } else { content };
         Ok(documents
             .iter()
             .map(|doc| {
                 if query.is_empty() {
                     return 0.0;
                 }
-                let doc: Vec<String> = words(doc).collect();
-                let hits = query.iter().filter(|w| doc.contains(w)).count();
+                let doc: std::collections::HashSet<String> = words(doc).map(|w| stem(&w)).collect();
+                let hits = query.iter().filter(|w| doc.contains(*w)).count();
                 hits as f32 / query.len() as f32
             })
             .collect())
+    }
+}
+
+/// Function words that say nothing about a document's topic.
+const STOPWORDS: &[&str] = &[
+    "a", "about", "an", "and", "are", "as", "at", "be", "been", "but", "by", "can", "could", "did",
+    "do", "doe", "does", "for", "from", "had", "ha", "has", "have", "how", "i", "if", "in", "into",
+    "is", "it", "its", "me", "my", "no", "not", "of", "on", "or", "our", "should", "so", "than",
+    "that", "the", "their", "them", "then", "there", "these", "they", "thi", "this", "those", "to",
+    "u", "us", "wa", "was", "we", "were", "what", "when", "where", "which", "who", "whom", "why",
+    "will", "with", "would", "you", "your",
+];
+
+/// Crude singular: drop one trailing `s` from words longer than three letters.
+fn stem(word: &str) -> String {
+    match word.strip_suffix('s') {
+        Some(stem) if word.chars().count() > 3 => stem.to_owned(),
+        _ => word.to_owned(),
     }
 }
 
@@ -117,5 +145,14 @@ mod tests {
             )
             .expect("score");
         assert_eq!(s, vec![0.0, 1.0, 0.5]);
+        let s = r
+            .score(
+                "What do the aardvarks eat?",
+                &["aardvark eats", "what do the cats do"],
+            )
+            .expect("score");
+        assert_eq!(s, vec![1.0, 0.0], "stopwords and plurals are ignored");
+        let s = r.score("what is it", &["it is what it is"]).expect("score");
+        assert_eq!(s, vec![1.0], "all-stopword queries use every word");
     }
 }

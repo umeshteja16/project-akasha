@@ -2,10 +2,11 @@
 //! register its paths in [`ApiDoc`].
 
 mod auth;
-mod files;
+pub(crate) mod chat;
+pub(crate) mod files;
 mod health;
 mod me;
-mod search;
+pub(crate) mod search;
 
 use std::time::Duration;
 
@@ -40,8 +41,14 @@ use akasha_core::Error;
         files::bulk_delete, files::download::download, files::processing::reindex,
         files::extraction::get, files::similar::similar, files::thumbnail::thumbnail,
         search::search, search::search_chunks,
+        chat::create, chat::list, chat::get, chat::update, chat::delete,
+        chat::list_messages, chat::messages::post,
     ),
-    components(schemas(ErrorBody, health::Health, files::types::FileCategory)),
+    components(schemas(
+        ErrorBody, health::Health, files::types::FileCategory,
+        crate::chat::events::ChatSources, crate::chat::events::ChatDelta,
+        crate::chat::events::ChatDone, crate::chat::events::ChatError,
+    )),
     modifiers(&SessionCookie)
 )]
 pub struct ApiDoc;
@@ -111,6 +118,15 @@ pub fn router(state: &AppState) -> Router<AppState> {
         )
         .route("/api/v1/search", get(search::search))
         .route("/api/v1/search/chunks", get(search::search_chunks))
+        .route("/api/v1/conversations", get(chat::list).post(chat::create))
+        .route(
+            "/api/v1/conversations/{id}",
+            get(chat::get).patch(chat::update).delete(chat::delete),
+        )
+        .route(
+            "/api/v1/conversations/{id}/messages",
+            get(chat::list_messages).post(chat::messages::post),
+        )
         .route(
             "/api/v1/files/{id}/reindex",
             post(files::processing::reindex),
