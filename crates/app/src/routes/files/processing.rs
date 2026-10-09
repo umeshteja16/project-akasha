@@ -134,6 +134,8 @@ pub async fn reindex(
         .ok_or_else(not_found)?;
     // Deduplicated: reindexing twice while queued queues one job.
     akasha_jobs::enqueue(&mut tx, &ExtractFile { file_id: id }).await?;
+    // Also retries a thumbnail that failed (or predates thumbnails).
+    crate::files::store::enqueue_thumbnail(&mut tx, &file).await?;
     tx.commit().await?;
     let processing = latest(&state.db, id).await?;
     Ok((

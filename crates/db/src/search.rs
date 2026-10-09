@@ -8,10 +8,12 @@
 //! Fusion, reranking and snippets live in `akasha-search`.
 
 mod fetch;
+mod terms;
 
 pub use fetch::{
     ChunkRow, FileRow, HIGHLIGHT_END, HIGHLIGHT_START, chunks, files_by_ids, mean_embedding,
 };
+pub use terms::closest_terms;
 
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;

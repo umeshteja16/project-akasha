@@ -17,28 +17,30 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 
 | | |
 |---|---|
-| **Current step** | Step 3: Search (step 2 thumbnail still open) |
+| **Current step** | Step 4: Grounded chat (steps 0-3 done) |
 | **Last updated** | 2026-10-09 |
-| **`just check`** | passing (168 Rust tests + 3 ignored OCR + 2 ignored real-model tests, 1 web test) |
+| **`just check`** | passing (185 Rust tests + 3 ignored OCR + 2 ignored real-model tests, 1 web test) |
 | **Old code** | `legacy/` (read-only reference; deleted in step 7) |
 
 ## Next up
 
-**Step 3: Search.** Items 1–3 are done (`crates/search`, ADR 0010). Next, in order:
+**Step 4: Grounded chat.** Retrieve with `akasha_search::search_chunks` (chunk-level, full
+text, page + char offsets for citations; pass `filter.file_ids` to scope a chat). In order:
 
-1. **Eval harness + spelling (do this next).** Port `legacy/apps/api/benchmark_queries.json`
-   into `akasha eval` (seed a fixture corpus through the real pipeline, run each query in
-   every mode, report recall@k / MRR / nDCG per mode, JSON output) and a CI quality gate on
-   the deterministic `hash-384`/`overlap` models (thresholds from the first run; real-model
-   numbers are informational). Spelling suggestion ("did you mean"): legacy parity, e.g. a
-   `pg_trgm` word list or `ts_stat` vocabulary per owner; add it as `suggestion` on
-   `SearchMeta` when keyword results are few.
-2. **Thumbnails** (left over from step 2): `GET /files/{id}/thumbnail` (images via `image`,
-   PDFs first page only if cheap without pdfium; else a type icon on the client). Generate in
-   a job after extraction, store as a derived blob.
+1. **LLM provider trait** in `crates/ml` (streaming completions): Ollama first (offline
+   mode = Ollama only), then Claude and Gemini behind config; a deterministic fake for tests
+   (like `hash-384`), so tests never call a network.
+2. **Conversations + messages** tables (owner-scoped, cascade on account delete), SSE
+   streaming answers with inline citations `[n]` mapped to chunk ids/pages.
+3. **Refusal when evidence is weak** (fused/rerank score threshold), tested; extend
+   `eval/` with answerable/unanswerable questions once answers exist.
+4. Auto tags/summary per file (a job after `embed_file`).
 
-Then **step 4 (grounded chat)**: retrieve with `akasha_search::search_chunks` (chunk-level,
-full text, page + char offsets for citations; pass `filter.file_ids` to scope a chat).
+Search follow-ups (not blocking): keyword search ANDs every word (`websearch_to_tsquery`),
+so long natural-language queries find nothing by keyword (eval: keyword MRR 0.57 vs hybrid
+0.82); consider an OR fallback when the AND query finds few chunks, and check it with
+`akasha eval`. Commit a real-model baseline for the default models (e5-small + jina) from the
+first `eval.yml` artifact (MiniLM's is committed and gated there).
 
 ## Roadmap
 
@@ -65,7 +67,7 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 - [x] Compile-time-checked SQL with an offline cache (`.sqlx/`), checked in CI
 - [x] Hourly expired-session pruning (a periodic job since step 2.4)
 
-### Step 2: Files and ingestion
+### Step 2: Files and ingestion ✅
 - [x] Add `pgvector` (also teach `scripts/local-postgres.sh` to install it; the Docker image already has it)
 - [x] Upload (streaming multipart, size limit, magic-byte check via `infer`, filename sanitising), per-user storage quota
 - [x] Content-addressed storage (SHA-256, dedupe) behind `object_store` (local disk / S3), `crates/storage`
@@ -73,14 +75,14 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 - [x] Postgres job queue (`SELECT … FOR UPDATE SKIP LOCKED`; retries, backoff, idempotent jobs), `akasha worker`
 - [x] New crate `crates/ingest`: PDF text (`pdf-extract`, ADR 0008), OCR (`ocrs`), plain text/markdown, chunking (`text-splitter`)
 - [x] New crate `crates/ml`: embeddings via `fastembed` (multilingual-e5-small default, model + dimension recorded in the DB, `akasha reembed`)
-- [~] File CRUD: ~~list, get, rename, tags, pin, download, bulk delete, reindex, job status, extraction view~~ done; thumbnail left
+- [x] File CRUD: list, get, rename, tags, pin, download, bulk delete, reindex, job status, extraction view, thumbnail (images; ADR 0011)
 
-### Step 3: Search
+### Step 3: Search ✅
 - [x] New crate `crates/search`: Postgres FTS (+ file names) + pgvector HNSW, fused with RRF (k=60); keyword/semantic/hybrid, degrade to keyword without a model
 - [x] Cross-encoder rerank of the top 30 (`Reranker`), warnings instead of failures
 - [x] Filters (type, date, tags, pinned, file ids; collection seam in `ChunkFilter`), snippets/highlights, pagination, "similar files", per-user rate limit
-- [ ] Spelling suggestion ("did you mean", legacy parity)
-- [ ] Port `legacy/apps/api/benchmark_queries.json` into an eval command (`akasha eval`) and a CI quality gate
+- [x] Spelling suggestion ("did you mean"): per-owner `user_terms` vocabulary kept by triggers, `pg_trgm` lookup, `suggestion` on search responses (ADR 0011)
+- [x] `akasha eval` (corpus + queries in `eval/`, Recall@k/MRR/nDCG@10/latency, baselines), deterministic gate in `cargo test`, real-model tier in `eval.yml` (ADR 0011)
 
 ### Step 4: Grounded chat
 - [ ] LLM provider trait in `crates/ml`: Ollama (offline), Claude, Gemini; offline mode = Ollama only
@@ -125,7 +127,8 @@ See [`docs/adr/`](docs/adr). Summary:
 0006 Server first, desktop later · 0007 Job queue design ·
 0008 Pure-Rust extraction (pdf-extract, ocrs, text-splitter) ·
 0009 Embeddings via fastembed on runtime-loaded ONNX Runtime ·
-0010 Hybrid search (FTS + pgvector, RRF, rerank) in `crates/search`.
+0010 Hybrid search (FTS + pgvector, RRF, rerank) in `crates/search` ·
+0011 Search eval tiers, spelling vocabulary, thumbnails.
 
 ## Known issues and gotchas
 
@@ -231,7 +234,8 @@ See [`docs/adr/`](docs/adr). Summary:
 - Vector search scans exactly when the owner has ≤ 10 000 embedded chunks (or `file_ids` is
   set); above that it uses HNSW with `ef_search` ≥ 100 and, on pgvector ≥ 0.8 only,
   `hnsw.iterative_scan` (0.6 errors on that setting once the extension is loaded, so it is
-  version-gated). The 10k-chunk test (`large_libraries_use_the_vector_index`) takes ~20 s.
+  version-gated). The 10k-chunk test drops the HNSW index, bulk-inserts, then rebuilds it
+  (~4 s instead of ~20 s: inserting into a live HNSW index row by row is slow).
 - Snippets: `ts_headline` with U+E000/U+E001 markers, parsed into plain text + highlight
   offsets in Unicode characters (never HTML). Fragment mode may drop leading words of a
   short chunk ("The aardvark…" → "aardvark…").
@@ -243,9 +247,33 @@ See [`docs/adr/`](docs/adr). Summary:
   per `TestApp`; keep a single test under 30 searches per user.
 - Search queries are not logged (only their length).
 
+- Eval (ADR 0011): `cargo test` runs the `eval/` benchmark with `hash-384`/`overlap` and
+  fails if any quality metric drops > 0.02 below `eval/baselines/hash-384+overlap.json`.
+  After an intended ranking change: `cargo run -p akasha -- eval --update-baseline`, review
+  the diff, commit. `akasha eval` creates and drops a scratch database (`akasha_scratch_*`,
+  needs CREATEDB) next to `DATABASE_URL`. Adding corpus files or queries changes every
+  number: re-record the baselines (both tiers) in the same commit and update `eval/README.md`.
+- Real-model eval here: `just onnxruntime`, put all-MiniLM-L6-v2 from the chroma S3 bucket
+  into `models/hf/Qdrant--all-MiniLM-L6-v2-onnx/`, then `AKASHA_ORT_DYLIB_PATH=$PWD/models/onnxruntime/libonnxruntime.so
+  AKASHA_EMBED_MODEL=all-minilm-l6-v2 AKASHA_RERANK_MODEL=none AKASHA_ML_MODELS_URL=
+  cargo run --release -p akasha -- eval --real-models`.
+- Spelling: `user_terms` is maintained only by triggers on `file_chunks` (migration 0008);
+  never write it from code. Chunks must not be UPDATEd in place (no UPDATE trigger):
+  re-extraction deletes and re-inserts. The triggers take a per-owner advisory lock
+  (`pg_advisory_xact_lock(1433, hashtext(owner))`), so one owner's chunk writes serialise.
+- `scripts/local-postgres.sh` now creates UTF-8 clusters. An older SQL_ASCII cluster
+  (it warns) splits non-ASCII words ("résumé" → "sum"): `pg_ctl -D /var/lib/postgresql/akasha-dev stop`,
+  delete the directory, rerun the script. `pg_trgm`/`btree_gin` come from contrib.
+- Thumbnails: `make_thumbnail` is keyed by content hash and only enqueued on image upload
+  and reindex; images uploaded before 2026-10-09 get one after a reindex. Objects live at
+  `thumbs/ab/cd/<hash>/256` and are deleted with the blob. `run_jobs()` now returns one
+  more job per new image upload.
+
 ## Session log
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
+
+- 2026-10-09 · Claude (cloud) · Step 3 done + step 2 thumbnails. `akasha eval` (32-doc corpus, 46 queries incl. the ported legacy benchmark, Recall@1/5/10, MRR, nDCG@10, latency, scratch database, baselines with tolerance), deterministic gate in `cargo test`, nightly/on-demand `eval.yml` for real models (MiniLM baseline committed, `eval/README.md`); spelling suggestions (`user_terms` + triggers, `pg_trgm`/`btree_gin`, migration 0008, `suggestion` on search responses); thumbnails (`make_thumbnail` job, `akasha_ingest::thumbnail` with decode-bomb limits, `thumbs/` objects, `GET /files/{id}/thumbnail` with ETag/304); 10k-chunk test 20 s → 4 s; local Postgres now UTF-8; ADR 0011. (Finished in a second session after a usage-limit cut: sqlx cache, openapi, MiniLM baseline, eval README.)
 
 - 2026-10-09 · Claude (cloud) · Step 3.1–3.3: search core. `crates/search` (keyword + file-name FTS, pgvector semantic with exact/HNSW switch and ef_search/iterative scan, RRF k=60, rerank top 30, file grouping, `ts_headline` snippets with highlight offsets, per-stage timings, degrade-to-keyword), `akasha_db::search`, `GET /search`, `GET /search/chunks`, `GET /files/{id}/similar`, per-user search rate limit, ADR 0010. Eval harness, spelling suggestions and thumbnails still open.
 

@@ -23,7 +23,10 @@ use uuid::Uuid;
 
 use crate::{
     error::ApiError,
-    jobs::{blobs, kinds::ExtractFile},
+    jobs::{
+        blobs,
+        kinds::{ExtractFile, MakeThumbnail},
+    },
     state::AppState,
 };
 use akasha_core::Error;
@@ -74,8 +77,26 @@ pub async fn save(
         .await?
         .ok_or_else(|| Error::conflict("file was uploaded concurrently; retry"))?;
     akasha_jobs::enqueue(&mut tx, &ExtractFile { file_id: file.id }).await?;
+    enqueue_thumbnail(&mut tx, &file).await?;
     tx.commit().await?;
     Ok(Saved::Created(file))
+}
+
+/// Queue a thumbnail for image files (a no-op for other types).
+pub async fn enqueue_thumbnail(
+    conn: &mut sqlx::PgConnection,
+    file: &File,
+) -> Result<(), akasha_jobs::QueueError> {
+    if file.mime_type.starts_with("image/") {
+        akasha_jobs::enqueue(
+            conn,
+            &MakeThumbnail {
+                hash: file.content_hash.clone(),
+            },
+        )
+        .await?;
+    }
+    Ok(())
 }
 
 /// Delete one of `owner`'s files. Returns `false` if there was no such file.

@@ -1,0 +1,62 @@
+name: Search eval (real models)
+
+# Search quality with real embedding/rerank models (`akasha eval --real-models`).
+# Optional: needs model downloads, so it runs nightly and on demand, not on every
+# push. The deterministic tier (hash-384 + overlap) runs in the main CI's
+# `cargo test` (crates/app/tests/eval.rs).
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * *"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Gated against eval/baselines/all-minilm-l6-v2+none.json.
+          - embed: all-minilm-l6-v2
+            rerank: none
+          # The defaults; informational until a baseline is committed for them.
+          - embed: multilingual-e5-small
+            rerank: jina-reranker-v1-turbo-en
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: akasha
+          POSTGRES_PASSWORD: akasha
+          POSTGRES_DB: akasha
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U akasha" --health-interval 5s
+          --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgres://akasha:akasha@localhost:5432/akasha
+      AKASHA_EMBED_MODEL: ${{ matrix.embed }}
+      AKASHA_RERANK_MODEL: ${{ matrix.rerank }}
+      AKASHA_MODELS_DIR: ${{ github.workspace }}/models
+      AKASHA_ORT_DYLIB_PATH: ${{ github.workspace }}/models/onnxruntime/libonnxruntime.so
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions/cache@v4
+        with:
+          path: models/hf
+          key: models-${{ matrix.embed }}-${{ matrix.rerank }}
+      - run: ./scripts/install-onnxruntime.sh
+      # The checked SQL macros use the committed .sqlx cache; the database is empty.
+      - run: cargo build --release -p akasha
+        env:
+          SQLX_OFFLINE: "true"
+      - run: ./target/release/akasha eval --real-models
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-${{ matrix.embed }}-${{ matrix.rerank }}
+          path: target/eval/*.json

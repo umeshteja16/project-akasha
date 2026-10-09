@@ -48,6 +48,7 @@ uuid.workspace = true
 
 [dev-dependencies]
 http-body-util.workspace = true
+image.workspace = true
 tempfile.workspace = true
 tower.workspace = true
 

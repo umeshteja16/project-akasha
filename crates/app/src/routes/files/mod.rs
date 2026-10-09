@@ -5,6 +5,7 @@ pub mod download;
 pub mod extraction;
 pub mod processing;
 pub mod similar;
+pub mod thumbnail;
 pub mod types;
 pub mod upload;
 

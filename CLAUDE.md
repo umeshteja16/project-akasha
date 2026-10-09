@@ -21,7 +21,8 @@ crates/ml     embeddings + reranking (fastembed on runtime-loaded ONNX Runtime, 
 crates/search hybrid retrieval (FTS + pgvector, RRF, rerank, snippets, similar files;
               ADR 0010); SQL in crates/db/src/search*, HTTP in app routes/search
 crates/app    the `akasha` binary: axum routes (src/routes/*), auth/, jobs/ (job kinds +
-              handlers), state, telemetry
+              handlers), eval/ (`akasha eval`), state, telemetry
+eval/         search benchmark: corpus/, queries.json, baselines/ (ADR 0011)
 .sqlx/        offline cache of checked SQL queries (`just sqlx-prepare`)
 web/          React + TS frontend (Vite, Biome, Vitest)
 legacy/       old TypeScript implementation: read-only reference, do not edit
@@ -56,6 +57,9 @@ jobs with `TestApp::run_jobs()`.
   duplicate enqueue), so re-check state in the database and make repeat runs harmless. Return
   `JobError::permanent` when retrying cannot help. Never delete blobs in a request: enqueue
   `DeleteBlobIfUnreferenced`. Never rename a job kind that may still be queued.
+- **Search quality**: `cargo test` fails if ranking gets worse on `eval/` (deterministic
+  models). Re-record `eval/baselines/` with `akasha eval --update-baseline` only for an
+  intended change, and say so in the commit.
 - **Tests**: DB tests use `#[sqlx::test]` (fresh database per test). HTTP tests drive the router
   with `tower::ServiceExt::oneshot` (see `crates/app/tests/http.rs`). Tests never download
   models: `support::test_config()` uses the `hash-384` embedder and `overlap` reranker.

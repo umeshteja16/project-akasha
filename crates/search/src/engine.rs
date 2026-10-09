@@ -14,7 +14,7 @@ use crate::{
     fusion::{self, Source},
     group,
     rerank::rerank,
-    snippet,
+    snippet, suggest,
     types::{
         ChunkHit, ChunkMatch, ChunkResults, FileInfo, FileResults, Scores, SearchMeta, SearchMode,
         SearchRequest, Timings,
@@ -151,6 +151,7 @@ async fn retrieve(
         reranked: false,
         warnings: Vec::new(),
         has_more: false,
+        suggestion: None,
         timings: Timings::default(),
     };
 
@@ -207,7 +208,19 @@ async fn retrieve(
             Vec::new()
         }
     };
+    let ran_keyword = keyword.is_some();
     let (keyword, names) = keyword.unwrap_or_default();
+    if ran_keyword && keyword.len() + names.len() < suggest::SUGGEST_BELOW {
+        let t = Instant::now();
+        meta.suggestion = match suggest::suggest(pool, owner_id, query).await {
+            Ok(s) => s,
+            Err(err) => {
+                tracing::warn!(%err, "spelling suggestion failed");
+                None
+            }
+        };
+        timings.keyword_ms += ms(t);
+    }
     let fused = fusion::rrf(
         &[
             (Source::Keyword, &keyword),

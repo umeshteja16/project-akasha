@@ -872,6 +872,64 @@
         ]
       }
     },
+    "/api/v1/files/{id}/thumbnail": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "A preview of an image file, at most 256 px on its longer side (JPEG, or PNG\nfor images with transparency).",
+        "description": "Generated in the background after upload: `404` until it exists, and always\n`404` for files that have no preview (PDFs, text, media, images too large or\ndamaged to decode; clients show a type icon instead). Send the `ETag` back in\n`If-None-Match` to get `304 Not Modified`.",
+        "operationId": "thumbnail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "File id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The thumbnail",
+            "content": {
+              "image/jpeg": {}
+            }
+          },
+          "304": {
+            "description": "Not modified (matching `If-None-Match`)"
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
     "/api/v1/me": {
       "get": {
         "tags": [
@@ -2205,6 +2263,13 @@
             "type": "boolean",
             "description": "`true` when the top results were reordered by the reranker."
           },
+          "suggestion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "\"Did you mean\": the query with misspelt-looking words replaced by similar\nwords from your documents. Only when keyword search found few matches."
+          },
           "timings": {
             "$ref": "#/components/schemas/Timings"
           },
@@ -2304,7 +2369,7 @@
           "keyword_ms": {
             "type": "number",
             "format": "double",
-            "description": "Keyword and file-name queries."
+            "description": "Keyword and file-name queries (and the spelling suggestion, when made)."
           },
           "rerank_ms": {
             "type": "number",

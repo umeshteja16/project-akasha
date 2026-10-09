@@ -24,6 +24,7 @@ mod group;
 mod rerank;
 mod similar;
 pub mod snippet;
+pub mod suggest;
 mod types;
 
 use std::sync::Arc;

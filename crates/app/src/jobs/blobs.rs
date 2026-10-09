@@ -27,8 +27,8 @@ pub async fn release(
     Ok(())
 }
 
-/// Delete the blob unless a file references it. Holds the per-hash lock across the
-/// check and the delete, so an upload of the same bytes either finishes first (and
+/// Delete the blob (and its thumbnails) unless a file references it. Holds the
+/// per-hash lock across the check and the delete, so an upload of the same bytes either finishes first (and
 /// the blob stays) or waits and then re-creates the blob from its staged copy.
 pub async fn delete_if_unreferenced(
     ctx: JobContext,
@@ -41,6 +41,7 @@ pub async fn delete_if_unreferenced(
         tracing::debug!(hash = %job.hash, "blob still referenced; kept");
         return Ok(());
     }
+    ctx.storage.delete_thumbnails(&hash).await?;
     ctx.storage.delete(&hash).await?;
     tx.commit().await?;
     tracing::info!(hash = %job.hash, "deleted unreferenced blob");

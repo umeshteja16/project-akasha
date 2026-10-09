@@ -1,0 +1,7 @@
+Kubernetes rolling updates
+
+A Deployment replaces pods gradually during a rollout. maxSurge sets how many extra pods may be created above the desired count and maxUnavailable how many may be missing during the update.
+
+Readiness probes decide when a new pod receives traffic; a pod that never becomes ready stalls the rollout instead of taking down the service. Liveness probes restart containers that hang. Do not point the liveness probe at a dependency such as the database, or one database outage restarts every pod.
+
+Roll back a bad release with kubectl rollout undo deployment/api and watch progress with kubectl rollout status. Set resource requests and limits so the scheduler can place pods and a memory leak ends in an OOM kill instead of starving the node.

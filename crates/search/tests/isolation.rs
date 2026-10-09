@@ -179,6 +179,12 @@ async fn large_libraries_use_the_vector_index(pool: PgPool) {
     let target = file(&pool, ada, "target.txt", TXT, &["aardvark burrow"]).await;
     let bulk = file_without_vectors(&pool, ada, "bulk.txt", TXT, &[]).await;
     let n = akasha_db::search::EXACT_SCAN_MAX_CHUNKS + 10;
+    // Inserting into a live HNSW index row by row takes ~17 s; a bulk build after
+    // the insert takes ~1 s. Same index definition as migration 0007.
+    sqlx::query("DROP INDEX file_chunks_embedding_idx")
+        .execute(&pool)
+        .await
+        .expect("drop index");
     sqlx::query(
         "INSERT INTO file_chunks (file_id, owner_id, chunk_index, char_start, char_end, text, embedding)
          SELECT $1, $2, g, 0, 1, 'x',
@@ -191,6 +197,12 @@ async fn large_libraries_use_the_vector_index(pool: PgPool) {
     .execute(&pool)
     .await
     .expect("bulk chunks");
+    sqlx::query(
+        "CREATE INDEX file_chunks_embedding_idx ON file_chunks USING hnsw (embedding vector_cosine_ops)",
+    )
+    .execute(&pool)
+    .await
+    .expect("build index");
 
     let res = search_chunks(
         &pool,

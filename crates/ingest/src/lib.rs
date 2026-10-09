@@ -20,6 +20,7 @@ mod normalize;
 mod ocr;
 mod pdf;
 mod text;
+pub mod thumbnail;
 
 use serde::{Deserialize, Serialize};
 

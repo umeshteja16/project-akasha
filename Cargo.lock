@@ -73,6 +73,7 @@ dependencies = [
  "futures-util",
  "governor",
  "http-body-util",
+ "image",
  "infer",
  "serde",
  "serde_json",

@@ -11,6 +11,7 @@ pub mod kinds;
 mod maintenance;
 pub mod ml;
 pub mod ocr;
+pub mod thumbnail;
 
 use std::{sync::Arc, time::Duration};
 
@@ -62,6 +63,7 @@ pub fn registry() -> Registry<JobContext> {
     Registry::new()
         .register(extract::extract_file)
         .register(embed::embed_file)
+        .register(thumbnail::make_thumbnail)
         .register(blobs::delete_if_unreferenced)
         .register(blobs::sweep_orphans)
         .register(maintenance::prune_sessions)

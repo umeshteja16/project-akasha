@@ -179,6 +179,37 @@ impl Storage {
         }
     }
 
+    /// Store a thumbnail of the blob `hash`, `size` pixels on its longer side, at
+    /// `thumbs/ab/cd/<hash>/<size>`. Overwriting is harmless (same input, same output).
+    pub async fn put_thumbnail(&self, hash: &ContentHash, size: u32, bytes: Bytes) -> Result<()> {
+        self.store
+            .put(&thumb_key(hash, size), PutPayload::from_bytes(bytes))
+            .await?;
+        Ok(())
+    }
+
+    /// A stored thumbnail, or `None` when there is none (yet).
+    pub async fn get_thumbnail(&self, hash: &ContentHash, size: u32) -> Result<Option<Bytes>> {
+        match self.store.get(&thumb_key(hash, size)).await {
+            Ok(result) => Ok(Some(result.bytes().await?)),
+            Err(object_store::Error::NotFound { .. }) => Ok(None),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    /// Delete every thumbnail of the blob `hash` (idempotent). Called when the blob
+    /// itself is deleted.
+    pub async fn delete_thumbnails(&self, hash: &ContentHash) -> Result<()> {
+        let mut listing = self.store.list(Some(&hash.thumb_dir()));
+        while let Some(meta) = listing.next().await {
+            match self.store.delete(&meta?.location).await {
+                Ok(()) | Err(object_store::Error::NotFound { .. }) => {}
+                Err(err) => return Err(err.into()),
+            }
+        }
+        Ok(())
+    }
+
     /// The hash of every stored blob (for the orphan sweep). Objects under `blobs/`
     /// that are not valid blob keys are skipped.
     pub fn list_blobs(&self) -> BoxStream<'static, Result<ContentHash>> {
@@ -216,6 +247,10 @@ impl Storage {
         }
         Ok(removed)
     }
+}
+
+fn thumb_key(hash: &ContentHash, size: u32) -> Path {
+    hash.thumb_dir().join(size.to_string())
 }
 
 #[cfg(test)]

@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT best.term\n           FROM unnest($2::text[]) WITH ORDINALITY AS w(word, i)\n           LEFT JOIN LATERAL (\n               SELECT CASE WHEN k.known THEN w.word ELSE t.term END AS term\n               FROM user_terms t\n               CROSS JOIN LATERAL (SELECT t.term = w.word\n                   OR to_tsvector('english', t.term) @@ plainto_tsquery('english', w.word)\n                   AS known) k\n               WHERE t.owner_id = $1 AND t.term % w.word\n                 AND similarity(t.term, w.word) >= $3\n               ORDER BY k.known DESC, similarity(t.term, w.word) DESC,\n                        t.chunk_count DESC, t.term\n               LIMIT 1\n           ) best ON true\n           ORDER BY w.i",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "term",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray",
+        "Float4"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "c5eb1263af8448a21894d8c2b3bdb57f8a1f4d1b8cce28c06dfe6ecd5da9c7f4"
+}

@@ -1,0 +1,194 @@
+{
+  "version": 1,
+  "embed_model": "hash-384",
+  "rerank_model": "overlap",
+  "files": 32,
+  "chunks": 32,
+  "queries": 46,
+  "modes": {
+    "hybrid": {
+      "recall_at_1": 0.75,
+      "recall_at_5": 0.7717,
+      "recall_at_10": 0.8696,
+      "mrr": 0.8174,
+      "ndcg_at_10": 0.8126,
+      "latency_p50_ms": 17.0932,
+      "latency_p95_ms": 23.672,
+      "by_kind": {
+        "filename": {
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 1.0
+        },
+        "keyword": {
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 1.0
+        },
+        "legacy": {
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 1.0
+        },
+        "multi": {
+          "recall_at_1": 0.5,
+          "recall_at_5": 0.7,
+          "recall_at_10": 0.8,
+          "mrr": 1.0,
+          "ndcg_at_10": 0.8048
+        },
+        "paraphrase": {
+          "recall_at_1": 0.4,
+          "recall_at_5": 0.4,
+          "recall_at_10": 0.6667,
+          "mrr": 0.44,
+          "ndcg_at_10": 0.4905
+        }
+      }
+    },
+    "hybrid_rerank": {
+      "recall_at_1": 0.7935,
+      "recall_at_5": 0.9348,
+      "recall_at_10": 0.9783,
+      "mrr": 0.8835,
+      "ndcg_at_10": 0.9029,
+      "latency_p50_ms": 19.604,
+      "latency_p95_ms": 25.5176,
+      "by_kind": {
+        "filename": {
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 1.0
+        },
+        "keyword": {
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 1.0
+        },
+        "legacy": {
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 1.0
+        },
+        "multi": {
+          "recall_at_1": 0.5,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 0.9701
+        },
+        "paraphrase": {
+          "recall_at_1": 0.5333,
+          "recall_at_5": 0.8,
+          "recall_at_10": 0.9333,
+          "mrr": 0.6429,
+          "ndcg_at_10": 0.7121
+        }
+      }
+    },
+    "keyword": {
+      "recall_at_1": 0.5652,
+      "recall_at_5": 0.5652,
+      "recall_at_10": 0.5652,
+      "mrr": 0.5652,
+      "ndcg_at_10": 0.5652,
+      "latency_p50_ms": 10.717,
+      "latency_p95_ms": 18.7168,
+      "by_kind": {
+        "filename": {
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 1.0
+        },
+        "keyword": {
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 1.0
+        },
+        "legacy": {
+          "recall_at_1": 0.6667,
+          "recall_at_5": 0.6667,
+          "recall_at_10": 0.6667,
+          "mrr": 0.6667,
+          "ndcg_at_10": 0.6667
+        },
+        "multi": {
+          "recall_at_1": 0.0,
+          "recall_at_5": 0.0,
+          "recall_at_10": 0.0,
+          "mrr": 0.0,
+          "ndcg_at_10": -0.0
+        },
+        "paraphrase": {
+          "recall_at_1": 0.0667,
+          "recall_at_5": 0.0667,
+          "recall_at_10": 0.0667,
+          "mrr": 0.0667,
+          "ndcg_at_10": 0.0667
+        }
+      }
+    },
+    "semantic": {
+      "recall_at_1": 0.5978,
+      "recall_at_5": 0.7283,
+      "recall_at_10": 0.8478,
+      "mrr": 0.7127,
+      "ndcg_at_10": 0.7281,
+      "latency_p50_ms": 7.8935,
+      "latency_p95_ms": 11.5544,
+      "by_kind": {
+        "filename": {
+          "recall_at_1": 0.3333,
+          "recall_at_5": 0.6667,
+          "recall_at_10": 0.6667,
+          "mrr": 0.5,
+          "ndcg_at_10": 0.5436
+        },
+        "keyword": {
+          "recall_at_1": 0.8,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 0.8792,
+          "ndcg_at_10": 0.9096
+        },
+        "legacy": {
+          "recall_at_1": 1.0,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "mrr": 1.0,
+          "ndcg_at_10": 1.0
+        },
+        "multi": {
+          "recall_at_1": 0.5,
+          "recall_at_5": 0.7,
+          "recall_at_10": 0.8,
+          "mrr": 1.0,
+          "ndcg_at_10": 0.8048
+        },
+        "paraphrase": {
+          "recall_at_1": 0.3333,
+          "recall_at_5": 0.3333,
+          "recall_at_10": 0.6667,
+          "mrr": 0.38,
+          "ndcg_at_10": 0.4431
+        }
+      }
+    }
+  }
+}

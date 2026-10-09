@@ -9,6 +9,8 @@ use crate::StorageError;
 
 /// Top-level prefix of every blob key.
 pub(crate) const BLOB_PREFIX: &str = "blobs";
+/// Top-level prefix of thumbnails derived from blobs.
+pub(crate) const THUMB_PREFIX: &str = "thumbs";
 
 /// The SHA-256 of a blob's contents: its identity in storage.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -37,6 +39,12 @@ impl ContentHash {
     pub(crate) fn key(&self) -> Path {
         let hex = self.to_hex();
         Path::from_iter([BLOB_PREFIX, &hex[0..2], &hex[2..4], &hex])
+    }
+
+    /// The directory of a blob's thumbnails: `thumbs/ab/cd/abcd…`.
+    pub(crate) fn thumb_dir(&self) -> Path {
+        let hex = self.to_hex();
+        Path::from_iter([THUMB_PREFIX, &hex[0..2], &hex[2..4], &hex])
     }
 }
 

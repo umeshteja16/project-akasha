@@ -39,7 +39,7 @@ pub struct SearchRequest {
 pub struct Timings {
     /// Embedding the query.
     pub embed_ms: f64,
-    /// Keyword and file-name queries.
+    /// Keyword and file-name queries (and the spelling suggestion, when made).
     pub keyword_ms: f64,
     /// Vector query.
     pub semantic_ms: f64,
@@ -65,6 +65,9 @@ pub struct SearchMeta {
     pub warnings: Vec<String>,
     /// More results follow this page.
     pub has_more: bool,
+    /// "Did you mean": the query with misspelt-looking words replaced by similar
+    /// words from your documents. Only when keyword search found few matches.
+    pub suggestion: Option<String>,
     pub timings: Timings,
 }
 

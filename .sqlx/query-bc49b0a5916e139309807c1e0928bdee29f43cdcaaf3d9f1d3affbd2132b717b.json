@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n               (SELECT count(*) FROM files WHERE owner_id = $1) AS \"files!\",\n               (SELECT count(*) FROM files WHERE owner_id = $1 AND status = 'ready') AS \"ready!\",\n               (SELECT count(*) FROM file_chunks WHERE owner_id = $1) AS \"chunks!\",\n               (SELECT count(*) FROM file_chunks\n                WHERE owner_id = $1 AND embedding IS NOT NULL) AS \"embedded!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "files!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "ready!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "chunks!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "embedded!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "bc49b0a5916e139309807c1e0928bdee29f43cdcaaf3d9f1d3affbd2132b717b"
+}

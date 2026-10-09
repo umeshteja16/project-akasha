@@ -258,3 +258,43 @@ async fn list_blobs_returns_stored_hashes_only() {
         staged.abort().await.expect(name);
     }
 }
+
+#[tokio::test]
+async fn thumbnails_are_stored_beside_blobs_and_deleted_together() {
+    for (name, storage, _dir) in backends() {
+        let blob = storage.put_bytes(&b"picture"[..]).await.expect(name);
+        let other = storage.put_bytes(&b"other"[..]).await.expect(name);
+        assert_eq!(
+            storage.get_thumbnail(&blob.hash, 256).await.expect(name),
+            None
+        );
+        for (hash, size) in [(blob.hash, 256), (blob.hash, 64), (other.hash, 256)] {
+            storage
+                .put_thumbnail(&hash, size, Bytes::from_static(b"thumb"))
+                .await
+                .expect(name);
+        }
+        let got = storage.get_thumbnail(&blob.hash, 256).await.expect(name);
+        assert_eq!(got.as_deref(), Some(&b"thumb"[..]), "{name}");
+
+        storage.delete_thumbnails(&blob.hash).await.expect(name);
+        storage
+            .delete_thumbnails(&blob.hash)
+            .await
+            .expect("idempotent");
+        assert_eq!(
+            storage.get_thumbnail(&blob.hash, 64).await.expect(name),
+            None
+        );
+        assert!(
+            storage
+                .get_thumbnail(&other.hash, 256)
+                .await
+                .expect(name)
+                .is_some()
+        );
+        // Thumbnails are not blobs: the orphan sweep never sees them.
+        let blobs: Vec<ContentHash> = storage.list_blobs().try_collect().await.expect(name);
+        assert_eq!(blobs.len(), 2, "{name}");
+    }
+}

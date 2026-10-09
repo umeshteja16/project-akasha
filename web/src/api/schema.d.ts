@@ -183,6 +183,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/files/{id}/thumbnail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A preview of an image file, at most 256 px on its longer side (JPEG, or PNG
+         *     for images with transparency).
+         * @description Generated in the background after upload: `404` until it exists, and always
+         *     `404` for files that have no preview (PDFs, text, media, images too large or
+         *     damaged to decode; clients show a type icon instead). Send the `ETag` back in
+         *     `If-None-Match` to get `304 Not Modified`.
+         */
+        get: operations["thumbnail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -590,6 +614,11 @@ export interface components {
             requested_mode: components["schemas"]["SearchMode"];
             /** @description `true` when the top results were reordered by the reranker. */
             reranked: boolean;
+            /**
+             * @description "Did you mean": the query with misspelt-looking words replaced by similar
+             *     words from your documents. Only when keyword search found few matches.
+             */
+            suggestion?: string | null;
             timings: components["schemas"]["Timings"];
             /** @description Why the search was degraded or not reranked, for display or debugging. */
             warnings: string[];
@@ -632,7 +661,7 @@ export interface components {
             fetch_ms: number;
             /**
              * Format: double
-             * @description Keyword and file-name queries.
+             * @description Keyword and file-name queries (and the spelling suggestion, when made).
              */
             keyword_ms: number;
             /** Format: double */
@@ -1247,6 +1276,52 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    thumbnail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description File id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The thumbnail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": unknown;
+                };
+            };
+            /** @description Not modified (matching `If-None-Match`) */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             401: {
                 headers: {

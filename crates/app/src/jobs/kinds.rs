@@ -85,3 +85,20 @@ pub struct PruneJobs {}
 impl Job for PruneJobs {
     const KIND: &'static str = "prune_jobs";
 }
+
+/// Render the thumbnail of an image blob (see `jobs::thumbnail`). Keyed by content
+/// hash: files sharing bytes share one thumbnail. Enqueued on image upload and
+/// reindex.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MakeThumbnail {
+    /// SHA-256, lowercase hex.
+    pub hash: String,
+}
+
+impl Job for MakeThumbnail {
+    const KIND: &'static str = "make_thumbnail";
+
+    fn dedupe_key(&self) -> Option<String> {
+        Some(self.hash.clone())
+    }
+}

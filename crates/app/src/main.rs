@@ -1,6 +1,8 @@
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
 
-use akasha::{admin, run_migrate, run_serve, run_worker, telemetry};
+use akasha::{admin, eval, run_migrate, run_serve, run_worker, telemetry};
 use akasha_core::Config;
 
 /// Akasha: a self-hosted personal knowledge retrieval server.
@@ -38,6 +40,27 @@ enum Command {
         /// Re-embed even if the configured model is already in use.
         #[arg(long)]
         force: bool,
+    },
+    /// Measure search quality (Recall@k, MRR, nDCG@10, latency) on the benchmark in
+    /// `eval/`, in a scratch database next to DATABASE_URL, and fail if it regressed
+    /// against the committed baseline.
+    Eval {
+        /// Use the configured models (AKASHA_EMBED_MODEL, AKASHA_RERANK_MODEL)
+        /// instead of the deterministic built-in ones. Downloads them if needed.
+        #[arg(long)]
+        real_models: bool,
+        /// Directory with `queries.json`, `corpus/` and `baselines/`.
+        #[arg(long, default_value = "eval")]
+        dir: PathBuf,
+        /// Where to write the full JSON report [default: target/eval/<models>.json].
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Record this run as the baseline instead of comparing against it.
+        #[arg(long)]
+        update_baseline: bool,
+        /// Largest allowed drop of any quality metric.
+        #[arg(long, default_value_t = eval::DEFAULT_TOLERANCE)]
+        tolerance: f64,
     },
 }
 
@@ -77,6 +100,22 @@ async fn main() -> anyhow::Result<()> {
             command: ModelsCommand::Check,
         } => admin::run_models_check(config).await,
         Command::Reembed { force } => admin::run_reembed(config, force).await,
+        Command::Eval {
+            real_models,
+            dir,
+            out,
+            update_baseline,
+            tolerance,
+        } => {
+            let opts = eval::EvalOptions {
+                real_models,
+                dir,
+                out,
+                update_baseline,
+                tolerance,
+            };
+            eval::run_cli(config, opts).await
+        }
         Command::Openapi => unreachable!("handled above"),
     }
 }

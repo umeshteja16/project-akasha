@@ -45,13 +45,21 @@ if ! install_pgvector || [ ! -f "$PGSHARE/vector.control" ]; then
   echo "warning: pgvector is not installed; migrations needing it will fail" >&2
 fi
 
+# pg_trgm and btree_gin (spelling suggestions) come with the contrib modules,
+# which the distro server package ships.
+for ext in pg_trgm btree_gin; do
+  [ -f "$PGSHARE/$ext.control" ] || echo "warning: postgres contrib extension $ext is missing (install postgresql-contrib)" >&2
+done
+
 if "${RUN_AS[@]}" "$PGBIN/pg_ctl" -D "$DATA" status >/dev/null 2>&1; then
   echo "postgres already running ($DATA)"
 else
   if [ ! -f "$DATA/PG_VERSION" ]; then
     mkdir -p "$DATA"
     [ "$(id -u)" = 0 ] && chown postgres "$DATA"
-    "${RUN_AS[@]}" "$PGBIN/initdb" -D "$DATA" -U postgres -A trust >/dev/null
+    # UTF-8 like the Docker image: full-text search and the spelling vocabulary
+    # only recognise non-ASCII letters in a UTF-8 database.
+    "${RUN_AS[@]}" "$PGBIN/initdb" -D "$DATA" -U postgres -A trust --encoding=UTF8 --locale=C.UTF-8 >/dev/null
   fi
   "${RUN_AS[@]}" "$PGBIN/pg_ctl" -D "$DATA" -o "-p 5432 -k /tmp" -l "$DATA/server.log" -w start >/dev/null
   echo "postgres started ($DATA)"
@@ -61,4 +69,9 @@ psql -h localhost -U postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='akasha
   || psql -h localhost -U postgres -qc "CREATE ROLE akasha LOGIN SUPERUSER PASSWORD 'akasha'"
 psql -h localhost -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname='akasha'" | grep -q 1 \
   || psql -h localhost -U postgres -qc "CREATE DATABASE akasha OWNER akasha"
+ENCODING="$(psql -h localhost -U postgres -tAc "SELECT pg_encoding_to_char(encoding) FROM pg_database WHERE datname='akasha'")"
+if [ "$ENCODING" != "UTF8" ]; then
+  echo "warning: database akasha is $ENCODING, not UTF8; non-ASCII words are not searchable." >&2
+  echo "         Recreate the cluster: pg_ctl -D $DATA stop && rm -rf $DATA && $0" >&2
+fi
 echo "DATABASE_URL=postgres://akasha:akasha@localhost:5432/akasha"

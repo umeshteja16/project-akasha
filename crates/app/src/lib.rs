@@ -5,6 +5,7 @@
 pub mod admin;
 pub mod auth;
 pub mod error;
+pub mod eval;
 pub mod extract;
 pub mod files;
 pub mod jobs;
