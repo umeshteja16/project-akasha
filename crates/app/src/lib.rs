@@ -5,6 +5,7 @@
 pub mod auth;
 pub mod error;
 pub mod extract;
+pub mod files;
 pub mod rate_limit;
 pub mod routes;
 pub mod state;
@@ -14,14 +15,10 @@ use std::{net::SocketAddr, time::Duration};
 
 use akasha_core::Config;
 use anyhow::Context;
-use axum::{
-    Router,
-    http::{HeaderName, StatusCode},
-};
+use axum::{Router, http::HeaderName};
 use tower_http::{
     catch_panic::CatchPanicLayer,
     request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
-    timeout::TimeoutLayer,
     trace::TraceLayer,
 };
 use utoipa::OpenApi;
@@ -35,10 +32,6 @@ pub fn app(state: AppState) -> Router {
     routes::router(&state)
         .with_state(state)
         .layer(CatchPanicLayer::new())
-        .layer(TimeoutLayer::with_status_code(
-            StatusCode::REQUEST_TIMEOUT,
-            Duration::from_secs(30),
-        ))
         .layer(TraceLayer::new_for_http())
         .layer(PropagateRequestIdLayer::new(REQUEST_ID))
         .layer(SetRequestIdLayer::new(REQUEST_ID, MakeRequestUuid))

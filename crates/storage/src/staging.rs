@@ -59,6 +59,13 @@ impl StagedBlob {
 
     /// Finish the upload and move it to its content-addressed key.
     pub async fn commit(self) -> Result<BlobInfo> {
+        self.finish().await?.commit().await
+    }
+
+    /// Finish writing and compute the hash, but leave the bytes staged. Use this when
+    /// the caller must take a lock keyed on the hash before the blob becomes visible
+    /// (see [`FinishedBlob`]).
+    pub async fn finish(self) -> Result<FinishedBlob> {
         let Self {
             store,
             path,
@@ -66,10 +73,62 @@ impl StagedBlob {
             hasher,
             size,
         } = self;
-        writer.finish().await?;
-        let hash = ContentHash::from_digest(hasher);
-        let key = hash.key();
+        if let Err(err) = writer.finish().await {
+            discard(&store, &path).await;
+            return Err(err.into());
+        }
+        Ok(FinishedBlob {
+            store,
+            path,
+            hash: ContentHash::from_digest(hasher),
+            size,
+        })
+    }
 
+    /// Abandon the upload and remove anything already written.
+    pub async fn abort(self) -> Result<()> {
+        self.writer.abort().await?;
+        discard(&self.store, &self.path).await;
+        Ok(())
+    }
+}
+
+async fn discard(store: &Arc<dyn ObjectStore>, path: &Path) {
+    match store.delete(path).await {
+        Ok(()) | Err(object_store::Error::NotFound { .. }) => {}
+        Err(err) => tracing::warn!(%err, %path, "failed to delete staged upload"),
+    }
+}
+
+/// A fully written, hashed upload that is still staged. [`commit`](Self::commit)
+/// moves it to its content-addressed key; [`discard`](Self::discard) drops it.
+/// Dropping it without either leaves the staged object for
+/// [`Storage::prune_staging`](crate::Storage::prune_staging).
+pub struct FinishedBlob {
+    store: Arc<dyn ObjectStore>,
+    path: Path,
+    hash: ContentHash,
+    size: u64,
+}
+
+impl FinishedBlob {
+    pub fn hash(&self) -> ContentHash {
+        self.hash
+    }
+
+    pub fn size(&self) -> u64 {
+        self.size
+    }
+
+    /// Move the bytes to their content-addressed key (deduplicating if it exists).
+    pub async fn commit(self) -> Result<BlobInfo> {
+        let Self {
+            store,
+            path,
+            hash,
+            size,
+        } = self;
+        let key = hash.key();
         let existed = match store.head(&key).await {
             Ok(_) => true,
             Err(object_store::Error::NotFound { .. }) => false,
@@ -92,17 +151,8 @@ impl StagedBlob {
         })
     }
 
-    /// Abandon the upload and remove anything already written.
-    pub async fn abort(self) -> Result<()> {
-        self.writer.abort().await?;
+    /// Drop the staged bytes without storing them.
+    pub async fn discard(self) {
         discard(&self.store, &self.path).await;
-        Ok(())
-    }
-}
-
-async fn discard(store: &Arc<dyn ObjectStore>, path: &Path) {
-    match store.delete(path).await {
-        Ok(()) | Err(object_store::Error::NotFound { .. }) => {}
-        Err(err) => tracing::warn!(%err, %path, "failed to delete staged upload"),
     }
 }

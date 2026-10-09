@@ -137,7 +137,14 @@ pub async fn delete_me(
     if !password::verify(req.password, Some(user.password_hash)).await {
         return Err(Error::unauthorized("password is incorrect").into());
     }
+    // Rows go with the user (ON DELETE CASCADE); blobs are cleaned up afterwards.
+    let hashes = akasha_db::files::hashes_owned_by(&state.db, user.id).await?;
     users::delete(&state.db, user.id).await?;
+    for hash in hashes {
+        if let Err(err) = crate::files::store::release(&state, &hash).await {
+            tracing::warn!(err = ?err.0, %hash, "failed to release blob after account deletion");
+        }
+    }
     let jar = jar.add(session::removal(state.config.cookie_secure));
     Ok((StatusCode::NO_CONTENT, jar))
 }

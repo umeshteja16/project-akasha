@@ -13,6 +13,9 @@ pub enum ErrorCode {
     Forbidden,
     NotFound,
     Conflict,
+    PayloadTooLarge,
+    UnsupportedMediaType,
+    QuotaExceeded,
     RateLimited,
     Unavailable,
     Internal,
@@ -51,6 +54,18 @@ impl Error {
 
     pub fn not_found(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::NotFound, message)
+    }
+
+    pub fn payload_too_large(message: impl Into<String>) -> Self {
+        Self::new(ErrorCode::PayloadTooLarge, message)
+    }
+
+    pub fn unsupported_media_type(message: impl Into<String>) -> Self {
+        Self::new(ErrorCode::UnsupportedMediaType, message)
+    }
+
+    pub fn quota_exceeded(message: impl Into<String>) -> Self {
+        Self::new(ErrorCode::QuotaExceeded, message)
     }
 
     pub fn unavailable(message: impl Into<String>) -> Self {

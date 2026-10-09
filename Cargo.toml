@@ -21,7 +21,7 @@ chrono = { version = "0.4", features = ["serde"] }
 sha2 = "0.10"
 tower_governor = { version = "0.7", default-features = false, features = ["axum"] }
 uuid = { version = "1", features = ["v4", "serde"] }
-axum = "0.8"
+axum = { version = "0.8", features = ["multipart"] }
 clap = { version = "4", features = ["derive", "env"] }
 governor = "0.8"
 figment = { version = "0.10", features = ["env", "toml"] }
@@ -40,6 +40,7 @@ http-body-util = "0.1"
 bytes = "1"
 futures-util = "0.3"
 hex = "0.4"
+infer = { version = "0.19", default-features = false }
 object_store = { version = "0.14", features = ["aws"] }
 tempfile = "3"
 

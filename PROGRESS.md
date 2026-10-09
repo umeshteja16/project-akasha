@@ -19,7 +19,7 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 |---|---|
 | **Current step** | Step 2: Files and ingestion |
 | **Last updated** | 2026-10-09 |
-| **`just check`** | passing (38 Rust tests, 1 web test) |
+| **`just check`** | passing (65 Rust tests, 1 web test) |
 | **Old code** | `legacy/` (read-only reference; deleted in step 7) |
 
 ## Next up
@@ -28,21 +28,19 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 
 1. ~~**pgvector everywhere.**~~ Done: migration `0003_vector`, `local-postgres.sh` installs it.
 2. ~~**Storage.**~~ Done: `crates/storage` (`akasha-storage`), `AppState.storage`.
-3. **Upload.** `POST /api/v1/files` (streaming multipart, `AKASHA_MAX_UPLOAD_MB`, magic-byte
-   check with `infer`, filename sanitising), `files` table, ownership checks on every query.
-   Port the attack cases from `legacy/scratch/test_magic_bytes.sh` into Rust tests.
-   Use `state.storage.stage()` → `StagedBlob::write` per multipart chunk (check `size()` against
-   the limit and sniff magic bytes from the first chunk; `abort()` on rejection) → `commit()`
-   gives `{hash, size, deduplicated}`. Store `hash.to_hex()` in `files.content_hash` and
-   reference-count blobs in SQL (delete the blob only when the last row referencing it goes).
-   Schedule `Storage::prune_staging(1 h)` once the job queue exists.
-4. **Job queue.** `jobs` table + `FOR UPDATE SKIP LOCKED` worker loop, retries with backoff,
-   idempotent handlers, `akasha worker` subcommand (and `serve --with-worker` for single-box).
-   Move session pruning onto it.
+3. ~~**Upload.**~~ Done: migration `0004_files`, `POST /api/v1/files`, blob ref-counting,
+   plus the basic file CRUD routes (list/get/patch/delete/bulk-delete/download).
+4. **Job queue (do this next).** `jobs` table + `FOR UPDATE SKIP LOCKED` worker loop, retries
+   with backoff, idempotent handlers, `akasha worker` subcommand (and `serve --with-worker` for
+   single-box). Move session pruning onto it, and schedule `Storage::prune_staging(1 h)`.
+   Hook: the `TODO(step 2.4)` in `crates/app/src/routes/files/upload.rs`: enqueue an ingest job
+   for `Saved::Created` files (ideally in the same transaction as the insert, inside
+   `files::store::save`). The handler should move `files.status` pending → processing →
+   ready/failed (with `error`).
 5. **Extraction.** New `crates/ingest`: plain text/markdown first, then PDF (`pdfium-render`),
    then OCR (`ocrs`); chunking with `text-splitter`. Store chunks in `file_chunks`.
 6. **Embeddings.** New `crates/ml` with `fastembed`; record model name + dimension in the DB.
-7. File CRUD routes (list/get/rename/tags/pin/download/delete/bulk-delete/reindex/status).
+7. Remaining file routes: thumbnail, reindex, status/extraction view (basic CRUD is done).
 
 ## Roadmap
 
@@ -71,13 +69,13 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 
 ### Step 2: Files and ingestion
 - [x] Add `pgvector` (also teach `scripts/local-postgres.sh` to install it; the Docker image already has it)
-- [ ] Upload (streaming multipart, size limit, magic-byte check via `infer`, filename sanitising)
+- [x] Upload (streaming multipart, size limit, magic-byte check via `infer`, filename sanitising), per-user storage quota
 - [x] Content-addressed storage (SHA-256, dedupe) behind `object_store` (local disk / S3), `crates/storage`
-- [ ] Blob ref-counting in SQL (with the `files` table)
+- [x] Blob ref-counting in SQL (with the `files` table; per-hash advisory lock)
 - [ ] Postgres job queue (`SELECT … FOR UPDATE SKIP LOCKED`; retries, backoff, idempotent jobs), `akasha worker`
 - [ ] New crate `crates/ingest`: PDF text (`pdfium-render`), OCR (`ocrs`), plain text/markdown, chunking (`text-splitter`)
 - [ ] New crate `crates/ml`: embeddings via `fastembed` (bge-m3 or nomic-embed; dimension recorded in the DB)
-- [ ] File CRUD: list, get, rename, tags, pin, download, thumbnail, bulk delete, reindex, status
+- [~] File CRUD: ~~list, get, rename, tags, pin, download, bulk delete~~ done; thumbnail, reindex, status left
 
 ### Step 3: Search
 - [ ] New crate `crates/search`: Postgres FTS + pgvector HNSW, fused with RRF (k=60)
@@ -154,10 +152,28 @@ See [`docs/adr/`](docs/adr). Summary:
 - No CSRF token: protection relies on SameSite=Lax plus JSON-only bodies (forms cannot send
   `application/json` cross-site). Revisit if any endpoint ever accepts form data.
 
+- Files: uploads are streamed (multipart → `StagedBlob`), sniffed from the first 8 KiB with
+  `infer` against an allow-list (`crates/app/src/files/sniff.rs`); text types have no magic
+  bytes, so they need a text extension (or none) and must be UTF-8 without NUL bytes over the
+  whole stream. HTML/Office/archives are rejected (415); add types to the allow-list deliberately.
+- Blob lifecycle: upload and delete both take `pg_advisory_xact_lock` on the content hash
+  (`akasha_db::files::lock_hash`) and do their storage work inside that transaction (upload uses
+  `StagedBlob::finish` → `FinishedBlob::commit` so the blob only appears under the lock). See the
+  module doc in `crates/app/src/files/store.rs` for the race analysis. Account deletion cascades
+  the rows, then releases each blob.
+- Re-uploading identical bytes returns the existing file with **200** (new: 201) and keeps the
+  original name. Quota (`users.storage_quota_bytes`, NULL = unlimited, no API to set it yet) is
+  checked after streaming, under a lock on the user row, so duplicates are free; exceeded →
+  413 `quota_exceeded`. Size limit (`AKASHA_MAX_UPLOAD_MB`, default 512) → 413 `payload_too_large`.
+- The 30 s request timeout no longer applies to upload/download routes (they get 1 h, see
+  `routes.rs`). Uploads are not rate-limited yet; add a per-user limiter if abuse shows up.
+- Another user's file is always 404 (never 403). Every `akasha_db::files` query takes `owner_id`.
+
 ## Session log
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
 
+- 2026-10-09 · Claude (cloud) · Step 2.3: `0004_files` (+ `users.storage_quota_bytes`), streaming upload with magic-byte allow-list, filename sanitising, dedupe, quota, blob ref-counting with per-hash advisory locks, file list/get/patch/delete/bulk-delete/download, legacy attack cases ported. New files stay `pending` until the job queue (2.4).
 - 2026-10-09 · Claude (cloud) · Step 2.2: `crates/storage` (content-addressed, local/S3, streaming staging, prune), `AKASHA_STORAGE_*` config with redacted secrets, `AppState.storage`.
 - 2026-10-09 · Claude (cloud) · Step 2.1: pgvector in `local-postgres.sh`, migration `0003_vector`, vector column test.
 

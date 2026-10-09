@@ -28,6 +28,8 @@ pub struct Config {
     pub allow_registration: bool,
     /// How long a login session lasts, in days.
     pub session_ttl_days: u32,
+    /// Largest accepted upload, in MiB.
+    pub max_upload_mb: u64,
     /// Where uploaded file contents are kept.
     pub storage_backend: StorageBackend,
     /// Root directory for the `local` storage backend.
@@ -97,6 +99,7 @@ impl Default for Config {
             cookie_secure: false,
             allow_registration: true,
             session_ttl_days: 30,
+            max_upload_mb: 512,
             storage_backend: StorageBackend::Local,
             storage_dir: "./storage".into(),
             storage_s3_bucket: None,
@@ -116,6 +119,11 @@ impl Config {
             .merge(Toml::file("akasha.toml"))
             .merge(Env::prefixed("AKASHA_"))
             .merge(Env::raw().only(&["DATABASE_URL"]))
+    }
+
+    /// [`Config::max_upload_mb`] in bytes.
+    pub fn max_upload_bytes(&self) -> u64 {
+        self.max_upload_mb.saturating_mul(1024 * 1024)
     }
 
     /// Load configuration from all sources.

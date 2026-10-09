@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS files;
+ALTER TABLE users DROP COLUMN IF EXISTS storage_quota_bytes;

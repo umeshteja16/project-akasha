@@ -2,13 +2,19 @@
 //! register its paths in [`ApiDoc`].
 
 mod auth;
+mod files;
 mod health;
 mod me;
 
+use std::time::Duration;
+
 use axum::{
     Json, Router,
+    extract::DefaultBodyLimit,
+    http::StatusCode,
     routing::{get, post},
 };
+use tower_http::timeout::TimeoutLayer;
 use utoipa::{
     Modify, OpenApi,
     openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
@@ -29,8 +35,10 @@ use akasha_core::Error;
         health::healthz, health::readyz,
         auth::register, auth::login, auth::logout,
         me::get_me, me::update_me, me::change_password, me::delete_me,
+        files::upload::upload, files::list, files::get, files::update, files::delete,
+        files::bulk_delete, files::download::download,
     ),
-    components(schemas(ErrorBody, health::Health)),
+    components(schemas(ErrorBody, health::Health, files::types::FileCategory)),
     modifiers(&SessionCookie)
 )]
 pub struct ApiDoc;
@@ -47,6 +55,13 @@ impl Modify for SessionCookie {
     }
 }
 
+/// Deadline for ordinary requests.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+/// Deadline for file uploads and downloads, which may be large and slow.
+const TRANSFER_TIMEOUT: Duration = Duration::from_secs(60 * 60);
+/// Room for multipart framing on top of the file itself.
+const MULTIPART_OVERHEAD: u64 = 1024 * 1024;
+
 pub fn router(state: &AppState) -> Router<AppState> {
     // Credential-checking endpoints share one per-IP limiter.
     let limited = Router::new()
@@ -55,6 +70,24 @@ pub fn router(state: &AppState) -> Router<AppState> {
         .route("/api/v1/me/password", post(me::change_password))
         .route("/api/v1/me", axum::routing::delete(me::delete_me))
         .layer(rate_limit::layer(&state.auth_limiter));
+
+    let body_limit = state
+        .config
+        .max_upload_bytes()
+        .saturating_add(MULTIPART_OVERHEAD);
+    let transfers = Router::new()
+        .route("/api/v1/files", post(files::upload::upload))
+        .route(
+            "/api/v1/files/{id}/download",
+            get(files::download::download),
+        )
+        .layer(DefaultBodyLimit::max(
+            usize::try_from(body_limit).unwrap_or(usize::MAX),
+        ))
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            TRANSFER_TIMEOUT,
+        ));
 
     Router::new()
         .route("/healthz", get(health::healthz))
@@ -65,6 +98,17 @@ pub fn router(state: &AppState) -> Router<AppState> {
         )
         .route("/api/v1/auth/logout", post(auth::logout))
         .route("/api/v1/me", get(me::get_me).patch(me::update_me))
+        .route("/api/v1/files", get(files::list))
+        .route("/api/v1/files/bulk-delete", post(files::bulk_delete))
+        .route(
+            "/api/v1/files/{id}",
+            get(files::get).patch(files::update).delete(files::delete),
+        )
         .merge(limited)
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            REQUEST_TIMEOUT,
+        ))
+        .merge(transfers)
         .fallback(|| async { ApiError(Error::not_found("no such route")) })
 }

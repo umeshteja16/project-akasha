@@ -34,3 +34,25 @@ impl<T: serde::Serialize> IntoResponse for Json<T> {
         axum::Json(self.0).into_response()
     }
 }
+
+/// Like [`axum::extract::Query`], but malformed parameters become `400 bad_request`
+/// in our error shape.
+pub struct Query<T>(pub T);
+
+impl<S, T> axum::extract::FromRequestParts<S> for Query<T>
+where
+    T: DeserializeOwned,
+    S: Send + Sync,
+{
+    type Rejection = ApiError;
+
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        state: &S,
+    ) -> Result<Self, ApiError> {
+        axum::extract::Query::<T>::from_request_parts(parts, state)
+            .await
+            .map(|axum::extract::Query(value)| Self(value))
+            .map_err(|rejection| ApiError(Error::bad_request(rejection.body_text())))
+    }
+}

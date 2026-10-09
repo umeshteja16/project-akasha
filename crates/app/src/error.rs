@@ -48,6 +48,8 @@ fn status_for(code: ErrorCode) -> StatusCode {
         ErrorCode::Forbidden => StatusCode::FORBIDDEN,
         ErrorCode::NotFound => StatusCode::NOT_FOUND,
         ErrorCode::Conflict => StatusCode::CONFLICT,
+        ErrorCode::PayloadTooLarge | ErrorCode::QuotaExceeded => StatusCode::PAYLOAD_TOO_LARGE,
+        ErrorCode::UnsupportedMediaType => StatusCode::UNSUPPORTED_MEDIA_TYPE,
         ErrorCode::RateLimited => StatusCode::TOO_MANY_REQUESTS,
         ErrorCode::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
         ErrorCode::Internal => StatusCode::INTERNAL_SERVER_ERROR,

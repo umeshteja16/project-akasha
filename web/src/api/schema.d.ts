@@ -55,6 +55,83 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List your files, newest first. */
+        get: operations["list"];
+        put?: never;
+        /**
+         * Upload a file.
+         * @description The body is streamed to storage, never held in memory. The type is detected from
+         *     the bytes and must be on the allow-list; it must also agree with the filename's
+         *     extension. Re-uploading bytes you already have returns the existing file with
+         *     `200` instead of `201`. New files start as `pending`.
+         */
+        post: operations["upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/files/bulk-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Delete several files at once. */
+        post: operations["bulk_delete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/files/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One of your files. */
+        get: operations["get"];
+        put?: never;
+        post?: never;
+        /** Delete a file. Its contents are removed once no other file uses them. */
+        delete: operations["delete"];
+        options?: never;
+        head?: never;
+        /** Rename, pin/unpin or retag a file. */
+        patch: operations["update"];
+        trace?: never;
+    };
+    "/api/v1/files/{id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download a file's contents (always as an attachment, never rendered inline). */
+        get: operations["download"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -129,6 +206,14 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        BulkDeleteRequest: {
+            /** @description Up to 100 file ids. Ids that are unknown (or not yours) are ignored. */
+            ids: string[];
+        };
+        BulkDeleteResponse: {
+            /** @description The ids that were deleted. */
+            deleted: string[];
+        };
         ChangePasswordRequest: {
             current_password: string;
             new_password: string;
@@ -145,6 +230,43 @@ export interface components {
             code: string;
             message: string;
         };
+        /**
+         * @description Broad file kind, for filtering.
+         * @enum {string}
+         */
+        FileCategory: "pdf" | "image" | "audio" | "video" | "text";
+        FileList: {
+            /** @description Newest first. */
+            items: components["schemas"]["FileResponse"][];
+            /** @description Pass as `cursor` to get the next page; `null` on the last page. */
+            next_cursor?: string | null;
+        };
+        FileResponse: {
+            /** @description SHA-256 of the contents, lowercase hex. */
+            content_hash: string;
+            /** Format: date-time */
+            created_at: string;
+            /** @description Why processing failed, when `status` is `failed`. */
+            error?: string | null;
+            /** Format: uuid */
+            id: string;
+            is_pinned: boolean;
+            /** @description Detected from the contents, not taken from the client. */
+            mime_type: string;
+            /** @description Sanitised original filename. */
+            name: string;
+            /** Format: int64 */
+            size_bytes: number;
+            status: components["schemas"]["FileStatus"];
+            tags: string[];
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /**
+         * @description Processing state of a file.
+         * @enum {string}
+         */
+        FileStatus: "pending" | "processing" | "ready" | "failed";
         Health: {
             status: string;
             version: string;
@@ -158,9 +280,24 @@ export interface components {
             email: string;
             password: string;
         };
+        UpdateFileRequest: {
+            is_pinned?: boolean | null;
+            /** @description New display name (sanitised like uploads). */
+            name?: string | null;
+            /** @description Replaces all tags. Trimmed and lowercased; at most 32, each 1–50 characters. */
+            tags?: string[] | null;
+        };
         UpdateMeRequest: {
             /** @description New display name; `null` or blank clears it. */
             display_name?: string | null;
+        };
+        /** @description `multipart/form-data` body of an upload. */
+        UploadForm: {
+            /**
+             * Format: binary
+             * @description The file. Its type is detected from the bytes; the filename is sanitised.
+             */
+            file: string;
         };
         UserResponse: {
             /** Format: date-time */
@@ -300,6 +437,321 @@ export interface operations {
                 };
             };
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["FileStatus"];
+                pinned?: boolean;
+                /** @description Only files carrying this tag. */
+                tag?: string;
+                category?: components["schemas"]["FileCategory"];
+                /** @description `next_cursor` from the previous page. */
+                cursor?: string;
+                /** @description Page size, 1–200 (default 50). */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["UploadForm"];
+            };
+        };
+        responses: {
+            /** @description Already uploaded: the existing file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileResponse"];
+                };
+            };
+            /** @description Stored */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `payload_too_large` or `quota_exceeded` */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `unsupported_media_type` */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    bulk_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkDeleteRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkDeleteResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description File id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description File id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description File id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateFileRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    download: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description File id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file's bytes, with its detected `Content-Type` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": unknown;
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

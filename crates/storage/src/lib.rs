@@ -17,7 +17,7 @@ use futures_util::{Stream, StreamExt, TryStreamExt, stream::BoxStream};
 use object_store::{ObjectStore, ObjectStoreExt, PutPayload, memory::InMemory, path::Path};
 
 pub use hash::ContentHash;
-pub use staging::StagedBlob;
+pub use staging::{FinishedBlob, StagedBlob};
 
 pub type Result<T, E = StorageError> = std::result::Result<T, E>;
 

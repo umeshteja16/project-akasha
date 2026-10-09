@@ -201,3 +201,41 @@ fn config_selects_backend() {
     config.storage_s3_secret_access_key = Some(akasha_core::Secret::new("secret"));
     Storage::from_config(&config).expect("s3 from config (no network needed)");
 }
+
+#[tokio::test]
+async fn finish_defers_visibility_until_commit() {
+    for (name, storage, _dir) in backends() {
+        let mut staged = storage.stage().await.expect("stage");
+        staged
+            .write(Bytes::from_static(b"later"))
+            .await
+            .expect("write");
+        let finished = staged.finish().await.expect("finish");
+        let hash = finished.hash();
+        assert_eq!(hash, ContentHash::of(b"later"), "{name}");
+        assert_eq!(finished.size(), 5);
+        assert!(!storage.exists(&hash).await.expect("exists"), "{name}");
+        finished.discard().await;
+        assert!(!storage.exists(&hash).await.expect("exists"), "{name}");
+
+        let mut staged = storage.stage().await.expect("stage");
+        staged
+            .write(Bytes::from_static(b"later"))
+            .await
+            .expect("write");
+        let info = staged
+            .finish()
+            .await
+            .expect("finish")
+            .commit()
+            .await
+            .expect("commit");
+        assert!(!info.deduplicated);
+        assert_eq!(read_all(&storage, &hash).await, b"later", "{name}");
+        assert_eq!(
+            storage.prune_staging(Duration::ZERO).await.expect("prune"),
+            0,
+            "{name}"
+        );
+    }
+}
