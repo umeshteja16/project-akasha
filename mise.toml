@@ -1,0 +1,7 @@
+# Pins the toolchain for every machine: `mise install`.
+# Rust itself is pinned by rust-toolchain.toml (rustup reads it automatically).
+[tools]
+node = "22"
+pnpm = "10.28.0"
+just = "latest"
+"cargo:sqlx-cli" = { version = "0.8", features = "postgres,rustls", default-features = "false" }

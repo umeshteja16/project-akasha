@@ -1,0 +1,17 @@
+[package]
+name = "akasha-core"
+description = "Shared configuration, error and domain types for Akasha."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+figment.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+figment = { workspace = true, features = ["test"] }
+
+[lints]
+workspace = true

@@ -1,32 +1,22 @@
-# Dependencies
+# Rust
+/target/
+
+# Node
 node_modules/
-.pnpm-debug.log*
-.pnpm-store/
-
-# Production / Build
 dist/
-.next/
-.turbo/
-build/
+*.tsbuildinfo
 
-# Environment / Secret keys
+# Local config and secrets
 .env
-.env.local
-.env.*.local
-.env.development
-.env.production
+.env.*
+!.env.example
+akasha.toml
 
-# OS files
+# Runtime data
+/storage/
+
+# Editors / OS
 .DS_Store
-Thumbs.db
-
-# Obsidian Editor Settings
-.obsidian/
-
-# Storage & Uploads
-storage/
-uploads/
-
-dev_guide/
-apps/embedding/cached_models/
+.idea/
+.vscode/
 *.log

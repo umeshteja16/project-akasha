@@ -1,0 +1,36 @@
+# Development: `just db-up` starts only Postgres.
+# Full stack:  `docker compose --profile app up --build`.
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: akasha
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-akasha}
+      POSTGRES_DB: akasha
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U akasha"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  akasha:
+    profiles: ["app"]
+    build: .
+    environment:
+      DATABASE_URL: postgres://akasha:${POSTGRES_PASSWORD:-akasha}@postgres:5432/akasha
+      AKASHA_LOG_FORMAT: json
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+volumes:
+  pgdata:
