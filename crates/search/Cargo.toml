@@ -1,0 +1,21 @@
+[package]
+name = "akasha-search"
+description = "Hybrid retrieval for Akasha: full-text + vector search fused with RRF, reranking, snippets."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+akasha-db.workspace = true
+akasha-ml.workspace = true
+chrono.workspace = true
+serde.workspace = true
+sqlx.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+utoipa.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true

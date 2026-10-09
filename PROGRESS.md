@@ -17,32 +17,28 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 
 | | |
 |---|---|
-| **Current step** | Step 2: Files and ingestion |
+| **Current step** | Step 3: Search (step 2 thumbnail still open) |
 | **Last updated** | 2026-10-09 |
-| **`just check`** | passing (137 Rust tests + 3 ignored OCR + 2 ignored real-model tests, 1 web test) |
+| **`just check`** | passing (168 Rust tests + 3 ignored OCR + 2 ignored real-model tests, 1 web test) |
 | **Old code** | `legacy/` (read-only reference; deleted in step 7) |
 
 ## Next up
 
-**Step 2: Files and ingestion.** Do it in this order, one commit per bullet, `just check` green each time:
+**Step 3: Search.** Items 1–3 are done (`crates/search`, ADR 0010). Next, in order:
 
-1. ~~**pgvector everywhere.**~~ Done: migration `0003_vector`, `local-postgres.sh` installs it.
-2. ~~**Storage.**~~ Done: `crates/storage` (`akasha-storage`), `AppState.storage`.
-3. ~~**Upload.**~~ Done: migration `0004_files`, `POST /api/v1/files`, blob ref-counting,
-   plus the basic file CRUD routes (list/get/patch/delete/bulk-delete/download).
-4. ~~**Job queue.**~~ Done: migration `0005_jobs`, `crates/jobs` (`akasha-jobs`, ADR 0007),
-   `akasha worker`, `serve --with-worker`, periodic jobs, blob deletion via jobs.
-5. ~~**Extraction.**~~ Done: `crates/ingest` (ADR 0008), migration `0006_extraction`
-   (`file_extractions`, `file_chunks` with FTS), `extract_file` handler, `GET /files/{id}/extraction`.
-6. ~~**Embeddings.**~~ Done: `crates/ml` (ADR 0009), migration `0007_embeddings`,
-   `embed_file` job, `akasha models download|check`, `akasha reembed`, reranker interface.
-7. **Thumbnails (do this next).** Remaining file route: `GET /files/{id}/thumbnail`
-   (images via `image`, PDFs first page only if cheap without pdfium; else a type icon on
-   the client). Generate in a job after extraction, store as a derived blob.
+1. **Eval harness + spelling (do this next).** Port `legacy/apps/api/benchmark_queries.json`
+   into `akasha eval` (seed a fixture corpus through the real pipeline, run each query in
+   every mode, report recall@k / MRR / nDCG per mode, JSON output) and a CI quality gate on
+   the deterministic `hash-384`/`overlap` models (thresholds from the first run; real-model
+   numbers are informational). Spelling suggestion ("did you mean"): legacy parity, e.g. a
+   `pg_trgm` word list or `ts_stat` vocabulary per owner; add it as `suggestion` on
+   `SearchMeta` when keyword results are few.
+2. **Thumbnails** (left over from step 2): `GET /files/{id}/thumbnail` (images via `image`,
+   PDFs first page only if cheap without pdfium; else a type icon on the client). Generate in
+   a job after extraction, store as a derived blob.
 
-Then **step 3 (search)**: new `crates/search` using `file_chunks.tsv` + `embedding`
-(HNSW, `<=>`), RRF fusion, then `MlProvider::reranker()` (already loaded lazily in
-`AppState.ml`; queries go through `Embedder::embed_query`, which adds the model's prefix).
+Then **step 4 (grounded chat)**: retrieve with `akasha_search::search_chunks` (chunk-level,
+full text, page + char offsets for citations; pass `filter.file_ids` to scope a chat).
 
 ## Roadmap
 
@@ -80,9 +76,10 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 - [~] File CRUD: ~~list, get, rename, tags, pin, download, bulk delete, reindex, job status, extraction view~~ done; thumbnail left
 
 ### Step 3: Search
-- [ ] New crate `crates/search`: Postgres FTS + pgvector HNSW, fused with RRF (k=60)
-- [~] Cross-encoder rerank (`fastembed` reranker): `Reranker` trait + models done in `crates/ml`, not wired to search yet
-- [ ] Filters (type, date, collection), snippets/highlights, pagination, "similar files"
+- [x] New crate `crates/search`: Postgres FTS (+ file names) + pgvector HNSW, fused with RRF (k=60); keyword/semantic/hybrid, degrade to keyword without a model
+- [x] Cross-encoder rerank of the top 30 (`Reranker`), warnings instead of failures
+- [x] Filters (type, date, tags, pinned, file ids; collection seam in `ChunkFilter`), snippets/highlights, pagination, "similar files", per-user rate limit
+- [ ] Spelling suggestion ("did you mean", legacy parity)
 - [ ] Port `legacy/apps/api/benchmark_queries.json` into an eval command (`akasha eval`) and a CI quality gate
 
 ### Step 4: Grounded chat
@@ -127,7 +124,8 @@ See [`docs/adr/`](docs/adr). Summary:
 0003 ML runs in-process · 0004 Cookie sessions, not JWT · 0005 OpenAPI is the API contract ·
 0006 Server first, desktop later · 0007 Job queue design ·
 0008 Pure-Rust extraction (pdf-extract, ocrs, text-splitter) ·
-0009 Embeddings via fastembed on runtime-loaded ONNX Runtime.
+0009 Embeddings via fastembed on runtime-loaded ONNX Runtime ·
+0010 Hybrid search (FTS + pgvector, RRF, rerank) in `crates/search`.
 
 ## Known issues and gotchas
 
@@ -226,9 +224,30 @@ See [`docs/adr/`](docs/adr). Summary:
 - File status now stays `processing` until `embed_file` finishes; `run_jobs()` returns 2 for
   a text upload (extract + embed). `GET /files/{id}` `processing.stage` is `extract`|`embed`.
 
+- Search (ADR 0010): SQL in `akasha_db::search` (every query filters `file_chunks.owner_id`
+  *and* joins `files.owner_id`), pipeline in `crates/search`, HTTP in `routes/search`.
+  `GET /search` = file-grouped (UI), `GET /search/chunks` = chunk-level with full text (agents,
+  RAG uses the crate directly). Offset paging over the fused list, capped at 200 results.
+- Vector search scans exactly when the owner has ≤ 10 000 embedded chunks (or `file_ids` is
+  set); above that it uses HNSW with `ef_search` ≥ 100 and, on pgvector ≥ 0.8 only,
+  `hnsw.iterative_scan` (0.6 errors on that setting once the extension is loaded, so it is
+  version-gated). The 10k-chunk test (`large_libraries_use_the_vector_index`) takes ~20 s.
+- Snippets: `ts_headline` with U+E000/U+E001 markers, parsed into plain text + highlight
+  offsets in Unicode characters (never HTML). Fragment mode may drop leading words of a
+  short chunk ("The aardvark…" → "aardvark…").
+- Search never waits more than 5 s for a model (`MlProvider::embedder_within`); while it
+  loads or if it cannot load, searches run as keyword with `degraded: true`. `serve` now warms
+  both search models at start. Warnings shown to users are generic; details are logged.
+- Per-user search limit `AKASHA_SEARCH_RATE_PER_MINUTE` (default 30, 0 = off), governor
+  keyed by user id, checked in the handler (`rate_limit::check_user`). Tests share one limiter
+  per `TestApp`; keep a single test under 30 searches per user.
+- Search queries are not logged (only their length).
+
 ## Session log
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
+
+- 2026-10-09 · Claude (cloud) · Step 3.1–3.3: search core. `crates/search` (keyword + file-name FTS, pgvector semantic with exact/HNSW switch and ef_search/iterative scan, RRF k=60, rerank top 30, file grouping, `ts_headline` snippets with highlight offsets, per-stage timings, degrade-to-keyword), `akasha_db::search`, `GET /search`, `GET /search/chunks`, `GET /files/{id}/similar`, per-user search rate limit, ADR 0010. Eval harness, spelling suggestions and thumbnails still open.
 
 - 2026-10-09 · Claude (cloud) · Step 2.6: embeddings. `crates/ml` (Embedder/Reranker traits, catalog with per-model prefixes, HF downloader, hash/overlap fakes, fastembed on runtime-loaded ONNX Runtime), `0007_embeddings` (`embedding vector(384)` + HNSW, `embedding_model`), `embed_file` job (batched, resumable, model-guarded), startup model guard, `akasha reembed`, `akasha models download|check`, ORT 1.28 in the Docker image + CI smoke test, `just onnxruntime`, ADR 0009. Real-model test run locally with all-MiniLM-L6-v2 (HF blocked here; e5/jina defaults unverified locally, CI smoke test covers MiniLM).
 

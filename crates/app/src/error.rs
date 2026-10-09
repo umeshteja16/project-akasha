@@ -29,6 +29,17 @@ impl From<sqlx::Error> for ApiError {
     }
 }
 
+impl From<akasha_search::SearchError> for ApiError {
+    fn from(err: akasha_search::SearchError) -> Self {
+        match err {
+            akasha_search::SearchError::InvalidRequest(message) => {
+                Self(Error::bad_request(message))
+            }
+            akasha_search::SearchError::Database(err) => err.into(),
+        }
+    }
+}
+
 impl From<akasha_jobs::QueueError> for ApiError {
     fn from(err: akasha_jobs::QueueError) -> Self {
         tracing::error!(%err, "job queue error");

@@ -18,6 +18,8 @@ crates/jobs   Postgres job queue + worker runtime (domain-agnostic, ADR 0007)
 crates/ingest text extraction (text/Markdown/PDF/OCR) + chunking; pure, blocking (ADR 0008)
 crates/ml     embeddings + reranking (fastembed on runtime-loaded ONNX Runtime, ADR 0009);
               blocking traits, model catalog, downloader, deterministic fakes for tests
+crates/search hybrid retrieval (FTS + pgvector, RRF, rerank, snippets, similar files;
+              ADR 0010); SQL in crates/db/src/search*, HTTP in app routes/search
 crates/app    the `akasha` binary: axum routes (src/routes/*), auth/, jobs/ (job kinds +
               handlers), state, telemetry
 .sqlx/        offline cache of checked SQL queries (`just sqlx-prepare`)
@@ -26,7 +28,6 @@ legacy/       old TypeScript implementation: read-only reference, do not edit
 docs/adr/     architecture decisions
 openapi.json  generated API contract (`just openapi`), checked in CI
 ```
-New crates planned (create them when their step starts, not before): `search`.
 
 ## Commands
 `just` lists everything. Common: `just serve`, `just web`, `just check`, `just fmt`,

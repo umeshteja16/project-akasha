@@ -1,17 +1,25 @@
-//! Per-client-IP rate limiting for credential endpoints, to slow down password guessing.
+//! Rate limiting.
 //!
-//! Keyed on the TCP peer address. Behind a reverse proxy every request shares the proxy's
-//! IP; trusting `X-Forwarded-For` is a planned config option (see PROGRESS.md).
+//! - Credential endpoints: per client IP, to slow down password guessing. Keyed on the TCP
+//!   peer address; behind a reverse proxy every request shares the proxy's IP (trusting
+//!   `X-Forwarded-For` is a planned config option, see PROGRESS.md).
+//! - Search: per signed-in user ([`UserLimiter`]), checked inside the handler once the
+//!   session is known.
 
-use std::{sync::Arc, time::Duration};
+use std::{num::NonZeroU32, sync::Arc, time::Duration};
 
 use axum::response::IntoResponse;
-use governor::middleware::NoOpMiddleware;
+use governor::{
+    Quota, RateLimiter,
+    clock::{Clock, DefaultClock},
+    middleware::NoOpMiddleware,
+};
 use tower_governor::{
     GovernorLayer,
     governor::{GovernorConfig, GovernorConfigBuilder},
     key_extractor::PeerIpKeyExtractor,
 };
+use uuid::Uuid;
 
 use crate::error::ApiError;
 use akasha_core::{Error, ErrorCode};
@@ -44,13 +52,59 @@ pub fn layer(limiter: &AuthLimiter) -> GovernorLayer<PeerIpKeyExtractor, NoOpMid
     }
 }
 
-/// Periodically forget idle clients so the limiter's memory stays bounded.
-pub fn spawn_cleanup(limiter: AuthLimiter) {
+/// Per-user limiter; `None` when unlimited.
+pub type UserLimiter = Option<Arc<governor::DefaultKeyedRateLimiter<Uuid>>>;
+
+/// `per_minute` requests per user per minute, as a burst refilled evenly; 0: unlimited.
+pub fn user_limiter(per_minute: u32) -> UserLimiter {
+    NonZeroU32::new(per_minute).map(|n| Arc::new(RateLimiter::keyed(Quota::per_minute(n))))
+}
+
+/// Count one request by `user`; `rate_limited` once the user is over the limit.
+pub fn check_user(limiter: &UserLimiter, user: Uuid) -> Result<(), Error> {
+    let Some(limiter) = limiter else {
+        return Ok(());
+    };
+    limiter.check_key(&user).map_err(|not_until| {
+        let wait = not_until.wait_time_from(DefaultClock::default().now());
+        Error::new(
+            ErrorCode::RateLimited,
+            format!("too many searches, retry in {}s", wait.as_secs().max(1)),
+        )
+    })
+}
+
+/// Periodically forget idle clients so the limiters' memory stays bounded.
+pub fn spawn_cleanup(limiter: AuthLimiter, users: UserLimiter) {
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(Duration::from_secs(60));
         loop {
             tick.tick().await;
             limiter.limiter().retain_recent();
+            if let Some(users) = &users {
+                users.retain_recent();
+            }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn user_limiter_counts_per_user() {
+        let limiter = user_limiter(2);
+        let (ada, bob) = (Uuid::new_v4(), Uuid::new_v4());
+        assert!(check_user(&limiter, ada).is_ok());
+        assert!(check_user(&limiter, ada).is_ok());
+        let err = check_user(&limiter, ada).expect_err("third in a minute");
+        assert_eq!(err.code, ErrorCode::RateLimited);
+        assert!(
+            check_user(&limiter, bob).is_ok(),
+            "other users are unaffected"
+        );
+        let unlimited = user_limiter(0);
+        assert!((0..100).all(|_| check_user(&unlimited, ada).is_ok()));
+    }
 }

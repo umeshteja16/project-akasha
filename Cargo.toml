@@ -15,6 +15,7 @@ akasha-storage = { path = "crates/storage" }
 akasha-jobs = { path = "crates/jobs" }
 akasha-ingest = { path = "crates/ingest" }
 akasha-ml = { path = "crates/ml", default-features = false }
+akasha-search = { path = "crates/search" }
 
 anyhow = "1"
 argon2 = { version = "0.5", features = ["std"] }

@@ -1,7 +1,7 @@
 //! The process-wide embedding model and reranker, loaded (and their files
 //! downloaded) on first use and shared by the worker and, later, search.
 
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use akasha_core::Config;
 use akasha_ml::{Embedder, MlError, MlOptions, Reranker};
@@ -56,6 +56,47 @@ impl MlProvider {
             })
             .await?;
         Ok(reranker.clone())
+    }
+}
+
+impl MlProvider {
+    /// The embedder if it is loaded, or loads within `wait`; `Ok(None)` while it is
+    /// still loading (the load carries on in the background, so a request never
+    /// waits for a model download).
+    pub async fn embedder_within(
+        self: &Arc<Self>,
+        wait: Duration,
+    ) -> Result<Option<Arc<dyn Embedder>>, MlError> {
+        if let Some(e) = self.embedder.get() {
+            return Ok(Some(Arc::clone(e)));
+        }
+        let me = Arc::clone(self);
+        within(wait, tokio::spawn(async move { me.embedder().await })).await
+    }
+
+    /// Like [`Self::embedder_within`] for the reranker (`Ok(Some(None))`: disabled).
+    pub async fn reranker_within(
+        self: &Arc<Self>,
+        wait: Duration,
+    ) -> Result<Option<Option<Arc<dyn Reranker>>>, MlError> {
+        if let Some(r) = self.reranker.get() {
+            return Ok(Some(r.clone()));
+        }
+        let me = Arc::clone(self);
+        within(wait, tokio::spawn(async move { me.reranker().await })).await
+    }
+}
+
+async fn within<T>(
+    wait: Duration,
+    task: tokio::task::JoinHandle<Result<T, MlError>>,
+) -> Result<Option<T>, MlError> {
+    match tokio::time::timeout(wait, task).await {
+        Ok(Ok(loaded)) => loaded.map(Some),
+        Ok(Err(err)) => Err(MlError::Inference(format!(
+            "loading the model failed: {err}"
+        ))),
+        Err(_elapsed) => Ok(None),
     }
 }
 

@@ -166,6 +166,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/files/{id}/similar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Files similar to one of yours, by embedding (mean of the file's chunk vectors). */
+        get: operations["similar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -196,6 +213,48 @@ export interface paths {
         put?: never;
         /** Change password. Signs out every other session. */
         post: operations["change_password"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search your files; results are grouped by file with their best passages.
+         * @description When semantic search is unavailable (model not installed or still loading),
+         *     the search runs as keyword search and the response says so (`degraded`,
+         *     `warnings`) instead of failing.
+         */
+        get: operations["search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/search/chunks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search your files passage by passage (chunk-level results with full text,
+         *     for agents and citations).
+         */
+        get: operations["search_chunks"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -251,6 +310,37 @@ export interface components {
         ChangePasswordRequest: {
             current_password: string;
             new_password: string;
+        };
+        /** @description A chunk-level result: the chunk, its full text and its file. */
+        ChunkHit: components["schemas"]["ChunkMatch"] & {
+            file: components["schemas"]["FileInfo"];
+            /** @description The whole chunk text. */
+            text: string;
+        };
+        /** @description A matching chunk, located for citation. */
+        ChunkMatch: {
+            /** Format: int32 */
+            char_end: number;
+            /**
+             * Format: int32
+             * @description `[char_start, char_end)` of the chunk in the file's extracted text (characters).
+             */
+            char_start: number;
+            /** Format: int64 */
+            chunk_id: number;
+            /** Format: int32 */
+            chunk_index: number;
+            /**
+             * Format: int32
+             * @description 1-based PDF page; `null` for formats without pages.
+             */
+            page?: number | null;
+            scores: components["schemas"]["Scores"];
+            snippet: components["schemas"]["Snippet"];
+        };
+        ChunkResults: components["schemas"]["SearchMeta"] & {
+            /** @description Best first. */
+            results: components["schemas"]["ChunkHit"][];
         };
         DeleteAccountRequest: {
             /** @description Current password, to confirm. */
@@ -316,6 +406,37 @@ export interface components {
         FileDetail: components["schemas"]["FileResponse"] & {
             processing?: null | components["schemas"]["ProcessingJob"];
         };
+        /** @description A file-level result: the file and its best matching chunks. */
+        FileHit: {
+            file: components["schemas"]["FileInfo"];
+            /**
+             * Format: int32
+             * @description Matching chunks of this file among the candidates.
+             */
+            match_count: number;
+            /** @description Up to three best chunks, best first. */
+            matches: components["schemas"]["ChunkMatch"][];
+            /**
+             * Format: double
+             * @description The best chunk's fused score.
+             */
+            score: number;
+        };
+        /** @description The file a result belongs to. */
+        FileInfo: {
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            id: string;
+            is_pinned: boolean;
+            mime_type: string;
+            name: string;
+            /** Format: int64 */
+            size_bytes: number;
+            /** @description `pending`, `processing`, `ready` or `failed`. */
+            status: string;
+            tags: string[];
+        };
         FileList: {
             /** @description Newest first. */
             items: components["schemas"]["FileResponse"][];
@@ -343,6 +464,10 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        FileResults: components["schemas"]["SearchMeta"] & {
+            /** @description Best first. */
+            results: components["schemas"]["FileHit"][];
+        };
         /**
          * @description Processing state of a file.
          * @enum {string}
@@ -351,6 +476,13 @@ export interface components {
         Health: {
             status: string;
             version: string;
+        };
+        /** @description A highlighted span of a snippet, `[start, end)` in Unicode characters. */
+        Highlight: {
+            /** Format: int32 */
+            end: number;
+            /** Format: int32 */
+            start: number;
         };
         /**
          * @description State of a background job.
@@ -406,6 +538,112 @@ export interface components {
             display_name?: string | null;
             email: string;
             password: string;
+        };
+        /** @description Why a chunk ranked where it did. */
+        Scores: {
+            /**
+             * Format: int32
+             * @description 1-based rank in the file-name list.
+             */
+            filename_rank?: number | null;
+            /**
+             * Format: double
+             * @description Reciprocal Rank Fusion score (sum of `1 / (60 + rank)` over the retrievers).
+             */
+            fused: number;
+            /**
+             * Format: float
+             * @description `ts_rank_cd`, normalised to 0..1.
+             */
+            keyword?: number | null;
+            /**
+             * Format: int32
+             * @description 1-based rank in the keyword list.
+             */
+            keyword_rank?: number | null;
+            /**
+             * Format: float
+             * @description Cross-encoder score (model specific scale), when reranked.
+             */
+            rerank?: number | null;
+            /**
+             * Format: float
+             * @description Cosine similarity to the query.
+             */
+            semantic?: number | null;
+            /**
+             * Format: int32
+             * @description 1-based rank in the semantic list.
+             */
+            semantic_rank?: number | null;
+        };
+        /** @description How a search ran. */
+        SearchMeta: {
+            /** @description `true` when the search ran in a weaker mode than requested. */
+            degraded: boolean;
+            /** @description More results follow this page. */
+            has_more: boolean;
+            /** @description The mode that actually ran: `keyword` when semantic search was unavailable. */
+            mode: components["schemas"]["SearchMode"];
+            /** @description The query as searched (trimmed). */
+            query: string;
+            requested_mode: components["schemas"]["SearchMode"];
+            /** @description `true` when the top results were reordered by the reranker. */
+            reranked: boolean;
+            timings: components["schemas"]["Timings"];
+            /** @description Why the search was degraded or not reranked, for display or debugging. */
+            warnings: string[];
+        };
+        /**
+         * @description Which retrievers a search uses.
+         * @enum {string}
+         */
+        SearchMode: "keyword" | "semantic" | "hybrid";
+        /** @description A file similar to another one. */
+        SimilarFile: {
+            file: components["schemas"]["FileInfo"];
+            /**
+             * Format: float
+             * @description Cosine similarity of its closest chunk to the source file's mean embedding.
+             */
+            similarity: number;
+        };
+        SimilarFiles: {
+            /** @description Most similar first. Empty while the file is not embedded yet. */
+            items: components["schemas"]["SimilarFile"][];
+        };
+        /** @description An excerpt of a chunk (plain text, never HTML) with the query terms marked. */
+        Snippet: {
+            highlights: components["schemas"]["Highlight"][];
+            /** @description Up to two fragments joined by " … "; the chunk's start when no term matched. */
+            text: string;
+        };
+        /** @description Milliseconds spent per stage (stages that did not run are 0). */
+        Timings: {
+            /**
+             * Format: double
+             * @description Embedding the query.
+             */
+            embed_ms: number;
+            /**
+             * Format: double
+             * @description Loading result rows and snippets.
+             */
+            fetch_ms: number;
+            /**
+             * Format: double
+             * @description Keyword and file-name queries.
+             */
+            keyword_ms: number;
+            /** Format: double */
+            rerank_ms: number;
+            /**
+             * Format: double
+             * @description Vector query.
+             */
+            semantic_ms: number;
+            /** Format: double */
+            total_ms: number;
         };
         UpdateFileRequest: {
             is_pinned?: boolean | null;
@@ -979,6 +1217,55 @@ export interface operations {
             };
         };
     };
+    similar: {
+        parameters: {
+            query?: {
+                /** @description How many files, 1-20 (default 5). */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description File id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimilarFiles"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_me: {
         parameters: {
             query?: never;
@@ -1102,6 +1389,144 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    search: {
+        parameters: {
+            query: {
+                /**
+                 * @description What to look for, 1-500 characters. Web-search syntax: `"exact phrase"`,
+                 *     `or`, and `-word` to exclude.
+                 */
+                q: string;
+                /** @description `hybrid` (default), `keyword` or `semantic`. */
+                mode?: components["schemas"]["SearchMode"];
+                /** @description Only files of this kind. */
+                type?: components["schemas"]["FileCategory"];
+                /** @description Uploaded on or after: a date (`2026-01-31`, UTC) or an RFC 3339 timestamp. */
+                from?: string;
+                /** @description Uploaded on or before this date (inclusive), or before this RFC 3339 timestamp. */
+                to?: string;
+                /** @description Comma-separated tags; files must carry all of them. */
+                tags?: string;
+                /** @description Only pinned (`true`) or unpinned (`false`) files. */
+                pinned?: boolean;
+                /** @description Comma-separated file ids (up to 100) to search within. */
+                file_ids?: string;
+                /** @description Results per page, 1-50 (default 10). */
+                limit?: number;
+                /** @description 1-based page (default 1). Only the first 200 results can be paged through. */
+                page?: number;
+                /** @description Reorder the top results with the cross-encoder, if one is configured (default true). */
+                rerank?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileResults"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    search_chunks: {
+        parameters: {
+            query: {
+                /**
+                 * @description What to look for, 1-500 characters. Web-search syntax: `"exact phrase"`,
+                 *     `or`, and `-word` to exclude.
+                 */
+                q: string;
+                /** @description `hybrid` (default), `keyword` or `semantic`. */
+                mode?: components["schemas"]["SearchMode"];
+                /** @description Only files of this kind. */
+                type?: components["schemas"]["FileCategory"];
+                /** @description Uploaded on or after: a date (`2026-01-31`, UTC) or an RFC 3339 timestamp. */
+                from?: string;
+                /** @description Uploaded on or before this date (inclusive), or before this RFC 3339 timestamp. */
+                to?: string;
+                /** @description Comma-separated tags; files must carry all of them. */
+                tags?: string;
+                /** @description Only pinned (`true`) or unpinned (`false`) files. */
+                pinned?: boolean;
+                /** @description Comma-separated file ids (up to 100) to search within. */
+                file_ids?: string;
+                /** @description Results per page, 1-50 (default 10). */
+                limit?: number;
+                /** @description 1-based page (default 1). Only the first 200 results can be paged through. */
+                page?: number;
+                /** @description Reorder the top results with the cross-encoder, if one is configured (default true). */
+                rerank?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChunkResults"];
+                };
             };
             400: {
                 headers: {

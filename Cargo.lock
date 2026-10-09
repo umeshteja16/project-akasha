@@ -60,6 +60,7 @@ dependencies = [
  "akasha-ingest",
  "akasha-jobs",
  "akasha-ml",
+ "akasha-search",
  "akasha-storage",
  "anyhow",
  "argon2",
@@ -160,6 +161,22 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "akasha-search"
+version = "0.1.0"
+dependencies = [
+ "akasha-db",
+ "akasha-ml",
+ "chrono",
+ "serde",
+ "sqlx",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "utoipa",
  "uuid",
 ]
 

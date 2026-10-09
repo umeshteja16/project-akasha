@@ -69,9 +69,10 @@ pub async fn run_serve(config: Config, with_worker: bool) -> anyhow::Result<()> 
     tracing::info!(addr = %config.bind_addr, with_worker, "listening");
 
     let state = AppState::new(pool, config, storage);
-    rate_limit::spawn_cleanup(state.auth_limiter.clone());
+    rate_limit::spawn_cleanup(state.auth_limiter.clone(), state.search_limiter.clone());
     let stop = shutdown_trigger();
 
+    warm_up_search(&state);
     let worker = if with_worker {
         let ctx = jobs::JobContext::from(&state);
         warm_up(&ctx);
@@ -120,6 +121,23 @@ fn warm_up(ctx: &jobs::JobContext) {
     tokio::spawn(async move {
         if let Err(err) = ml.embedder().await {
             tracing::warn!(%err, "embedding model unavailable; embed jobs will retry");
+        }
+    });
+}
+
+/// Start loading the search models (embedder and reranker) so the first searches
+/// do not run degraded while they load.
+fn warm_up_search(state: &AppState) {
+    let ml = std::sync::Arc::clone(&state.ml);
+    tokio::spawn(async move {
+        if let Err(err) = ml.reranker().await {
+            tracing::warn!(%err, "reranker unavailable; search results will not be reranked");
+        }
+    });
+    let ml = std::sync::Arc::clone(&state.ml);
+    tokio::spawn(async move {
+        if let Err(err) = ml.embedder().await {
+            tracing::warn!(%err, "embedding model unavailable; search falls back to keywords");
         }
     });
 }

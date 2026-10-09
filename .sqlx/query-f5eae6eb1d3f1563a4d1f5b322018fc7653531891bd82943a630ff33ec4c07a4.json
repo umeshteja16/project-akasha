@@ -1,0 +1,108 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT c.id, c.file_id, c.chunk_index, c.page, c.char_start, c.char_end, c.text,\n                  ts_headline('english', translate(c.text, E'', ''), q.tsq,\n                      E'StartSel=, StopSel=, MaxWords=35, MinWords=15, '\n                      'MaxFragments=2, FragmentDelimiter=\" … \"') AS \"headline!\",\n                  f.original_name AS file_name, f.mime_type, f.size_bytes, f.status,\n                  f.tags, f.is_pinned, f.created_at\n           FROM file_chunks c\n           JOIN files f ON f.id = c.file_id AND f.owner_id = $1\n           CROSS JOIN websearch_to_tsquery('english', $3) AS q(tsq)\n           WHERE c.owner_id = $1 AND c.id = ANY($2)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "file_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "chunk_index",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "page",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "char_start",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "char_end",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "text",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "headline!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "file_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "mime_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "size_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "tags",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 13,
+        "name": "is_pinned",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 14,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8Array",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      null,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f5eae6eb1d3f1563a4d1f5b322018fc7653531891bd82943a630ff33ec4c07a4"
+}

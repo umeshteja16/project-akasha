@@ -79,6 +79,8 @@ pub struct Config {
     pub ort_dylib_path: String,
     /// CPU threads per model for inference; 0 uses every core.
     pub ml_threads: u32,
+    /// Searches each user may run per minute (burst of the same size); 0: unlimited.
+    pub search_rate_per_minute: u32,
 }
 
 /// Blob storage backend.
@@ -154,6 +156,7 @@ impl Default for Config {
             ml_models_url: "https://huggingface.co".into(),
             ort_dylib_path: String::new(),
             ml_threads: 0,
+            search_rate_per_minute: 30,
         }
     }
 }

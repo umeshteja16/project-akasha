@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT avg(embedding)::real[] AS \"mean\" FROM file_chunks\n           WHERE owner_id = $1 AND file_id = $2 AND embedding IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "mean",
+        "type_info": "Float4Array"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "5dd3517786721b7476d7fa7fe91e8716d6d1178e205bd8347467aa1e99b947fc"
+}

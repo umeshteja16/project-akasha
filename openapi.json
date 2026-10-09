@@ -794,6 +794,84 @@
         ]
       }
     },
+    "/api/v1/files/{id}/similar": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Files similar to one of yours, by embedding (mean of the file's chunk vectors).",
+        "operationId": "similar",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "File id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "How many files, 1-20 (default 5).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimilarFiles"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
     "/api/v1/me": {
       "get": {
         "tags": [
@@ -990,6 +1068,325 @@
         ]
       }
     },
+    "/api/v1/search": {
+      "get": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Search your files; results are grouped by file with their best passages.",
+        "description": "When semantic search is unavailable (model not installed or still loading),\nthe search runs as keyword search and the response says so (`degraded`,\n`warnings`) instead of failing.",
+        "operationId": "search",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "What to look for, 1-500 characters. Web-search syntax: `\"exact phrase\"`,\n`or`, and `-word` to exclude.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "description": "`hybrid` (default), `keyword` or `semantic`.",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SearchMode"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Only files of this kind.",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/FileCategory"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Uploaded on or after: a date (`2026-01-31`, UTC) or an RFC 3339 timestamp.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Uploaded on or before this date (inclusive), or before this RFC 3339 timestamp.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tags",
+            "in": "query",
+            "description": "Comma-separated tags; files must carry all of them.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pinned",
+            "in": "query",
+            "description": "Only pinned (`true`) or unpinned (`false`) files.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "file_ids",
+            "in": "query",
+            "description": "Comma-separated file ids (up to 100) to search within.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Results per page, 1-50 (default 10).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "1-based page (default 1). Only the first 200 results can be paged through.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "rerank",
+            "in": "query",
+            "description": "Reorder the top results with the cross-encoder, if one is configured (default true).",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileResults"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/search/chunks": {
+      "get": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Search your files passage by passage (chunk-level results with full text,\nfor agents and citations).",
+        "operationId": "search_chunks",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "What to look for, 1-500 characters. Web-search syntax: `\"exact phrase\"`,\n`or`, and `-word` to exclude.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "description": "`hybrid` (default), `keyword` or `semantic`.",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SearchMode"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Only files of this kind.",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/FileCategory"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Uploaded on or after: a date (`2026-01-31`, UTC) or an RFC 3339 timestamp.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Uploaded on or before this date (inclusive), or before this RFC 3339 timestamp.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tags",
+            "in": "query",
+            "description": "Comma-separated tags; files must carry all of them.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pinned",
+            "in": "query",
+            "description": "Only pinned (`true`) or unpinned (`false`) files.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "file_ids",
+            "in": "query",
+            "description": "Comma-separated file ids (up to 100) to search within.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Results per page, 1-50 (default 10).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "1-based page (default 1). Only the first 200 results can be paged through.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "rerank",
+            "in": "query",
+            "description": "Reorder the top results with the cross-encoder, if one is configured (default true).",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChunkResults"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
     "/healthz": {
       "get": {
         "tags": [
@@ -1091,6 +1488,97 @@
             "type": "string"
           }
         }
+      },
+      "ChunkHit": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ChunkMatch"
+          },
+          {
+            "type": "object",
+            "required": [
+              "text",
+              "file"
+            ],
+            "properties": {
+              "file": {
+                "$ref": "#/components/schemas/FileInfo"
+              },
+              "text": {
+                "type": "string",
+                "description": "The whole chunk text."
+              }
+            }
+          }
+        ],
+        "description": "A chunk-level result: the chunk, its full text and its file."
+      },
+      "ChunkMatch": {
+        "type": "object",
+        "description": "A matching chunk, located for citation.",
+        "required": [
+          "chunk_id",
+          "chunk_index",
+          "char_start",
+          "char_end",
+          "snippet",
+          "scores"
+        ],
+        "properties": {
+          "char_end": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "char_start": {
+            "type": "integer",
+            "format": "int32",
+            "description": "`[char_start, char_end)` of the chunk in the file's extracted text (characters)."
+          },
+          "chunk_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "chunk_index": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "page": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "1-based PDF page; `null` for formats without pages."
+          },
+          "scores": {
+            "$ref": "#/components/schemas/Scores"
+          },
+          "snippet": {
+            "$ref": "#/components/schemas/Snippet"
+          }
+        }
+      },
+      "ChunkResults": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SearchMeta"
+          },
+          {
+            "type": "object",
+            "required": [
+              "results"
+            ],
+            "properties": {
+              "results": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ChunkHit"
+                },
+                "description": "Best first."
+              }
+            }
+          }
+        ]
       },
       "DeleteAccountRequest": {
         "type": "object",
@@ -1247,6 +1735,86 @@
         ],
         "description": "One file plus the state of its latest processing job."
       },
+      "FileHit": {
+        "type": "object",
+        "description": "A file-level result: the file and its best matching chunks.",
+        "required": [
+          "file",
+          "score",
+          "match_count",
+          "matches"
+        ],
+        "properties": {
+          "file": {
+            "$ref": "#/components/schemas/FileInfo"
+          },
+          "match_count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Matching chunks of this file among the candidates.",
+            "minimum": 0
+          },
+          "matches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChunkMatch"
+            },
+            "description": "Up to three best chunks, best first."
+          },
+          "score": {
+            "type": "number",
+            "format": "double",
+            "description": "The best chunk's fused score."
+          }
+        }
+      },
+      "FileInfo": {
+        "type": "object",
+        "description": "The file a result belongs to.",
+        "required": [
+          "id",
+          "name",
+          "mime_type",
+          "size_bytes",
+          "status",
+          "tags",
+          "is_pinned",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_pinned": {
+            "type": "boolean"
+          },
+          "mime_type": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string",
+            "description": "`pending`, `processing`, `ready` or `failed`."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "FileList": {
         "type": "object",
         "required": [
@@ -1333,6 +1901,28 @@
           }
         }
       },
+      "FileResults": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SearchMeta"
+          },
+          {
+            "type": "object",
+            "required": [
+              "results"
+            ],
+            "properties": {
+              "results": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/FileHit"
+                },
+                "description": "Best first."
+              }
+            }
+          }
+        ]
+      },
       "FileStatus": {
         "type": "string",
         "description": "Processing state of a file.",
@@ -1355,6 +1945,26 @@
           },
           "version": {
             "type": "string"
+          }
+        }
+      },
+      "Highlight": {
+        "type": "object",
+        "description": "A highlighted span of a snippet, `[start, end)` in Unicode characters.",
+        "required": [
+          "start",
+          "end"
+        ],
+        "properties": {
+          "end": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "start": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           }
         }
       },
@@ -1490,6 +2100,224 @@
           },
           "password": {
             "type": "string"
+          }
+        }
+      },
+      "Scores": {
+        "type": "object",
+        "description": "Why a chunk ranked where it did.",
+        "required": [
+          "fused"
+        ],
+        "properties": {
+          "filename_rank": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "1-based rank in the file-name list.",
+            "minimum": 0
+          },
+          "fused": {
+            "type": "number",
+            "format": "double",
+            "description": "Reciprocal Rank Fusion score (sum of `1 / (60 + rank)` over the retrievers)."
+          },
+          "keyword": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float",
+            "description": "`ts_rank_cd`, normalised to 0..1."
+          },
+          "keyword_rank": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "1-based rank in the keyword list.",
+            "minimum": 0
+          },
+          "rerank": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float",
+            "description": "Cross-encoder score (model specific scale), when reranked."
+          },
+          "semantic": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float",
+            "description": "Cosine similarity to the query."
+          },
+          "semantic_rank": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "1-based rank in the semantic list.",
+            "minimum": 0
+          }
+        }
+      },
+      "SearchMeta": {
+        "type": "object",
+        "description": "How a search ran.",
+        "required": [
+          "query",
+          "requested_mode",
+          "mode",
+          "degraded",
+          "reranked",
+          "warnings",
+          "has_more",
+          "timings"
+        ],
+        "properties": {
+          "degraded": {
+            "type": "boolean",
+            "description": "`true` when the search ran in a weaker mode than requested."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "More results follow this page."
+          },
+          "mode": {
+            "$ref": "#/components/schemas/SearchMode",
+            "description": "The mode that actually ran: `keyword` when semantic search was unavailable."
+          },
+          "query": {
+            "type": "string",
+            "description": "The query as searched (trimmed)."
+          },
+          "requested_mode": {
+            "$ref": "#/components/schemas/SearchMode"
+          },
+          "reranked": {
+            "type": "boolean",
+            "description": "`true` when the top results were reordered by the reranker."
+          },
+          "timings": {
+            "$ref": "#/components/schemas/Timings"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Why the search was degraded or not reranked, for display or debugging."
+          }
+        }
+      },
+      "SearchMode": {
+        "type": "string",
+        "description": "Which retrievers a search uses.",
+        "enum": [
+          "keyword",
+          "semantic",
+          "hybrid"
+        ]
+      },
+      "SimilarFile": {
+        "type": "object",
+        "description": "A file similar to another one.",
+        "required": [
+          "file",
+          "similarity"
+        ],
+        "properties": {
+          "file": {
+            "$ref": "#/components/schemas/FileInfo"
+          },
+          "similarity": {
+            "type": "number",
+            "format": "float",
+            "description": "Cosine similarity of its closest chunk to the source file's mean embedding."
+          }
+        }
+      },
+      "SimilarFiles": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SimilarFile"
+            },
+            "description": "Most similar first. Empty while the file is not embedded yet."
+          }
+        }
+      },
+      "Snippet": {
+        "type": "object",
+        "description": "An excerpt of a chunk (plain text, never HTML) with the query terms marked.",
+        "required": [
+          "text",
+          "highlights"
+        ],
+        "properties": {
+          "highlights": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Highlight"
+            }
+          },
+          "text": {
+            "type": "string",
+            "description": "Up to two fragments joined by \" … \"; the chunk's start when no term matched."
+          }
+        }
+      },
+      "Timings": {
+        "type": "object",
+        "description": "Milliseconds spent per stage (stages that did not run are 0).",
+        "required": [
+          "embed_ms",
+          "keyword_ms",
+          "semantic_ms",
+          "fetch_ms",
+          "rerank_ms",
+          "total_ms"
+        ],
+        "properties": {
+          "embed_ms": {
+            "type": "number",
+            "format": "double",
+            "description": "Embedding the query."
+          },
+          "fetch_ms": {
+            "type": "number",
+            "format": "double",
+            "description": "Loading result rows and snippets."
+          },
+          "keyword_ms": {
+            "type": "number",
+            "format": "double",
+            "description": "Keyword and file-name queries."
+          },
+          "rerank_ms": {
+            "type": "number",
+            "format": "double"
+          },
+          "semantic_ms": {
+            "type": "number",
+            "format": "double",
+            "description": "Vector query."
+          },
+          "total_ms": {
+            "type": "number",
+            "format": "double"
           }
         }
       },

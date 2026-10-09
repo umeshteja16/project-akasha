@@ -7,6 +7,7 @@
 pub mod embeddings;
 pub mod extraction;
 pub mod files;
+pub mod search;
 pub mod sessions;
 pub mod users;
 
