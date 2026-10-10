@@ -29,7 +29,10 @@ test("collections, activity and sessions", async ({ page, browser }) => {
   await page.getByRole("menuitem", { name: "New collection…" }).click();
   const dialog = page.getByRole("dialog", { name: "New collection" });
   await dialog.getByLabel("Name").fill("Birdwatching");
-  await dialog.getByRole("radio", { name: "Sky" }).check({ force: true });
+  // Click the swatch (the label): the radio itself is visually hidden, and CI's
+  // browser refused to click it ("outside of the viewport") even with force.
+  await dialog.locator("label", { has: page.getByRole("radio", { name: "Sky" }) }).click();
+  await expect(dialog.getByRole("radio", { name: "Sky" })).toBeChecked();
   await dialog.getByRole("button", { name: "Create collection" }).click();
   await expect(page.getByText("Created “Birdwatching” with 1 file", { exact: true })).toBeVisible();
 
