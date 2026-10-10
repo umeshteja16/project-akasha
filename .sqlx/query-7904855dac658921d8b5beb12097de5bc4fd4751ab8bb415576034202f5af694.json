@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(EXTRACT(EPOCH FROM now() - min(run_at)), 0)::float8 AS \"age!\"\n           FROM jobs WHERE status IN ('queued', 'failed') AND run_at <= now()",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "age!",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "7904855dac658921d8b5beb12097de5bc4fd4751ab8bb415576034202f5af694"
+}

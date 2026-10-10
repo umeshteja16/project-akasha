@@ -49,6 +49,7 @@ pub async fn transcribe(
 ) -> Result<Transcribed, MediaError> {
     let file = download(ctx, hash).await?;
     let _turn = ctx.transcriber.turn().await;
+    let started = std::time::Instant::now();
     let control = Control::default();
     let _cancel = CancelOnDrop(control.clone());
     let options = ctx.transcriber.options();
@@ -88,6 +89,7 @@ pub async fn transcribe(
             }
         }
     };
+    crate::metrics::ingest("transcribe", started);
 
     let segments: Vec<TimedText<'_>> = transcript
         .segments

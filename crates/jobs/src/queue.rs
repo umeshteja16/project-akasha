@@ -20,6 +20,8 @@ pub struct ClaimedJob {
     /// Including this one.
     pub attempts: i32,
     pub max_attempts: i32,
+    /// Seconds between the job becoming due and this claim (for metrics).
+    pub waited_secs: f64,
 }
 
 /// A job's visible state (for status displays and tests).
@@ -102,7 +104,8 @@ pub async fn claim(
            SET status = 'running', attempts = j.attempts + 1, locked_at = now(), locked_by = $1,
                progress = NULL
            FROM next WHERE j.id = next.id
-           RETURNING j.id, j.kind, j.payload, j.attempts, j.max_attempts"#,
+           RETURNING j.id, j.kind, j.payload, j.attempts, j.max_attempts,
+                     GREATEST(EXTRACT(EPOCH FROM now() - j.run_at), 0)::float8 AS "waited_secs!""#,
         worker,
         kinds,
         limit,
@@ -311,4 +314,40 @@ fn truncate(error: &str) -> String {
         Some((cut, _)) => format!("{}…", &error[..cut]),
         None => error.to_owned(),
     }
+}
+
+/// Jobs per kind and state (finished `succeeded` ones excluded), for metrics.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DepthRow {
+    pub kind: String,
+    pub status: String,
+    pub count: i64,
+}
+
+/// Queue depth and the age of the oldest due job still waiting.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Depth {
+    pub counts: Vec<DepthRow>,
+    pub oldest_due_secs: f64,
+}
+
+pub async fn depth(pool: &PgPool) -> Result<Depth, sqlx::Error> {
+    let counts = sqlx::query_as!(
+        DepthRow,
+        r#"SELECT kind, status, count(*) AS "count!" FROM jobs
+           WHERE status IN ('queued', 'running', 'failed', 'dead')
+           GROUP BY kind, status"#
+    )
+    .fetch_all(pool)
+    .await?;
+    let oldest = sqlx::query_scalar!(
+        r#"SELECT COALESCE(EXTRACT(EPOCH FROM now() - min(run_at)), 0)::float8 AS "age!"
+           FROM jobs WHERE status IN ('queued', 'failed') AND run_at <= now()"#
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(Depth {
+        counts,
+        oldest_due_secs: oldest.max(0.0),
+    })
 }

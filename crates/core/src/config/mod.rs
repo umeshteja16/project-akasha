@@ -53,6 +53,13 @@ pub struct Config {
     pub watch_scan_minutes: u64,
     /// Watch folders for changes (inotify etc.) and import them within seconds.
     pub watch_fs_events: bool,
+    /// Prometheus metrics (ADR 0019).
+    pub metrics_enabled: bool,
+    /// Serve `/metrics` on this separate address (no auth: keep it private), e.g.
+    /// `0.0.0.0:9090`. Empty: `/metrics` on the main port with [`Self::metrics_token`].
+    pub metrics_bind_addr: String,
+    /// Bearer token for `/metrics` on the main port.
+    pub metrics_token: Option<Secret>,
     /// Where uploaded file contents are kept.
     pub storage_backend: StorageBackend,
     /// Root directory for the `local` storage backend.
@@ -195,6 +202,9 @@ impl Default for Config {
             watch_roots: Vec::new(),
             watch_scan_minutes: 15,
             watch_fs_events: true,
+            metrics_enabled: false,
+            metrics_bind_addr: String::new(),
+            metrics_token: None,
             storage_backend: StorageBackend::Local,
             storage_dir: "./storage".into(),
             storage_s3_bucket: None,

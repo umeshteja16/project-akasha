@@ -106,7 +106,7 @@ async fn run() -> anyhow::Result<()> {
     }
 
     let config = Config::load()?;
-    telemetry::init(config.log_format);
+    let _telemetry = telemetry::init(config.log_format);
 
     match cli.command {
         Command::Serve { with_worker } => {

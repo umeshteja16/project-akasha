@@ -46,7 +46,8 @@ pub fn options(config: &Config) -> LlmOptions {
 /// work (strict offline mode with a cloud provider, a missing key): `serve`
 /// refuses to start on them.
 pub fn build(config: &Config) -> Result<Option<Arc<dyn ChatModel>>, LlmError> {
-    let model = akasha_llm::build(&options(config))?;
+    let model = akasha_llm::build(&options(config))?
+        .map(|m| Arc::new(crate::metrics::llm::Metered(m)) as Arc<dyn ChatModel>);
     match &model {
         Some(m) => tracing::info!(
             provider = m.provider(),

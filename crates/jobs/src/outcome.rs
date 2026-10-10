@@ -15,9 +15,16 @@ pub(crate) async fn record(
     outcome: Result<(), JobError>,
     elapsed_ms: u64,
 ) {
+    let finished = |outcome: &'static str| {
+        metrics::counter!("akasha_jobs_finished_total", "kind" => job.kind.clone(), "outcome" => outcome)
+            .increment(1);
+    };
     match outcome {
         Ok(()) => match queue::complete(pool, worker, job).await {
-            Ok(true) => tracing::info!(elapsed_ms, "job succeeded"),
+            Ok(true) => {
+                finished("succeeded");
+                tracing::info!(elapsed_ms, "job succeeded");
+            }
             Ok(false) => tracing::warn!(elapsed_ms, "job succeeded but was no longer ours"),
             Err(err) => tracing::error!(%err, "could not record job success"),
         },
@@ -26,9 +33,11 @@ pub(crate) async fn record(
             let message = error.to_string();
             match queue::fail(pool, worker, job, &message, retry).await {
                 Ok(Failed::Retrying) => {
+                    finished("retry");
                     tracing::warn!(elapsed_ms, error = %message, "job failed; will retry");
                 }
                 Ok(Failed::Dead) => {
+                    finished("dead");
                     tracing::error!(elapsed_ms, error = %message, "job dead-lettered");
                 }
                 Ok(Failed::Lost) => {

@@ -16,6 +16,7 @@ pub mod files;
 pub mod jobs;
 pub mod llm;
 pub mod mcp;
+pub mod metrics;
 pub mod rate_limit;
 pub mod routes;
 pub mod sources;
@@ -42,8 +43,17 @@ const REQUEST_ID: HeaderName = HeaderName::from_static("x-request-id");
 /// Build the full HTTP application.
 pub fn app(state: AppState) -> Router {
     let trusted = std::sync::Arc::clone(&state.trusted_proxies);
-    let routes = routes::router(&state)
-        .with_state(state)
+    let metrics_enabled = state.config.metrics_enabled;
+    let scrape = metrics::main_port_route(&state.config);
+    let mut routes = routes::router(&state).with_state(state);
+    if let Some(scrape) = scrape {
+        routes = routes.merge(scrape);
+    }
+    if metrics_enabled {
+        // Per route (MatchedPath is known), outside the route's own layers.
+        routes = routes.layer(axum::middleware::from_fn(metrics::track));
+    }
+    let routes = routes
         // Outside every route layer, so the rate limiter sees the real client.
         .layer(axum::middleware::from_fn_with_state(
             trusted,
@@ -51,7 +61,7 @@ pub fn app(state: AppState) -> Router {
         ));
     web::security_headers(routes)
         .layer(CatchPanicLayer::new())
-        .layer(TraceLayer::new_for_http())
+        .layer(TraceLayer::new_for_http().make_span_with(telemetry::request_span))
         .layer(PropagateRequestIdLayer::new(REQUEST_ID))
         .layer(SetRequestIdLayer::new(REQUEST_ID, MakeRequestUuid))
 }
@@ -73,6 +83,8 @@ pub async fn run_migrate(config: Config) -> anyhow::Result<()> {
 /// process (single-box installs). Both stop on SIGINT/SIGTERM: the server drains
 /// requests, the worker finishes in-flight jobs within its grace period.
 pub async fn run_serve(config: Config, with_worker: bool) -> anyhow::Result<()> {
+    metrics::check_config(&config)?;
+    metrics::install(&config)?;
     client_ip::TrustedProxies::parse(&config.trusted_proxies)
         .map_err(anyhow::Error::msg)
         .context("AKASHA_TRUSTED_PROXIES")?;
@@ -100,6 +112,8 @@ pub async fn run_serve(config: Config, with_worker: bool) -> anyhow::Result<()> 
         vec![state.search_limiter.clone(), state.chat_limiter.clone()],
     );
     let stop = shutdown_trigger();
+    metrics::spawn_listener(&state.config, wait_for(stop.clone())).await?;
+    metrics::spawn_collector(state.db.clone(), Some(std::sync::Arc::clone(&state.ml)));
 
     warm_up_search(&state);
     let worker = if with_worker {
@@ -140,6 +154,13 @@ pub async fn run_worker(config: Config) -> anyhow::Result<()> {
     let ctx = jobs::JobContext::new(pool, storage, &config).with_llm(llm);
     warm_up(&ctx);
     let stop = shutdown_trigger();
+    if config.metrics_enabled && config.metrics_bind_addr.trim().is_empty() {
+        tracing::warn!("worker metrics need AKASHA_METRICS_BIND_ADDR; not exposing them");
+    } else {
+        metrics::install(&config)?;
+        metrics::spawn_listener(&config, wait_for(stop.clone())).await?;
+        metrics::spawn_collector(ctx.db.clone(), Some(std::sync::Arc::clone(&ctx.ml)));
+    }
     sources::watch::spawn(ctx.db.clone(), &config, wait_for(stop.clone()));
     jobs::worker(ctx, &config)?.run(wait_for(stop)).await?;
     tracing::info!("shut down cleanly");

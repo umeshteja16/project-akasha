@@ -26,7 +26,8 @@ crates/llm    chat model providers (Ollama, Claude, Gemini, OpenAI-compatible, f
 crates/app    the `akasha` binary: axum routes (src/routes/*), auth/, jobs/ (job kinds +
               handlers), chat/ (grounded answers), enrich/ (file summaries + suggested
               tags, ADR 0013), eval/ (`akasha eval`), mcp/ (MCP server at /mcp + `akasha mcp`
-              stdio bridge, ADR 0015), state, telemetry
+              stdio bridge, ADR 0015), sources/ (watched folders, ADR 0018), metrics/
+              (Prometheus, ADR 0019), cpu (AVX2 build dispatch), state, telemetry (+ OTLP)
 eval/         search benchmark: corpus/, queries.json, gate.json, baselines/ (ADR 0011)
 .sqlx/        offline cache of checked SQL queries (`just sqlx-prepare`)
 web/          React + TS frontend (Vite, Tailwind 4, Radix ui/, TanStack Router + Query,

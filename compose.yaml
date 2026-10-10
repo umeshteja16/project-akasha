@@ -4,6 +4,8 @@
 # With Ollama in a container too:
 #   AKASHA_OLLAMA_URL=http://ollama:11434 docker compose --profile app --profile ollama up --build
 #   docker compose exec ollama ollama pull llama3.1:8b
+# Monitoring (Prometheus on :9091, Grafana on :3000 with the Akasha dashboard):
+#   AKASHA_METRICS_ENABLED=true docker compose --profile app --profile monitoring up --build
 services:
   postgres:
     image: pgvector/pgvector:pg17
@@ -42,6 +44,15 @@ services:
       AKASHA_STRICT_OFFLINE: ${AKASHA_STRICT_OFFLINE:-false}
       AKASHA_ANTHROPIC_API_KEY: ${AKASHA_ANTHROPIC_API_KEY:-}
       AKASHA_GEMINI_API_KEY: ${AKASHA_GEMINI_API_KEY:-}
+      # Watched folders (Settings → Sources): mount folders under /watch (see volumes)
+      # and allow them here, e.g. AKASHA_WATCH_ROOTS=/watch.
+      AKASHA_WATCH_ROOTS: ${AKASHA_WATCH_ROOTS:-}
+      # Prometheus metrics on a separate port that is not published on the host; the
+      # `monitoring` profile scrapes it over the Compose network.
+      AKASHA_METRICS_ENABLED: ${AKASHA_METRICS_ENABLED:-false}
+      AKASHA_METRICS_BIND_ADDR: 0.0.0.0:9090
+      # Traces to an OpenTelemetry collector (OTLP over HTTP), e.g. http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     # host.docker.internal resolves to the host on Linux too (Docker Desktop has it built in).
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -50,6 +61,8 @@ services:
     volumes:
       - storage:/var/lib/akasha/storage
       - models:/var/lib/akasha/models
+      # A folder to watch, read-only (Akasha never changes it), e.g. an Obsidian vault:
+      # - ~/Documents/Vault:/watch/Vault:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -70,8 +83,34 @@ services:
       timeout: 5s
       retries: 10
 
+  # `--profile monitoring`: Prometheus scrapes akasha:9090, Grafana shows
+  # deploy/grafana/akasha.json (admin password: GRAFANA_PASSWORD, default "admin").
+  prometheus:
+    profiles: ["monitoring"]
+    image: prom/prometheus:v3.5.0
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus:/prometheus
+    ports:
+      - "127.0.0.1:9091:9090"
+
+  grafana:
+    profiles: ["monitoring"]
+    image: grafana/grafana:12.1.1
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/akasha.json:/var/lib/grafana/dashboards/akasha.json:ro
+      - grafana:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on: [prometheus]
+
 volumes:
   pgdata:
   storage:
   models:
   ollama:
+  prometheus:
+  grafana:

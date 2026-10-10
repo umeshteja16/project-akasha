@@ -17,24 +17,31 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 
 | | |
 |---|---|
-| **Current step** | Step 6: Beyond parity (6a MCP + API tokens, 6b collections + activity + audit log, 6c trusted proxies + audio/video transcription done) |
+| **Current step** | Step 7: Release v0.1 (step 6 complete) |
 | **Last updated** | 2026-10-10 |
-| **`just check`** | passing (332 Rust tests + 6 ignored OCR/real-model/Whisper tests, 104 web tests, bundle budget 174/180 kB); `just e2e` 11 Playwright tests (incl. axe on every screen, tokens + `/mcp`, collections + sessions, recordings) |
+| **`just check`** | passing (359 Rust tests + 6 ignored OCR/real-model/Whisper tests, 108 web tests, bundle budget 174/180 kB); `just e2e` 11 Playwright tests (incl. axe on every screen, tokens + `/mcp`, collections + sessions, recordings, watched folder) |
 | **Old code** | `legacy/` (read-only reference; deleted in step 7) |
 
 ## Next up
 
-**Step 6: beyond parity.** Step 5 (web UI) is complete. In order; each ends with
-`just check` green, `just e2e` green and a PROGRESS.md update:
+**Step 7: release v0.1.** Step 6 is complete (MCP + tokens, collections/activity/audit
+log, trusted proxies, transcription, portable multi-arch image, watched folders,
+metrics + traces). In order; each ends with `just check` green, `just e2e` green and a
+PROGRESS.md update:
 
-Done in step 6 so far: **MCP server + personal API tokens** (6a, ADR 0015);
-**collections, activity timeline, security log, sessions and open tracking** with their
-screens (6b, ADR 0016); **trusted reverse proxies** and **audio/video transcription**
-(whisper.cpp, timestamps in search and citations, transcript player; 6c, ADR 0017).
-
-1. **Observability**: Prometheus `/metrics` (search latency, job queue depth, model load
-   state from `system::status`, transcription progress), OpenTelemetry export behind a feature.
-2. **Watched folders / connectors** (Obsidian vault, Downloads) via the job queue.
+1. **Parity audit**: walk the legacy inventory below against the new app (API + UI),
+   note any gap (e.g. legacy "capture", refresh tokens → sessions) as fixed or
+   deliberately dropped, then delete `legacy/` (and its CI/tooling leftovers).
+2. **Operations docs**: backup and restore (Postgres dump + storage dir/S3 bucket +
+   models volume; a tested restore script), upgrade notes (migrations run on start,
+   `akasha reembed` when changing models), configuration reference generated from
+   `Config` or kept in one README table.
+3. **Release mechanics**: version 0.1.0 in the workspace, CHANGELOG, make the no-AVX QEMU
+   CI step required (or narrow it to Whisper) once its run time is known, run
+   `release.yml` on a `v0.1.0` tag and check the ghcr.io manifest (amd64 + arm64) by
+   pulling and running `models check` on both.
+4. **First-run polish found while doing the above** (only small fixes; bigger items go
+   to the follow-ups below).
 
 Transcription follow-ups: run a real Whisper model on real speech (only the fake model ran
 here: Hugging Face is blocked in cloud sessions; CI's Docker smoke test runs `tiny` on a
@@ -115,14 +122,14 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 - [x] Rust binary serves the built UI (`rust-embed`, feature `embed-ui`), so production is a single binary
 - [x] Playwright end-to-end tests in CI (auth, library, search, chat, accessibility)
 
-### Step 6: Beyond parity
+### Step 6: Beyond parity ✅
 - [x] MCP server (`rmcp`, Streamable HTTP at `/mcp` + `akasha mcp` stdio bridge) and personal API tokens (scopes, expiry, revocation, Settings → Access tokens)
 - [x] Audio/video transcription (whisper.cpp via `whisper-rs`, pure-Rust decoding, timestamps in search/citations/MCP, transcript player; ADR 0017)
 - [x] Trusted reverse proxies (`AKASHA_TRUSTED_PROXIES`: client IP for rate limits, security log, sessions; `Secure` cookies via `X-Forwarded-Proto`)
 - [x] CPU-portable, multi-arch image: amd64 runs on any SSE4.2 CPU and switches to an AVX2 build at start-up; linux/arm64 (Raspberry Pi 4/5); release workflow to ghcr.io
 - [x] Watched folders (`AKASHA_WATCH_ROOTS`, Settings → Sources, scan job + `notify` watcher, renames, front-matter tags; ADR 0018). Other connectors (IMAP, WebDAV, cloud drives) deferred
 - [x] Collections, activity timeline, security audit log, sessions, open tracking (legacy parity; API + screens, ADR 0016)
-- [ ] OpenTelemetry export + Prometheus `/metrics`
+- [x] Prometheus `/metrics` (separate port or bearer token) + OpenTelemetry traces over OTLP (feature `otel`, request-id correlation), Grafana dashboard, compose `--profile monitoring` (ADR 0019)
 
 ### Step 7: Release v0.1
 - [ ] Feature parity with `legacy/` confirmed against the list below; delete `legacy/`
@@ -512,6 +519,18 @@ See [`docs/adr/`](docs/adr). Summary:
   `Box<dyn FnMut>`, calls it as `F`): only ever pass it a `Box<dyn FnMut() -> bool>`,
   otherwise whisper aborts with "failed to encode" (-6). Only the Docker smoke test
   (`models check` with `tiny`) runs real Whisper in CI.
+- Observability (ADR 0019, `crates/app/src/metrics/`): the `metrics` facade is a no-op
+  until `metrics::install` sets the global recorder (once per process; tests that need it
+  install it themselves, `tests/metrics.rs`). HTTP metrics are labelled with the matched
+  route template (`axum::middleware::from_fn(metrics::track)` on the router, so
+  `MatchedPath` is known); job duration/wait/outcome are recorded in `akasha-jobs`
+  (`ClaimedJob.waited_secs`), search stages in `akasha-search`, ingest stages in the job
+  handlers, LLM calls/tokens by `metrics::llm::Metered` (wraps the model in `llm::build`).
+  Queue depth/model gauges refresh every 15 s. `serve` refuses metrics on the main port
+  without `AKASHA_METRICS_TOKEN`. OTel: `telemetry::init` returns a guard that flushes on
+  drop; request spans carry `request_id` and path (never the query string). Neither the
+  OTLP export nor the compose monitoring profile could be run here (no collector/Docker);
+  the Grafana dashboard JSON is untested against a live Grafana.
 - Watched folders (ADR 0018, `crates/app/src/sources/`, migration 0016): scans skip files
   modified in the last 2 s, so tests set mtimes in the past (`File::set_modified`) and
   must run jobs with a config that has `watch_roots` (`run_jobs_with(&t.config)`): the
@@ -544,6 +563,7 @@ See [`docs/adr/`](docs/adr). Summary:
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
 
+- 2026-10-10 · Claude (cloud) · Observability: Prometheus metrics (HTTP by route, jobs outcome/duration/wait/depth, ingest stages, search stages, LLM calls/tokens, model readiness, build info) on a separate listener or token-protected `/metrics`, OTLP/HTTP trace export (feature `otel`) with request-id and `traceparent`, `deploy/grafana/akasha.json`, compose `--profile monitoring`, ADR 0019, README "Monitoring". CI: no-AVX QEMU step bounded and informational. Step 6 complete; Next up is Step 7.
 - 2026-10-10 · Claude (cloud) · Watched folders: migration 0016 (`sources`, `source_files`), `/api/v1/sources` CRUD + rescan, `scan_source`/`scan_all_sources` jobs (batched, resumable, rename detection, quota/unreadable retries, empty-folder guard), debounced `notify` watcher, O_NOFOLLOW + inode-checked opens, globs, Obsidian front-matter tags, `source.*` activity events; Settings → Sources UI; tests: db (5), unit (paths, filter, walk, front matter, debounce), HTTP (import, change, rename, delete, keep, symlink escape, roots, owner isolation, token scope, pause, remove), Vitest, e2e step with axe.
 - 2026-10-10 · Claude (cloud) · CPU portability: portable (SSE4.2) + AVX2 builds of the binary in the amd64 image with start-up dispatch (`cpu.rs`), arm64 image, CI docker matrix on native arm runners + no-AVX QEMU smoke test, `release.yml` multi-arch push to ghcr.io, README "Supported platforms". The Docker build cannot run here (no daemon); CI verifies it.
 - 2026-10-10 · Claude (cloud) · Step 6c transcription: new `crates/media` (Symphonia + `opus-decoder` decoding to 16 kHz mono with a streaming windowed-sinc resampler, windowed transcription with quiet-point cuts, cancellation, progress, Whisper model catalog with pinned SHA-256 and streamed download, whisper.cpp via `whisper-rs` 0.16, deterministic tone model), migration 0015 (`file_extractions.segments/duration_ms`, `file_chunks.start_ms/end_ms`, `jobs.progress`), `extract_file` transcribes audio/video (`AKASHA_TRANSCRIBE_*`, `AKASHA_WHISPER_MODEL`), times in search results, chat citations/prompt and MCP, transcription in system status and `models download/check`; UI: lazily loaded player + timestamped transcript (seek, active line, `?t=`), times on search results/citations/palette, "Transcribing N%" in the timeline. Docker installs cmake and builds portable whisper.cpp; CI smoke test runs Whisper `tiny`. Tests: media unit/integration (formats incl. MP4/WebM with video, resampling, windowing, cap, cancel), ingest transcript chunking, job progress, HTTP (upload WAV → timed chunks → search/chat), Vitest, e2e recording flow with axe. Also made the chat e2e move the mouse off a citation before asking again (hover popover flake). CI's Docker smoke test then caught a whisper-rs abort-callback bug (real Whisper aborted every run); fixed with a correctly typed callback.

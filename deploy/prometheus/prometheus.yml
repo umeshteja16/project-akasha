@@ -1,0 +1,7 @@
+# Scrapes Akasha's metrics listener (AKASHA_METRICS_BIND_ADDR) on the Compose network.
+global:
+  scrape_interval: 15s
+scrape_configs:
+  - job_name: akasha
+    static_configs:
+      - targets: ["akasha:9090"]

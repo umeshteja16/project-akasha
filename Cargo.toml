@@ -63,6 +63,13 @@ walkdir = "2"
 globset = "0.4"
 notify = "8"
 libc = "0.2"
+# Observability (ADR 0019): Prometheus metrics, OpenTelemetry traces over OTLP/HTTP.
+metrics = "0.24"
+metrics-exporter-prometheus = { version = "0.18", default-features = false }
+opentelemetry = { version = "0.33", default-features = false, features = ["trace"] }
+opentelemetry_sdk = { version = "0.33", default-features = false, features = ["trace"] }
+opentelemetry-otlp = { version = "0.33", default-features = false, features = ["http-proto", "trace", "reqwest-blocking-client"] }
+tracing-opentelemetry = { version = "0.34", default-features = false }
 # Extraction (crates/ingest, ADR 0008). lopdf must match the version pdf-extract uses.
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif", "tiff"] }
 lopdf = { version = "0.42", default-features = false }

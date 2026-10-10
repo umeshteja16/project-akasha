@@ -156,6 +156,7 @@ async fn embed_blocking(
     embedder: Arc<dyn Embedder>,
     texts: Vec<String>,
 ) -> Result<Vec<f32>, Failure> {
+    let started = std::time::Instant::now();
     let joined = tokio::task::spawn_blocking(move || {
         let refs: Vec<&str> = texts.iter().map(String::as_str).collect();
         let vectors = embedder.embed_documents(&refs)?;
@@ -168,6 +169,7 @@ async fn embed_blocking(
         Ok(vectors.concat())
     })
     .await;
+    crate::metrics::ingest("embed", started);
     match joined {
         Ok(result) => Ok(result?),
         Err(err) => Err(Failure::retry(format!("embedding task failed: {err}"))),

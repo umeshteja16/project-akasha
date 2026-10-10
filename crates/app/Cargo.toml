@@ -10,12 +10,14 @@ name = "akasha"
 path = "src/main.rs"
 
 [features]
-default = ["onnx", "whisper"]
+default = ["onnx", "whisper", "otel"]
 # Real embedding/rerank models through ONNX Runtime (loaded at run time).
 onnx = ["akasha-ml/onnx"]
 # Real speech-to-text with whisper.cpp (compiled from source: needs cmake and a C++
 # compiler). Without it, only the test transcriber (`AKASHA_WHISPER_MODEL=fake`) works.
 whisper = ["akasha-media/whisper"]
+# OpenTelemetry trace export (OTLP/HTTP) when OTEL_EXPORTER_OTLP_ENDPOINT is set.
+otel = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp", "dep:tracing-opentelemetry"]
 # Embed the built web UI from web/dist (run `pnpm build` in web/ first). Without it
 # the server is API-only and the UI is served by Vite in development.
 embed-ui = ["dep:rust-embed"]
@@ -44,8 +46,13 @@ governor.workspace = true
 infer.workspace = true
 ipnet.workspace = true
 libc.workspace = true
+metrics.workspace = true
+metrics-exporter-prometheus.workspace = true
 mime_guess.workspace = true
 notify.workspace = true
+opentelemetry = { workspace = true, optional = true }
+opentelemetry_sdk = { workspace = true, optional = true }
+opentelemetry-otlp = { workspace = true, optional = true }
 reqwest.workspace = true
 rmcp.workspace = true
 schemars.workspace = true
@@ -61,6 +68,7 @@ tokio.workspace = true
 tower-http.workspace = true
 tower_governor.workspace = true
 tracing.workspace = true
+tracing-opentelemetry = { workspace = true, optional = true }
 tracing-subscriber.workspace = true
 utoipa.workspace = true
 uuid.workspace = true

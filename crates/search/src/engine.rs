@@ -92,6 +92,7 @@ pub async fn search_chunks(
         })
         .collect();
     meta.timings.total_ms = ms(started);
+    record(&meta.timings);
     Ok(ChunkResults { meta, results })
 }
 
@@ -116,7 +117,27 @@ pub async fn search_files(
     meta.has_more = files.len() > window && window < MAX_WINDOW;
     let results = files.into_iter().skip(req.offset).take(req.limit).collect();
     meta.timings.total_ms = ms(started);
+    record(&meta.timings);
     Ok(FileResults { meta, results })
+}
+
+/// Stage timings as Prometheus histograms (`akasha_search_duration_seconds{stage}`; a
+/// no-op unless the server installed a metrics recorder).
+fn record(timings: &Timings) {
+    let stages = [
+        ("keyword", timings.keyword_ms),
+        ("embed", timings.embed_ms),
+        ("semantic", timings.semantic_ms),
+        ("fetch", timings.fetch_ms),
+        ("rerank", timings.rerank_ms),
+        ("total", timings.total_ms),
+    ];
+    for (stage, ms) in stages {
+        if ms > 0.0 || stage == "total" {
+            metrics::histogram!("akasha_search_duration_seconds", "stage" => stage)
+                .record(ms / 1000.0);
+        }
+    }
 }
 
 /// Checks the request; returns `offset + limit`.

@@ -231,6 +231,32 @@ volume) deletes nothing. Large trees are imported in batches; on Linux, raise
 `fs.inotify.max_user_watches` for very large ones (periodic scans still cover them).
 Design: ADR 0018.
 
+## Monitoring
+
+Prometheus metrics (HTTP requests and latency by route, job queue depth, wait, duration
+and failures by kind, extraction/embedding/transcription time, search latency by stage,
+language-model calls and tokens, model readiness):
+
+```sh
+AKASHA_METRICS_ENABLED=true
+AKASHA_METRICS_BIND_ADDR=0.0.0.0:9090      # separate listener, no auth: keep it private
+# or, on the main port with a token:
+AKASHA_METRICS_TOKEN=some-long-random-string   # scrape with Authorization: Bearer <token>
+```
+
+`akasha worker` processes expose their (job) metrics only on `AKASHA_METRICS_BIND_ADDR`.
+`docker compose --profile app --profile monitoring up` adds Prometheus
+(http://localhost:9091) and Grafana (http://localhost:3000, user `admin`, password
+`GRAFANA_PASSWORD` or `admin`) with the dashboard in
+[`deploy/grafana/akasha.json`](deploy/grafana/akasha.json) (import it into any Grafana
+too; it expects a Prometheus data source with uid `prometheus`).
+
+Traces: set `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g. `http://otel-collector:4318`) to export
+OpenTelemetry spans over OTLP/HTTP; the other standard `OTEL_*` variables apply
+(`OTEL_SERVICE_NAME` defaults to `akasha`). Request spans carry the `x-request-id` that
+every response returns (and that JSON logs include), and continue an incoming
+`traceparent`. Design: ADR 0019.
+
 ## Deploying behind a reverse proxy (HTTPS)
 
 Run Akasha on a private address and put a TLS-terminating proxy in front. Tell Akasha

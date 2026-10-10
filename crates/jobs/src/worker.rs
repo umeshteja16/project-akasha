@@ -206,7 +206,12 @@ impl<C: Clone + Send + Sync + 'static> Worker<C> {
                     ))),
                 },
             };
-            let elapsed_ms = u64::try_from(clock.elapsed().as_millis()).unwrap_or(u64::MAX);
+            let elapsed = clock.elapsed();
+            let elapsed_ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
+            let kind = job.kind.clone();
+            metrics::histogram!("akasha_job_duration_seconds", "kind" => kind.clone())
+                .record(elapsed.as_secs_f64());
+            metrics::histogram!("akasha_job_wait_seconds", "kind" => kind).record(job.waited_secs);
             record(&pool, &worker, &job, outcome, elapsed_ms).await;
         }
         .instrument(span)

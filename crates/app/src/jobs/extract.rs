@@ -175,6 +175,7 @@ async fn extract_blocking(
     mime: String,
     ocr: Option<Arc<Ocr>>,
 ) -> Result<(Extraction, Vec<Chunk>), Failure> {
+    let started = std::time::Instant::now();
     let joined = tokio::task::spawn_blocking(move || {
         let options = Options {
             ocr: ocr.as_deref(),
@@ -185,6 +186,7 @@ async fn extract_blocking(
         Ok::<_, IngestError>((extraction, chunks))
     })
     .await;
+    crate::metrics::ingest("extract", started);
     match joined {
         Ok(result) => Ok(result?),
         Err(err) => Err(Failure::retry(format!("extraction task failed: {err}"))),
