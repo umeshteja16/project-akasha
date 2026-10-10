@@ -44,7 +44,9 @@ pub async fn ask(state: &AppState, caller: Caller, a: AskArgs) -> ToolResult {
     if file_ids.len() > MAX_FILE_IDS {
         return Err(ToolError::new(format!("at most {MAX_FILE_IDS} file_ids")));
     }
-    rate_limit::check_user(&state.chat_limiter, caller.user_id, "questions")?;
+    rate_limit::check_user_audited(&state.db, &state.chat_limiter, caller.actor(), "questions")?;
+    let collection_id =
+        super::collections::resolve_opt(state, caller, a.collection.as_deref()).await?;
     let req = SearchRequest {
         query: question
             .chars()
@@ -53,6 +55,7 @@ pub async fn ask(state: &AppState, caller: Caller, a: AskArgs) -> ToolResult {
         mode: SearchMode::Hybrid,
         filter: ChunkFilter {
             file_ids,
+            collection_id,
             ..ChunkFilter::default()
         },
         limit: RETRIEVE,

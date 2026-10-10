@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     files::{
-        name, sniff,
+        edit, name, sniff,
         store::{self, Saved},
     },
     routes::files::types::normalize_tags,
@@ -63,7 +63,7 @@ pub async fn add_note(state: &AppState, caller: Caller, a: NoteArgs) -> ToolResu
     }
     let blob = staged.finish().await.map_err(Error::from)?;
     let (file, created) =
-        match store::save(state, caller.user_id, blob, &file_name, detected.mime).await? {
+        match store::save(state, caller.actor(), blob, &file_name, detected.mime).await? {
             Saved::Created(f) => (f, true),
             Saved::Existing(f) => (f, false),
         };
@@ -78,7 +78,7 @@ pub async fn add_note(state: &AppState, caller: Caller, a: NoteArgs) -> ToolResu
                 tags: Some(&merged),
                 auto_tags: None,
             };
-            files::update(&state.db, caller.user_id, file.id, changes)
+            edit::update(state, caller.actor(), file.id, changes)
                 .await?
                 .unwrap_or(file)
         }
@@ -126,7 +126,7 @@ pub async fn tag_file(state: &AppState, caller: Caller, a: TagArgs) -> ToolResul
         tags: Some(&tags),
         auto_tags: None,
     };
-    let file = files::update(&state.db, caller.user_id, a.file_id, changes)
+    let file = edit::update(state, caller.actor(), a.file_id, changes)
         .await?
         .ok_or_else(not_found)?;
     Ok(json!({ "file_id": file.id, "name": file.original_name, "tags": file.tags }))

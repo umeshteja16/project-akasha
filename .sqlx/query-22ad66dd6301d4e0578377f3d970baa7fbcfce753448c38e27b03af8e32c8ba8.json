@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE api_tokens t SET revoked_at = coalesce(t.revoked_at, now())\n           FROM (SELECT id, revoked_at FROM api_tokens\n                 WHERE owner_id = $1 AND id = $2 FOR UPDATE) old\n           WHERE t.id = old.id\n           RETURNING t.name, old.revoked_at IS NULL AS \"newly!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "newly!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "22ad66dd6301d4e0578377f3d970baa7fbcfce753448c38e27b03af8e32c8ba8"
+}

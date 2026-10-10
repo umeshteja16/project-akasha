@@ -6,7 +6,7 @@ use akasha_jobs::{JobError, queue};
 
 use super::{
     JobContext,
-    kinds::{PruneJobs, PruneSessions, PruneStaging},
+    kinds::{PruneActivity, PruneJobs, PruneSessions, PruneStaging},
 };
 
 /// Staged uploads older than this are abandoned. Must exceed the upload request
@@ -36,6 +36,19 @@ pub async fn prune_jobs(ctx: JobContext, _job: PruneJobs) -> Result<(), JobError
     let n = queue::prune_finished(&ctx.db, KEEP_SUCCEEDED, KEEP_DEAD).await?;
     if n > 0 {
         tracing::info!(count = n, "pruned finished jobs");
+    }
+    Ok(())
+}
+
+/// Idempotent: deletes whatever is older than the retention period right now.
+pub async fn prune_activity(ctx: JobContext, _job: PruneActivity) -> Result<(), JobError> {
+    let days = ctx.config.activity_retention_days;
+    if days == 0 {
+        return Ok(());
+    }
+    let n = akasha_db::activity::prune(&ctx.db, days).await?;
+    if n > 0 {
+        tracing::info!(count = n, days, "pruned old activity events");
     }
     Ok(())
 }

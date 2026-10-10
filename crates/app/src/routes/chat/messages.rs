@@ -17,6 +17,7 @@ use super::{
     types::{MAX_QUESTION_CHARS, PostMessage, auto_title, check_scope},
 };
 use crate::{
+    activity::{self, ActivityKind, Actor},
     auth::AuthUser,
     chat::turn::Turn,
     error::{ApiError, ErrorBody},
@@ -62,7 +63,7 @@ pub async fn post(
     Json(body): Json<PostMessage>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, ApiError> {
     let started = Instant::now();
-    rate_limit::check_user(&state.chat_limiter, auth.user_id, "questions")?;
+    rate_limit::check_user_audited(&state.db, &state.chat_limiter, (&auth).into(), "questions")?;
     let question = body.content.trim().to_owned();
     if question.is_empty() || question.chars().count() > MAX_QUESTION_CHARS {
         return Err(Error::bad_request(format!(
@@ -73,7 +74,10 @@ pub async fn post(
     let conversation = chat::get_conversation(&state.db, auth.user_id, id)
         .await?
         .ok_or_else(not_found)?;
-    let filter = filter(&body, conversation.file_ids)?;
+    let filter = filter(&body, conversation.file_ids, conversation.collection_id)?;
+    if let Some(collection) = filter.collection_id {
+        crate::routes::collections::ensure_owned(&state, auth.user_id, collection).await?;
+    }
     let history_len = i64::from(state.config.chat_history_messages);
     let history = chat::history(&state.db, auth.user_id, id, history_len).await?;
 
@@ -96,6 +100,10 @@ pub async fn post(
     .await?
     .ok_or_else(not_found)?;
     chat::set_title_if_empty(&mut tx, auth.user_id, id, &auto_title(&question)).await?;
+    let mut ev = activity::event(Actor::from(&auth), ActivityKind::ChatAsked);
+    ev.subject = Some(&question);
+    ev.conversation_id = Some(id);
+    activity::record(&mut tx, &ev).await?;
     tx.commit().await?;
 
     let turn = Turn {
@@ -117,7 +125,11 @@ pub async fn post(
 }
 
 /// The question's own scope, else the conversation's.
-fn filter(body: &PostMessage, scope: Vec<uuid::Uuid>) -> Result<ChunkFilter, Error> {
+fn filter(
+    body: &PostMessage,
+    scope: Vec<uuid::Uuid>,
+    collection: Option<uuid::Uuid>,
+) -> Result<ChunkFilter, Error> {
     let file_ids = body.file_ids.clone().unwrap_or(scope);
     check_scope(&file_ids)?;
     Ok(ChunkFilter {
@@ -127,6 +139,7 @@ fn filter(body: &PostMessage, scope: Vec<uuid::Uuid>) -> Result<ChunkFilter, Err
             .unwrap_or_default(),
         tags: normalize_tags(body.tags.as_deref().unwrap_or_default())?,
         file_ids,
+        collection_id: body.collection_id.or(collection),
         ..ChunkFilter::default()
     })
 }

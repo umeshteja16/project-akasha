@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH del AS (\n               DELETE FROM collection_files\n               WHERE owner_id = $1 AND collection_id = $2 AND file_id = ANY($3::uuid[])\n               RETURNING file_id\n           )\n           SELECT f.id, f.original_name AS name\n           FROM del JOIN files f ON f.id = del.file_id AND f.owner_id = $1\n           ORDER BY array_position($3::uuid[], f.id)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "5859fc8f56438a38ac23579d4d0903e24808fdeaf23af92e4f1d90a17b5ac852"
+}

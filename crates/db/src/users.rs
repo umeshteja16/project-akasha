@@ -12,6 +12,8 @@ pub struct User {
     pub display_name: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Record searches (with their query) in the activity timeline.
+    pub record_search_history: bool,
 }
 
 /// Outcome of [`create`]: the email may already be registered.
@@ -33,7 +35,7 @@ pub async fn create(
            VALUES ($1, $2, $3)
            ON CONFLICT (email) DO NOTHING
            RETURNING id, email AS "email: String", password_hash, display_name,
-                     created_at, updated_at"#,
+                     created_at, updated_at, record_search_history"#,
         email as &str,
         password_hash,
         display_name,
@@ -47,7 +49,7 @@ pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<User>, s
     sqlx::query_as!(
         User,
         r#"SELECT id, email AS "email: String", password_hash, display_name,
-                  created_at, updated_at
+                  created_at, updated_at, record_search_history
            FROM users WHERE email = $1::text::citext"#,
         email,
     )
@@ -59,7 +61,7 @@ pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<User>, sqlx::E
     sqlx::query_as!(
         User,
         r#"SELECT id, email AS "email: String", password_hash, display_name,
-                  created_at, updated_at
+                  created_at, updated_at, record_search_history
            FROM users WHERE id = $1"#,
         id,
     )
@@ -76,7 +78,7 @@ pub async fn update_display_name(
         User,
         r#"UPDATE users SET display_name = $2 WHERE id = $1
            RETURNING id, email AS "email: String", password_hash, display_name,
-                     created_at, updated_at"#,
+                     created_at, updated_at, record_search_history"#,
         id,
         display_name,
     )

@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM files WHERE owner_id = $1 AND id = ANY($2)\n         RETURNING id, content_hash, original_name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "content_hash",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "original_name",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1bc9b8133df0118246e5c2756068165cdd17fa26855eb1dfb196c817833935e4"
+}

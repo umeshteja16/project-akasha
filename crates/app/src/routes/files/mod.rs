@@ -6,6 +6,7 @@ pub mod enrich;
 pub mod extraction;
 pub mod processing;
 pub mod similar;
+pub mod sort;
 pub mod tags;
 pub mod thumbnail;
 pub mod types;
@@ -23,10 +24,11 @@ use self::types::{
     decode_cursor, encode_cursor, normalize_tags,
 };
 use crate::{
+    activity::Actor,
     auth::AuthUser,
     error::{ApiError, ErrorBody},
     extract::{Json, Query},
-    files::{name, store},
+    files::{edit, name, store},
     state::AppState,
 };
 use akasha_core::Error;
@@ -60,6 +62,9 @@ pub async fn list(
         return Err(Error::bad_request(format!("limit must be 1-{MAX_PAGE}")).into());
     }
     let sort = query.sort.unwrap_or_default();
+    if let Some(collection) = query.collection_id {
+        crate::routes::collections::ensure_owned(&state, auth.user_id, collection).await?;
+    }
     let filter = ListFilter {
         status: query.status.map(|s| s.as_str().to_owned()),
         pinned: query.pinned,
@@ -68,6 +73,7 @@ pub async fn list(
             .category
             .map(|c| c.mime_patterns())
             .unwrap_or_default(),
+        collection_id: query.collection_id,
         order: sort.order(),
         after: query
             .cursor
@@ -107,11 +113,7 @@ pub async fn get(
     let file = files::get(&state.db, auth.user_id, id)
         .await?
         .ok_or_else(not_found)?;
-    let processing = processing::latest(&state.db, file.id).await?;
-    Ok(Json(FileDetail {
-        file: file.into(),
-        processing,
-    }))
+    Ok(Json(FileDetail::load(&state.db, file).await?))
 }
 
 /// Rename, pin/unpin or retag a file (or drop model-suggested tags).
@@ -148,7 +150,7 @@ pub async fn update(
         tags: tags.as_deref(),
         auto_tags: auto_tags.as_deref(),
     };
-    let file = files::update(&state.db, auth.user_id, id, changes)
+    let file = edit::update(&state, Actor::from(&auth), id, changes)
         .await?
         .ok_or_else(not_found)?;
     Ok(Json(file.into()))
@@ -169,7 +171,7 @@ pub async fn delete(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
-    if store::delete(&state, auth.user_id, id).await? {
+    if store::delete(&state, Actor::from(&auth), id).await? {
         Ok(StatusCode::NO_CONTENT)
     } else {
         Err(not_found())
@@ -194,6 +196,30 @@ pub async fn bulk_delete(
     if req.ids.len() > MAX_BULK {
         return Err(Error::bad_request(format!("at most {MAX_BULK} ids per request")).into());
     }
-    let deleted = store::delete_many(&state, auth.user_id, &req.ids).await?;
+    let deleted = store::delete_many(&state, Actor::from(&auth), &req.ids).await?;
     Ok(Json(BulkDeleteResponse { deleted }))
+}
+
+/// Note that you opened a file: sets `last_opened_at` (for "Recently opened",
+/// `sort=opened`) and adds an "opened" entry to your activity, at most once per
+/// file per 30 minutes. The UI calls it when a file's page opens.
+#[utoipa::path(
+    post, path = "/api/v1/files/{id}/open", tag = "files", operation_id = "open_file",
+    params(("id" = Uuid, Path, description = "File id")),
+    responses(
+        (status = 200, body = FileResponse),
+        (status = 401, body = ErrorBody), (status = 403, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+    ),
+    security(("session_cookie" = []), ("api_token" = []))
+)]
+pub async fn open(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<FileResponse>, ApiError> {
+    let file = edit::opened(&state, Actor::from(&auth), id)
+        .await?
+        .ok_or_else(not_found)?;
+    Ok(Json(file.into()))
 }

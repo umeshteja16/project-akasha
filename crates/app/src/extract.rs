@@ -4,7 +4,7 @@ use axum::{
     extract::{FromRequest, Request, rejection::JsonRejection},
     response::{IntoResponse, Response},
 };
-use serde::de::DeserializeOwned;
+use serde::{Deserialize, de::DeserializeOwned};
 
 use crate::error::ApiError;
 use akasha_core::Error;
@@ -55,4 +55,14 @@ where
             .map(|axum::extract::Query(value)| Self(value))
             .map_err(|rejection| ApiError(Error::bad_request(rejection.body_text())))
     }
+}
+
+/// For `Option<Option<T>>` fields: absent → `None`, `null` → `Some(None)`,
+/// a value → `Some(Some(v))`. Use with `#[serde(default, deserialize_with = ..)]`.
+pub fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: serde::Deserialize<'de>,
+    D: serde::Deserializer<'de>,
+{
+    Option::<T>::deserialize(de).map(Some)
 }

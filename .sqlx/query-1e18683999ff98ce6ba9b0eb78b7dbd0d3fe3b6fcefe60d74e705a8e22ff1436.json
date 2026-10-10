@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM activity_events\n           WHERE owner_id = $1 AND category <> 'security'\n             AND (cardinality($2::text[]) = 0 OR category = ANY($2))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1e18683999ff98ce6ba9b0eb78b7dbd0d3fe3b6fcefe60d74e705a8e22ff1436"
+}

@@ -57,7 +57,14 @@ async fn handshake_and_tool_listing(pool: PgPool) {
     let tools = call(&app, &read, "tools/list", json!({})).await;
     assert_eq!(
         names(&tools),
-        ["search", "get_file", "read_file", "list_files", "ask"]
+        [
+            "search",
+            "get_file",
+            "read_file",
+            "list_files",
+            "list_collections",
+            "ask"
+        ]
     );
     let search = &tools["tools"][0];
     assert_eq!(search["inputSchema"]["required"], json!(["query"]));

@@ -35,6 +35,8 @@ pub struct SearchQuery {
     pub pinned: Option<bool>,
     /// Comma-separated file ids (up to 100) to search within.
     pub file_ids: Option<String>,
+    /// Only files in this collection (404 if it is not yours).
+    pub collection_id: Option<Uuid>,
     /// Results per page, 1-50 (default 10).
     pub limit: Option<usize>,
     /// 1-based page (default 1). Only the first 200 results can be paged through.
@@ -87,6 +89,7 @@ impl SearchQuery {
             pinned: self.pinned,
             file_ids,
             exclude_file: None,
+            collection_id: self.collection_id,
         };
         Ok(SearchRequest {
             query: self.q,
@@ -154,6 +157,7 @@ mod tests {
             tags: None,
             pinned: None,
             file_ids: None,
+            collection_id: None,
             limit: None,
             page: None,
             rerank: None,

@@ -58,8 +58,17 @@ pub async fn create(
     let title = clean_title(body.title.as_deref().unwrap_or(""), true)?;
     let file_ids = body.file_ids.unwrap_or_default();
     check_scope(&file_ids)?;
-    let conversation =
-        chat::create_conversation(&state.db, auth.user_id, &title, &file_ids).await?;
+    if let Some(collection) = body.collection_id {
+        crate::routes::collections::ensure_owned(&state, auth.user_id, collection).await?;
+    }
+    let conversation = chat::create_conversation(
+        &state.db,
+        auth.user_id,
+        &title,
+        &file_ids,
+        body.collection_id,
+    )
+    .await?;
     Ok((StatusCode::CREATED, Json(conversation.into())))
 }
 
@@ -131,8 +140,14 @@ pub async fn update(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateConversation>,
 ) -> Result<Json<ConversationResponse>, ApiError> {
-    if body.title.is_none() && body.file_ids.is_none() {
-        return Err(Error::bad_request("nothing to change: send title and/or file_ids").into());
+    if body.title.is_none() && body.file_ids.is_none() && body.collection_id.is_none() {
+        return Err(Error::bad_request(
+            "nothing to change: send title, file_ids and/or collection_id",
+        )
+        .into());
+    }
+    if let Some(Some(collection)) = body.collection_id {
+        crate::routes::collections::ensure_owned(&state, auth.user_id, collection).await?;
     }
     let title = body
         .title
@@ -152,6 +167,10 @@ pub async fn update(
     }
     if let Some(ids) = &body.file_ids {
         conversation = chat::set_conversation_scope(&mut tx, auth.user_id, id, ids).await?;
+    }
+    if let Some(collection) = body.collection_id {
+        conversation =
+            chat::set_conversation_collection(&mut tx, auth.user_id, id, collection).await?;
     }
     tx.commit().await?;
     Ok(Json(conversation.ok_or_else(not_found)?.into()))

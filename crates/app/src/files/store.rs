@@ -22,6 +22,7 @@ use akasha_storage::FinishedBlob;
 use uuid::Uuid;
 
 use crate::{
+    activity::{self, ActivityKind, Actor},
     error::ApiError,
     jobs::{
         blobs,
@@ -41,11 +42,12 @@ pub enum Saved {
 /// Record a finished upload for `owner`, enforcing their storage quota.
 pub async fn save(
     state: &AppState,
-    owner: Uuid,
+    actor: Actor,
     blob: FinishedBlob,
     name: &str,
     mime: &str,
 ) -> Result<Saved, ApiError> {
+    let owner = actor.user_id;
     let hash = blob.hash().to_hex();
     let size =
         i64::try_from(blob.size()).map_err(|_| Error::payload_too_large("file too large"))?;
@@ -78,6 +80,11 @@ pub async fn save(
         .ok_or_else(|| Error::conflict("file was uploaded concurrently; retry"))?;
     akasha_jobs::enqueue(&mut tx, &ExtractFile { file_id: file.id }).await?;
     enqueue_thumbnail(&mut tx, &file).await?;
+    let mut ev = activity::event(actor, ActivityKind::FileUploaded);
+    ev.subject = Some(&file.original_name);
+    ev.file_id = Some(file.id);
+    ev.details = serde_json::json!({ "size_bytes": file.size_bytes, "mime_type": file.mime_type });
+    activity::record(&mut tx, &ev).await?;
     tx.commit().await?;
     Ok(Saved::Created(file))
 }
@@ -99,9 +106,9 @@ pub async fn enqueue_thumbnail(
     Ok(())
 }
 
-/// Delete one of `owner`'s files. Returns `false` if there was no such file.
-pub async fn delete(state: &AppState, owner: Uuid, id: Uuid) -> Result<bool, ApiError> {
-    Ok(!delete_many(state, owner, &[id]).await?.is_empty())
+/// Delete one of the actor's files. Returns `false` if there was no such file.
+pub async fn delete(state: &AppState, actor: Actor, id: Uuid) -> Result<bool, ApiError> {
+    Ok(!delete_many(state, actor, &[id]).await?.is_empty())
 }
 
 /// Delete several of `owner`'s files in one transaction; blobs are released by a
@@ -109,17 +116,29 @@ pub async fn delete(state: &AppState, owner: Uuid, id: Uuid) -> Result<bool, Api
 /// without duplicates.
 pub async fn delete_many(
     state: &AppState,
-    owner: Uuid,
+    actor: Actor,
     ids: &[Uuid],
 ) -> Result<Vec<Uuid>, ApiError> {
     let mut tx = state.db.begin().await?;
-    let rows = files::delete_many(&mut tx, owner, ids).await?;
-    let hashes: Vec<String> = rows.iter().map(|(_, hash)| hash.clone()).collect();
+    let rows = files::delete_many(&mut tx, actor.user_id, ids).await?;
+    let hashes: Vec<String> = rows.iter().map(|r| r.content_hash.clone()).collect();
     blobs::release(&mut tx, &hashes).await?;
+    if let Some(first) = rows.first() {
+        // One event per request: "Deleted a.pdf" or "Deleted 12 files".
+        let mut ev = activity::event(actor, ActivityKind::FileDeleted);
+        ev.subject = Some(&first.original_name);
+        let names: Vec<&str> = rows
+            .iter()
+            .take(5)
+            .map(|r| r.original_name.as_str())
+            .collect();
+        ev.details = serde_json::json!({ "count": rows.len(), "file_names": names });
+        activity::record(&mut tx, &ev).await?;
+    }
     tx.commit().await?;
     let mut deleted: Vec<Uuid> = Vec::with_capacity(rows.len());
     for id in ids {
-        if !deleted.contains(id) && rows.iter().any(|(row, _)| row == id) {
+        if !deleted.contains(id) && rows.iter().any(|r| r.id == *id) {
             deleted.push(*id);
         }
     }

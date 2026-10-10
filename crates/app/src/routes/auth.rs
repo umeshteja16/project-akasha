@@ -1,9 +1,6 @@
 //! `/api/v1/auth`: register, log in, log out.
 
-use axum::{
-    extract::State,
-    http::{HeaderMap, StatusCode, header::USER_AGENT},
-};
+use axum::{extract::State, http::StatusCode};
 use axum_extra::extract::CookieJar;
 use chrono::{Duration, Utc};
 use serde::Deserialize;
@@ -12,6 +9,7 @@ use uuid::Uuid;
 
 use super::me::UserResponse;
 use crate::{
+    activity::{self, ActivityKind, Actor, ClientMeta},
     auth::{SessionUser, password, session},
     error::{ApiError, ErrorBody},
     extract::Json,
@@ -45,7 +43,7 @@ pub struct LoginRequest {
 )]
 pub async fn register(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    client: ClientMeta,
     jar: CookieJar,
     Json(req): Json<RegisterRequest>,
 ) -> Result<(StatusCode, CookieJar, Json<UserResponse>), ApiError> {
@@ -63,7 +61,10 @@ pub async fn register(
             return Err(Error::conflict("an account with this email already exists").into());
         }
     };
-    let jar = start_session(&state, &headers, jar, user.id).await?;
+    let jar = start_session(&state, &client, jar, user.id).await?;
+    let mut ev = activity::event(Actor::session(user.id), ActivityKind::AccountCreated);
+    client.apply(&mut ev);
+    activity::record_best_effort(&state.db, &ev).await;
     Ok((StatusCode::CREATED, jar, Json(user.into())))
 }
 
@@ -79,7 +80,7 @@ pub async fn register(
 )]
 pub async fn login(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    client: ClientMeta,
     jar: CookieJar,
     Json(req): Json<LoginRequest>,
 ) -> Result<(CookieJar, Json<UserResponse>), ApiError> {
@@ -88,9 +89,29 @@ pub async fn login(
         password::verify(req.password, user.as_ref().map(|u| u.password_hash.clone())).await;
     let user = match user {
         Some(user) if valid => user,
-        _ => return Err(Error::unauthorized("incorrect email or password").into()),
+        Some(user) => {
+            // The account's owner sees failed attempts in their security log.
+            // Recorded in the background: the reply must take as long as for an
+            // unknown email (no timing oracle for which accounts exist).
+            let (db, meta, owner) = (state.db.clone(), client.clone(), user.id);
+            tokio::spawn(async move {
+                let mut ev = activity::event(Actor::session(owner), ActivityKind::SignInFailed);
+                ev.via = None;
+                meta.apply(&mut ev);
+                activity::record_best_effort(&db, &ev).await;
+            });
+            tracing::info!(target: "audit", ip = ?client.ip, "sign-in failed");
+            return Err(Error::unauthorized("incorrect email or password").into());
+        }
+        None => {
+            tracing::info!(target: "audit", ip = ?client.ip, "sign-in failed (unknown email)");
+            return Err(Error::unauthorized("incorrect email or password").into());
+        }
     };
-    let jar = start_session(&state, &headers, jar, user.id).await?;
+    let jar = start_session(&state, &client, jar, user.id).await?;
+    let mut ev = activity::event(Actor::session(user.id), ActivityKind::SignedIn);
+    client.apply(&mut ev);
+    activity::record_best_effort(&state.db, &ev).await;
     Ok((jar, Json(user.into())))
 }
 
@@ -103,28 +124,35 @@ pub async fn login(
 pub async fn logout(
     State(state): State<AppState>,
     auth: SessionUser,
+    client: ClientMeta,
     jar: CookieJar,
 ) -> Result<(StatusCode, CookieJar), ApiError> {
     akasha_db::sessions::delete(&state.db, auth.session_id).await?;
+    let mut ev = activity::event(Actor::session(auth.user_id), ActivityKind::SignedOut);
+    client.apply(&mut ev);
+    activity::record_best_effort(&state.db, &ev).await;
     let jar = jar.add(session::removal(state.config.cookie_secure));
     Ok((StatusCode::NO_CONTENT, jar))
 }
 
 async fn start_session(
     state: &AppState,
-    headers: &HeaderMap,
+    client: &ClientMeta,
     jar: CookieJar,
     user_id: Uuid,
 ) -> Result<CookieJar, ApiError> {
     let ttl = state.config.session_ttl_days;
     let (token, hash) = session::new_token();
-    let user_agent = headers
-        .get(USER_AGENT)
-        .and_then(|v| v.to_str().ok())
-        .map(|ua| ua.chars().take(256).collect::<String>());
     let expires_at = Utc::now() + Duration::days(i64::from(ttl));
-    akasha_db::sessions::create(&state.db, user_id, &hash, expires_at, user_agent.as_deref())
-        .await?;
+    akasha_db::sessions::create(
+        &state.db,
+        user_id,
+        &hash,
+        expires_at,
+        client.user_agent.as_deref(),
+        client.ip.as_deref(),
+    )
+    .await?;
     Ok(jar.add(session::cookie(token, ttl, state.config.cookie_secure)))
 }
 

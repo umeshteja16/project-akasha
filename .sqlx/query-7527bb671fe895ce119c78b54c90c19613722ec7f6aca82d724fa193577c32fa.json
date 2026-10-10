@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT c.id, c.name, c.color, c.icon\n           FROM collection_files cf\n           JOIN collections c ON c.id = cf.collection_id AND c.owner_id = $1\n           WHERE cf.owner_id = $1 AND cf.file_id = $2\n           ORDER BY lower(c.name), c.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "color",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "icon",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "7527bb671fe895ce119c78b54c90c19613722ec7f6aca82d724fa193577c32fa"
+}

@@ -9,6 +9,176 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/v1/activity": {
+      "get": {
+        "tags": [
+          "activity"
+        ],
+        "summary": "Your activity, newest first: files uploaded, renamed, tagged, opened and\ndeleted, searches, questions, collection changes, and the security log\n(sign-ins with address and browser, password and session changes, tokens,\nrate limits). Kept for `AKASHA_ACTIVITY_RETENTION_DAYS` (default 365).",
+        "operationId": "list_activity",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "description": "Comma-separated categories (`files,search,chat,collections,security`); default all.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "Comma-separated kinds (e.g. `auth.signed_in,auth.sign_in_failed`); default all.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "file_id",
+            "in": "query",
+            "description": "Only events about this file.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "`next_cursor` from the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1-100 (default 50).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "activity"
+        ],
+        "summary": "Clear your activity history (all of it, or some categories). The security\nlog is kept: it ages out with the retention period.",
+        "operationId": "clear_activity",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "description": "Comma-separated categories to clear (default: everything except `security`,\nwhich is never cleared by hand).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityCleared"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "tags": [
@@ -168,6 +338,526 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/collections": {
+      "get": {
+        "tags": [
+          "collections"
+        ],
+        "summary": "Your collections, by name.",
+        "operationId": "list_collections",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          },
+          {
+            "api_token": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "collections"
+        ],
+        "summary": "Create a collection, optionally with files in it.",
+        "operationId": "create_collection",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCollection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          },
+          {
+            "api_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/collections/{id}": {
+      "get": {
+        "tags": [
+          "collections"
+        ],
+        "summary": "One of your collections.",
+        "operationId": "get_collection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Collection id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          },
+          {
+            "api_token": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "collections"
+        ],
+        "summary": "Delete a collection. Its files are kept.",
+        "operationId": "delete_collection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Collection id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          },
+          {
+            "api_token": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "collections"
+        ],
+        "summary": "Rename, describe, recolour or change the icon of a collection.",
+        "operationId": "update_collection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Collection id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCollection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          },
+          {
+            "api_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/collections/{id}/files": {
+      "post": {
+        "tags": [
+          "collections"
+        ],
+        "summary": "Add files to a collection (up to 100 per request). Files already in it, and\nids that are not your files, are skipped.",
+        "operationId": "add_collection_files",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Collection id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionFilesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionFilesChanged"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          },
+          {
+            "api_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/collections/{id}/files/remove": {
+      "post": {
+        "tags": [
+          "collections"
+        ],
+        "summary": "Take files out of a collection (the files themselves are kept).",
+        "operationId": "remove_collection_files",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Collection id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionFilesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionFilesChanged"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          },
+          {
+            "api_token": []
+          }
+        ]
       }
     },
     "/api/v1/conversations": {
@@ -690,9 +1380,19 @@
             }
           },
           {
+            "name": "collection_id",
+            "in": "query",
+            "description": "Only files in this collection (404 if it is not yours).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
             "name": "sort",
             "in": "query",
-            "description": "Order of the list (default `newest`).",
+            "description": "Order of the list (default `newest`). `opened` lists only files you have opened.",
             "required": false,
             "schema": {
               "$ref": "#/components/schemas/FileSort"
@@ -1320,6 +2020,77 @@
         ]
       }
     },
+    "/api/v1/files/{id}/open": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Note that you opened a file: sets `last_opened_at` (for \"Recently opened\",\n`sort=opened`) and adds an \"opened\" entry to your activity, at most once per\nfile per 30 minutes. The UI calls it when a file's page opens.",
+        "operationId": "open_file",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "File id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          },
+          {
+            "api_token": []
+          }
+        ]
+      }
+    },
     "/api/v1/files/{id}/reindex": {
       "post": {
         "tags": [
@@ -1710,6 +2481,169 @@
         ]
       }
     },
+    "/api/v1/me/sessions": {
+      "get": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Where you are signed in.",
+        "operationId": "list_sessions",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/me/sessions/revoke-others": {
+      "post": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Sign out everywhere except here.",
+        "operationId": "revoke_other_sessions",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionsRevoked"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/me/sessions/{id}": {
+      "delete": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Sign out one of your other sessions (use `POST /auth/logout` for this one).",
+        "operationId": "revoke_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Signed out"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
     "/api/v1/me/tokens": {
       "get": {
         "tags": [
@@ -1994,6 +2928,16 @@
             }
           },
           {
+            "name": "collection_id",
+            "in": "query",
+            "description": "Only files in this collection (404 if it is not yours).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "description": "Results per page, 1-50 (default 10).",
@@ -2159,6 +3103,16 @@
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "collection_id",
+            "in": "query",
+            "description": "Only files in this collection (404 if it is not yours).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
             }
           },
           {
@@ -2376,6 +3330,174 @@
   },
   "components": {
     "schemas": {
+      "ActivityCategory": {
+        "type": "string",
+        "description": "Broad groups of events (the timeline's filters).",
+        "enum": [
+          "files",
+          "search",
+          "chat",
+          "collections",
+          "security"
+        ]
+      },
+      "ActivityCleared": {
+        "type": "object",
+        "required": [
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "ActivityItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "category",
+          "created_at",
+          "details"
+        ],
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/ActivityCategory"
+          },
+          "collection_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The collection, while it still exists."
+          },
+          "conversation_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The conversation, while it still exists."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "details": {
+            "type": "object",
+            "description": "Kind-specific facts, e.g. `{\"from\": \"a.pdf\", \"to\": \"b.pdf\"}` for a rename,\n`{\"count\": 3, \"file_names\": [..]}` for collection changes, `{\"added\": [..],\n\"removed\": [..]}` for tags, `{\"results\": 4, \"mode\": \"hybrid\"}` for searches."
+          },
+          "file_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The file, while it still exists."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ip": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Client address (security events only)."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ActivityKind"
+          },
+          "subject": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What it was about, as named at the time: file name, search query,\nquestion, collection or token name."
+          },
+          "user_agent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Client user agent (security events only)."
+          },
+          "via": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ActivityVia"
+              }
+            ]
+          }
+        }
+      },
+      "ActivityKind": {
+        "type": "string",
+        "description": "What happened.",
+        "enum": [
+          "FileUploaded",
+          "FileRenamed",
+          "FileTagged",
+          "FileDeleted",
+          "FileOpened",
+          "SearchPerformed",
+          "ChatAsked",
+          "CollectionCreated",
+          "CollectionUpdated",
+          "CollectionDeleted",
+          "CollectionFilesAdded",
+          "CollectionFilesRemoved",
+          "AccountCreated",
+          "SignedIn",
+          "SignInFailed",
+          "SignedOut",
+          "PasswordChanged",
+          "PasswordChangeFailed",
+          "AccountDeleteFailed",
+          "SessionRevoked",
+          "TokenCreated",
+          "TokenRevoked",
+          "RateLimited"
+        ]
+      },
+      "ActivityPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActivityItem"
+            },
+            "description": "Newest first."
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass as `cursor` for older events; `null` on the last page."
+          }
+        }
+      },
+      "ActivityVia": {
+        "type": "string",
+        "description": "Who acted: the browser session or an API token / MCP client.",
+        "enum": [
+          "session",
+          "token"
+        ]
+      },
       "AnswerStatus": {
         "type": "string",
         "description": "How an answer ended.",
@@ -2724,6 +3846,158 @@
           }
         }
       },
+      "CollectionColor": {
+        "type": "string",
+        "description": "A collection's colour, from the UI's muted palette (never a raw colour).",
+        "enum": [
+          "sage",
+          "sky",
+          "ochre",
+          "clay",
+          "plum",
+          "slate"
+        ]
+      },
+      "CollectionFilesChanged": {
+        "type": "object",
+        "required": [
+          "file_ids",
+          "collection"
+        ],
+        "properties": {
+          "collection": {
+            "$ref": "#/components/schemas/CollectionResponse",
+            "description": "The collection afterwards."
+          },
+          "file_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The files actually added (or removed); already-present or unknown ids are left out."
+          }
+        }
+      },
+      "CollectionFilesRequest": {
+        "type": "object",
+        "required": [
+          "file_ids"
+        ],
+        "properties": {
+          "file_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Up to 100 file ids. Ids that are not your files are skipped."
+          }
+        }
+      },
+      "CollectionIcon": {
+        "type": "string",
+        "description": "A collection's icon.",
+        "enum": [
+          "folder",
+          "book",
+          "briefcase",
+          "flask",
+          "heart",
+          "star",
+          "archive",
+          "receipt",
+          "plane",
+          "home",
+          "graduation",
+          "code"
+        ]
+      },
+      "CollectionList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CollectionResponse"
+            },
+            "description": "By name."
+          }
+        }
+      },
+      "CollectionResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "color",
+          "icon",
+          "file_count",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "color": {
+            "$ref": "#/components/schemas/CollectionColor"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": {
+            "type": "string",
+            "description": "Plain text, may be empty."
+          },
+          "file_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "icon": {
+            "$ref": "#/components/schemas/CollectionIcon"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last change, including files added or removed."
+          }
+        }
+      },
+      "CollectionSummary": {
+        "type": "object",
+        "description": "A collection a file belongs to.",
+        "required": [
+          "id",
+          "name",
+          "color",
+          "icon"
+        ],
+        "properties": {
+          "color": {
+            "$ref": "#/components/schemas/CollectionColor"
+          },
+          "icon": {
+            "$ref": "#/components/schemas/CollectionIcon"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "ComponentStatus": {
         "type": "string",
         "description": "How a component stands.",
@@ -2768,6 +4042,14 @@
           "updated_at"
         ],
         "properties": {
+          "collection_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Questions are answered from this collection (combined with `file_ids`\nwhen both are set); `null`: no collection scope."
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
@@ -2795,9 +4077,67 @@
           }
         }
       },
+      "CreateCollection": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "color": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CollectionColor"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Up to 2000 characters."
+          },
+          "file_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Files to put in it right away (up to 100; ids that are not yours are skipped)."
+          },
+          "icon": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CollectionIcon"
+              }
+            ]
+          },
+          "name": {
+            "type": "string",
+            "description": "1-100 characters, unique among your collections (ignoring case)."
+          }
+        }
+      },
       "CreateConversation": {
         "type": "object",
         "properties": {
+          "collection_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Answer only from this collection (404 if it is not yours)."
+          },
           "file_ids": {
             "type": [
               "array",
@@ -3057,7 +4397,17 @@
           },
           {
             "type": "object",
+            "required": [
+              "collections"
+            ],
             "properties": {
+              "collections": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CollectionSummary"
+                },
+                "description": "The collections the file is in, by name."
+              },
               "processing": {
                 "oneOf": [
                   {
@@ -3210,7 +4560,8 @@
           "tags",
           "auto_tags",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "open_count"
         ],
         "properties": {
           "auto_tags": {
@@ -3253,6 +4604,14 @@
           "is_pinned": {
             "type": "boolean"
           },
+          "last_opened_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When you last opened the file's page (`POST /files/{id}/open`)."
+          },
           "mime_type": {
             "type": "string",
             "description": "Detected from the contents, not taken from the client."
@@ -3260,6 +4619,10 @@
           "name": {
             "type": "string",
             "description": "Sanitised original filename."
+          },
+          "open_count": {
+            "type": "integer",
+            "format": "int32"
           },
           "size_bytes": {
             "type": "integer",
@@ -3317,7 +4680,8 @@
           "newest",
           "oldest",
           "name",
-          "size"
+          "size",
+          "opened"
         ]
       },
       "FileStatus": {
@@ -3549,6 +4913,14 @@
           "content"
         ],
         "properties": {
+          "collection_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Only answer from this collection. Omitted: the conversation's\n`collection_id`."
+          },
           "content": {
             "type": "string",
             "description": "The question, 1–4000 characters."
@@ -3843,6 +5215,81 @@
           }
         }
       },
+      "SessionList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionResponse"
+            },
+            "description": "Most recently used first."
+          }
+        }
+      },
+      "SessionResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "created_at",
+          "last_seen_at",
+          "expires_at",
+          "current"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When this sign-in happened."
+          },
+          "current": {
+            "type": "boolean",
+            "description": "This is the session making the request."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ip": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The address it signed in from."
+          },
+          "last_seen_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user_agent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The browser's user agent at sign-in."
+          }
+        }
+      },
+      "SessionsRevoked": {
+        "type": "object",
+        "required": [
+          "revoked"
+        ],
+        "properties": {
+          "revoked": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "SimilarFile": {
         "type": "object",
         "description": "A file similar to another one.",
@@ -4124,10 +5571,56 @@
           }
         }
       },
+      "UpdateCollection": {
+        "type": "object",
+        "properties": {
+          "color": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CollectionColor"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`\"\"` clears it."
+          },
+          "icon": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CollectionIcon"
+              }
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "UpdateConversation": {
         "type": "object",
         "description": "Change the title, the file scope, or both.",
         "properties": {
+          "collection_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "New collection scope; `null` clears it, absent keeps it."
+          },
           "file_ids": {
             "type": [
               "array",
@@ -4194,7 +5687,14 @@
               "string",
               "null"
             ],
-            "description": "New display name; `null` or blank clears it."
+            "description": "New display name; `null` or blank clears it, absent keeps it."
+          },
+          "record_search_history": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Keep a history of your searches (with the query text) in the activity\ntimeline. Turning it off stops recording; existing entries stay until\nyou clear them."
           }
         }
       },
@@ -4217,7 +5717,8 @@
         "required": [
           "id",
           "email",
-          "created_at"
+          "created_at",
+          "record_search_history"
         ],
         "properties": {
           "created_at": {
@@ -4236,6 +5737,10 @@
           "id": {
             "type": "string",
             "format": "uuid"
+          },
+          "record_search_history": {
+            "type": "boolean",
+            "description": "Searches (with their query) appear in the activity timeline."
           }
         }
       },

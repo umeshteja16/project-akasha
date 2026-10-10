@@ -2,6 +2,7 @@
 //!
 //! `main.rs` only parses the command line; everything testable lives here.
 
+pub mod activity;
 pub mod admin;
 pub mod auth;
 pub mod chat;

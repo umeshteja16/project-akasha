@@ -30,6 +30,9 @@ pub struct ConversationResponse {
     /// Files questions are answered from unless a question names its own;
     /// empty: all your files.
     pub file_ids: Vec<Uuid>,
+    /// Questions are answered from this collection (combined with `file_ids`
+    /// when both are set); `null`: no collection scope.
+    pub collection_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     /// Last activity (new message, rename or new scope).
     pub updated_at: DateTime<Utc>,
@@ -41,6 +44,7 @@ impl From<Conversation> for ConversationResponse {
             id: c.id,
             title: c.title,
             file_ids: c.file_ids,
+            collection_id: c.collection_id,
             created_at: c.created_at,
             updated_at: c.updated_at,
         }
@@ -70,6 +74,8 @@ pub struct CreateConversation {
     pub title: Option<String>,
     /// Answer only from these files (up to 100; ids that are not yours are dropped).
     pub file_ids: Option<Vec<Uuid>>,
+    /// Answer only from this collection (404 if it is not yours).
+    pub collection_id: Option<Uuid>,
 }
 
 /// Change the title, the file scope, or both.
@@ -79,6 +85,10 @@ pub struct UpdateConversation {
     pub title: Option<String>,
     /// New file scope (up to 100 ids); `[]`: all your files.
     pub file_ids: Option<Vec<Uuid>>,
+    /// New collection scope; `null` clears it, absent keeps it.
+    #[serde(default, deserialize_with = "crate::extract::double_option")]
+    #[schema(value_type = Option<Uuid>)]
+    pub collection_id: Option<Option<Uuid>>,
 }
 
 /// Longest file scope.
@@ -164,6 +174,9 @@ pub struct PostMessage {
     /// Only answer from these files (up to 100). Omitted: the conversation's
     /// own scope (`file_ids` on the conversation).
     pub file_ids: Option<Vec<Uuid>>,
+    /// Only answer from this collection. Omitted: the conversation's
+    /// `collection_id`.
+    pub collection_id: Option<Uuid>,
     /// Only answer from files carrying all of these tags.
     pub tags: Option<Vec<String>>,
     /// Only answer from files of this kind.

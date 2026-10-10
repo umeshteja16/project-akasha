@@ -23,7 +23,7 @@ use akasha_jobs::{QueueError, Registry, Schedule, Worker, WorkerConfig};
 use akasha_llm::ChatModel;
 use akasha_storage::Storage;
 
-use self::kinds::{PruneJobs, PruneSessions, PruneStaging, SweepOrphanBlobs};
+use self::kinds::{PruneActivity, PruneJobs, PruneSessions, PruneStaging, SweepOrphanBlobs};
 use self::{ml::MlProvider, ocr::OcrProvider};
 use crate::state::AppState;
 
@@ -93,6 +93,7 @@ pub fn registry() -> Registry<JobContext> {
         .register(maintenance::prune_sessions)
         .register(maintenance::prune_staging)
         .register(maintenance::prune_jobs)
+        .register(maintenance::prune_activity)
 }
 
 pub fn schedules() -> Result<Vec<Schedule>, QueueError> {
@@ -101,6 +102,7 @@ pub fn schedules() -> Result<Vec<Schedule>, QueueError> {
         Schedule::new("prune-staging", HOUR, &PruneStaging {})?,
         Schedule::new("sweep-orphan-blobs", DAY, &SweepOrphanBlobs {})?,
         Schedule::new("prune-jobs", DAY, &PruneJobs {})?,
+        Schedule::new("prune-activity", DAY, &PruneActivity {})?,
     ])
 }
 

@@ -144,3 +144,12 @@ impl Job for TitleConversation {
         Some(self.conversation_id.to_string())
     }
 }
+
+/// Delete activity and security-log events older than
+/// `AKASHA_ACTIVITY_RETENTION_DAYS` (daily; 0 keeps them).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct PruneActivity {}
+
+impl Job for PruneActivity {
+    const KIND: &'static str = "prune_activity";
+}

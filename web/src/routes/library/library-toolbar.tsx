@@ -32,6 +32,7 @@ export const SORT_LABELS: Record<FileSort, string> = {
   oldest: "Oldest first",
   name: "Name, A to Z",
   size: "Largest first",
+  opened: "Recently opened",
 };
 
 const TYPES: ReadonlyArray<FileCategory | "all"> = [

@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH ins AS (\n               INSERT INTO collection_files (collection_id, file_id, owner_id)\n               SELECT c.id, f.id, $1\n               FROM collections c\n               JOIN files f ON f.owner_id = $1 AND f.id = ANY($3::uuid[])\n               WHERE c.owner_id = $1 AND c.id = $2\n               ON CONFLICT DO NOTHING\n               RETURNING file_id\n           )\n           SELECT f.id, f.original_name AS name\n           FROM ins JOIN files f ON f.id = ins.file_id\n           ORDER BY array_position($3::uuid[], f.id)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "4db5dbacb187f3c815c4b16ba605814050bdbff0f1ed25218d13274ef3dd3d0d"
+}

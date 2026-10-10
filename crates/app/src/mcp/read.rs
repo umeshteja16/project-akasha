@@ -79,7 +79,7 @@ struct Passage {
 }
 
 pub async fn search(state: &AppState, caller: Caller, a: SearchArgs) -> ToolResult {
-    rate_limit::check_user(&state.search_limiter, caller.user_id, "searches")?;
+    rate_limit::check_user_audited(&state.db, &state.search_limiter, caller.actor(), "searches")?;
     let limit = a.limit.unwrap_or(SEARCH_DEFAULT);
     if !(1..=SEARCH_MAX).contains(&limit) {
         return Err(ToolError::new(format!("limit must be 1-{SEARCH_MAX}")));
@@ -93,6 +93,8 @@ pub async fn search(state: &AppState, caller: Caller, a: SearchArgs) -> ToolResu
         tags: a.tags.map(|t| t.join(",")),
         pinned: None,
         file_ids: join(a.file_ids),
+        collection_id: super::collections::resolve_opt(state, caller, a.collection.as_deref())
+            .await?,
         limit: Some(limit),
         page: None,
         rerank: None,
@@ -243,6 +245,8 @@ pub async fn list_files(state: &AppState, caller: Caller, a: ListArgs) -> ToolRe
             .kind
             .map(|k| FileCategory::from(k).mime_patterns())
             .unwrap_or_default(),
+        collection_id: super::collections::resolve_opt(state, caller, a.collection.as_deref())
+            .await?,
         order: sort.order(),
         after: a
             .cursor
@@ -269,6 +273,7 @@ pub async fn list_files(state: &AppState, caller: Caller, a: ListArgs) -> ToolRe
                 "tags": f.tags,
                 "summary": f.summary.as_deref().map(|s| clip(s, SUMMARY_CHARS)),
                 "created_at": f.created_at,
+                "last_opened_at": f.last_opened_at,
             })
         })
         .collect();

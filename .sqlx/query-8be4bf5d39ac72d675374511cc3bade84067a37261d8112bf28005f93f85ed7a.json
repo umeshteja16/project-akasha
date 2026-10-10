@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE activity_events SET created_at = now() - interval '400 days'\n         WHERE kind = 'file.deleted'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "8be4bf5d39ac72d675374511cc3bade84067a37261d8112bf28005f93f85ed7a"
+}

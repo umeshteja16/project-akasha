@@ -13,6 +13,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
+    activity::{self, ActivityKind, Actor, ClientMeta},
     auth::{SessionUser, token},
     error::{ApiError, ErrorBody},
     extract::Json,
@@ -128,6 +129,7 @@ pub async fn list(
 pub async fn create(
     State(state): State<AppState>,
     auth: SessionUser,
+    client: ClientMeta,
     Json(req): Json<CreateTokenRequest>,
 ) -> Result<(StatusCode, Json<CreatedToken>), ApiError> {
     let name = req.name.trim();
@@ -161,7 +163,17 @@ pub async fn create(
         scopes: &scopes.to_db(),
         expires_at,
     };
-    let row = api_tokens::create(&state.db, &new).await?;
+    let mut tx = state.db.begin().await?;
+    let row = api_tokens::create(&mut *tx, &new).await?;
+    let mut ev = activity::event(Actor::session(auth.user_id), ActivityKind::TokenCreated);
+    ev.subject = Some(&row.name);
+    ev.details = serde_json::json!({
+        "token_id": row.id, "prefix": row.prefix, "write": scopes.write,
+        "expires_at": row.expires_at,
+    });
+    client.apply(&mut ev);
+    activity::record(&mut tx, &ev).await?;
+    tx.commit().await?;
     tracing::info!(token_id = %row.id, write = scopes.write, "API token created");
     Ok((
         StatusCode::CREATED,
@@ -186,14 +198,23 @@ pub async fn create(
 pub async fn revoke(
     State(state): State<AppState>,
     auth: SessionUser,
+    client: ClientMeta,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
-    if api_tokens::revoke(&state.db, auth.user_id, id).await? {
+    let mut tx = state.db.begin().await?;
+    let Some((name, newly)) = api_tokens::revoke(&mut *tx, auth.user_id, id).await? else {
+        return Err(Error::not_found("token not found").into());
+    };
+    if newly {
+        let mut ev = activity::event(Actor::session(auth.user_id), ActivityKind::TokenRevoked);
+        ev.subject = Some(&name);
+        ev.details = serde_json::json!({ "token_id": id });
+        client.apply(&mut ev);
+        activity::record(&mut tx, &ev).await?;
         tracing::info!(token_id = %id, "API token revoked");
-        Ok(StatusCode::NO_CONTENT)
-    } else {
-        Err(Error::not_found("token not found").into())
     }
+    tx.commit().await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 fn parse_scopes(raw: Option<&[TokenScope]>) -> Result<token::Scopes, Error> {

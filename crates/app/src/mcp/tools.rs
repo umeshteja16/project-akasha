@@ -11,7 +11,7 @@ use serde::{Deserialize, de::DeserializeOwned};
 use uuid::Uuid;
 
 use super::{
-    Caller, ask,
+    Caller, ask, collections,
     output::{ToolError, ToolResult},
     read, write,
 };
@@ -48,6 +48,9 @@ pub struct SearchArgs {
     pub to: Option<String>,
     /// Search only within these files (up to 100 ids from earlier results).
     pub file_ids: Option<Vec<Uuid>>,
+    /// Search only within this collection (its name or `collection_id` from
+    /// list_collections).
+    pub collection: Option<String>,
     /// Also return passages only loosely related by meaning (default false).
     pub include_weak: Option<bool>,
 }
@@ -82,7 +85,9 @@ pub struct ListArgs {
     pub tag: Option<String>,
     /// Only pinned (true) or unpinned (false) files.
     pub pinned: Option<bool>,
-    /// `newest` (default), `oldest`, `name` or `size`.
+    /// Only files in this collection (its name or `collection_id`).
+    pub collection: Option<String>,
+    /// `newest` (default), `oldest`, `name`, `size` or `opened` (recently opened).
     pub sort: Option<String>,
     /// Files per page, 1-50 (default 20).
     pub limit: Option<i64>,
@@ -97,7 +102,13 @@ pub struct AskArgs {
     pub question: String,
     /// Answer only from these files (up to 100 ids).
     pub file_ids: Option<Vec<Uuid>>,
+    /// Answer only from this collection (its name or `collection_id`).
+    pub collection: Option<String>,
 }
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct NoArgs {}
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -169,6 +180,14 @@ pub fn list(can_write: bool) -> Vec<Tool> {
              filters, a page at a time. Returns `next_cursor` for the next page.",
         )
         .annotate(read_only("List files")),
+        tool::<NoArgs>(
+            "list_collections",
+            "List collections",
+            "List the user's collections (named groups of files, e.g. \"Taxes 2025\") \
+             with their ids, descriptions and file counts. Pass a collection's name or id \
+             as `collection` to search, list_files or ask to stay within it.",
+        )
+        .annotate(read_only("List collections")),
         tool::<AskArgs>(
             "ask",
             "Ask the library",
@@ -237,6 +256,7 @@ pub async fn call(
         "get_file" => run(args, |a| read::get_file(state, caller, a)).await,
         "read_file" => run(args, |a| read::read_file(state, caller, a)).await,
         "list_files" => run(args, |a| read::list_files(state, caller, a)).await,
+        "list_collections" => run(args, |_: NoArgs| collections::list(state, caller)).await,
         "ask" => run(args, |a| ask::ask(state, caller, a)).await,
         "add_note" => run(args, |a| write::add_note(state, caller, a)).await,
         "tag_file" => run(args, |a| write::tag_file(state, caller, a)).await,

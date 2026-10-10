@@ -17,6 +17,7 @@ function fileItem(id: string, name: string): FileItem {
     auto_tags: [],
     created_at: "2026-10-09T10:00:00Z",
     updated_at: "2026-10-09T10:00:00Z",
+    open_count: 0,
   };
 }
 

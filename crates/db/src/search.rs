@@ -43,7 +43,9 @@ pub struct ChunkFilter {
     pub file_ids: Vec<Uuid>,
     /// Never this file (similar-file lookups).
     pub exclude_file: Option<Uuid>,
-    // Collections (step 6) become one more `file_id IN (SELECT ...)` condition here.
+    /// Only files in this collection (the caller checks that it is the owner's;
+    /// the condition also requires the owner).
+    pub collection_id: Option<Uuid>,
 }
 
 /// A candidate chunk with the score its retriever gave it (higher is better).
@@ -77,6 +79,9 @@ pub async fn keyword(
              AND ($7::bool IS NULL OR f.is_pinned = $7)
              AND (cardinality($8::uuid[]) = 0 OR c.file_id = ANY($8))
              AND ($9::uuid IS NULL OR c.file_id <> $9)
+             AND ($11::uuid IS NULL OR EXISTS (
+                 SELECT 1 FROM collection_files cf
+                 WHERE cf.owner_id = $1 AND cf.collection_id = $11 AND cf.file_id = f.id))
            ORDER BY 3 DESC, c.id
            LIMIT $10"#,
         owner_id,
@@ -89,6 +94,7 @@ pub async fn keyword(
         &filter.file_ids,
         filter.exclude_file,
         limit,
+        filter.collection_id,
     )
     .fetch_all(pool)
     .await
@@ -121,6 +127,9 @@ pub async fn filename(
                  AND ($7::bool IS NULL OR f.is_pinned = $7)
                  AND (cardinality($8::uuid[]) = 0 OR f.id = ANY($8))
                  AND ($9::uuid IS NULL OR f.id <> $9)
+                 AND ($11::uuid IS NULL OR EXISTS (
+                     SELECT 1 FROM collection_files cf
+                     WHERE cf.owner_id = $1 AND cf.collection_id = $11 AND cf.file_id = f.id))
            ) n
            CROSS JOIN LATERAL (
                SELECT id, file_id FROM file_chunks
@@ -139,6 +148,7 @@ pub async fn filename(
         &filter.file_ids,
         filter.exclude_file,
         limit,
+        filter.collection_id,
     )
     .fetch_all(pool)
     .await
@@ -169,7 +179,9 @@ pub async fn semantic(
     )
     .fetch_one(&mut *tx)
     .await?;
-    let exact = !filter.file_ids.is_empty() || embedded <= EXACT_SCAN_MAX_CHUNKS;
+    let exact = !filter.file_ids.is_empty()
+        || filter.collection_id.is_some()
+        || embedded <= EXACT_SCAN_MAX_CHUNKS;
     if !exact {
         let ef = ef_search.max(limit).clamp(1, 1000).to_string();
         sqlx::query_scalar!("SELECT set_config('hnsw.ef_search', $1, true)", ef)
@@ -197,6 +209,9 @@ pub async fn semantic(
                  AND ($7::bool IS NULL OR f.is_pinned = $7)
                  AND (cardinality($8::uuid[]) = 0 OR c.file_id = ANY($8))
                  AND ($9::uuid IS NULL OR c.file_id <> $9)
+                 AND ($11::uuid IS NULL OR EXISTS (
+                     SELECT 1 FROM collection_files cf
+                     WHERE cf.owner_id = $1 AND cf.collection_id = $11 AND cf.file_id = f.id))
                ORDER BY (c.embedding <=> $2::real[]::vector) + 0, c.id
                LIMIT $10"#,
             owner_id,
@@ -209,6 +224,7 @@ pub async fn semantic(
             &filter.file_ids,
             filter.exclude_file,
             limit,
+            filter.collection_id,
         )
         .fetch_all(&mut *tx)
         .await?
@@ -227,6 +243,9 @@ pub async fn semantic(
                  AND ($7::bool IS NULL OR f.is_pinned = $7)
                  AND (cardinality($8::uuid[]) = 0 OR c.file_id = ANY($8))
                  AND ($9::uuid IS NULL OR c.file_id <> $9)
+                 AND ($11::uuid IS NULL OR EXISTS (
+                     SELECT 1 FROM collection_files cf
+                     WHERE cf.owner_id = $1 AND cf.collection_id = $11 AND cf.file_id = f.id))
                ORDER BY c.embedding <=> $2::real[]::vector
                LIMIT $10"#,
             owner_id,
@@ -239,6 +258,7 @@ pub async fn semantic(
             &filter.file_ids,
             filter.exclude_file,
             limit,
+            filter.collection_id,
         )
         .fetch_all(&mut *tx)
         .await?

@@ -41,11 +41,15 @@ pub async fn search(
     auth: AuthUser,
     Query(query): Query<SearchQuery>,
 ) -> Result<Json<FileResults>, ApiError> {
-    rate_limit::check_user(&state.search_limiter, auth.user_id, "searches")?;
+    rate_limit::check_user_audited(&state.db, &state.search_limiter, (&auth).into(), "searches")?;
     let req = query.into_request()?;
+    check_collection(&state, &auth, &req).await?;
     let models = models(&state).await;
     let res = akasha_search::search_files(&state.db, auth.user_id, &req, &models).await?;
     log(&res.meta, res.results.len());
+    if req.offset == 0 {
+        record(&state, &auth, &req, res.results.len(), res.meta.has_more).await;
+    }
     Ok(Json(res))
 }
 
@@ -66,8 +70,9 @@ pub async fn search_chunks(
     auth: AuthUser,
     Query(query): Query<SearchQuery>,
 ) -> Result<Json<ChunkResults>, ApiError> {
-    rate_limit::check_user(&state.search_limiter, auth.user_id, "searches")?;
+    rate_limit::check_user_audited(&state.db, &state.search_limiter, (&auth).into(), "searches")?;
     let req = query.into_request()?;
+    check_collection(&state, &auth, &req).await?;
     let models = models(&state).await;
     let res = akasha_search::search_chunks(&state.db, auth.user_id, &req, &models).await?;
     log(&res.meta, res.results.len());
@@ -76,6 +81,43 @@ pub async fn search_chunks(
 
 /// The configured models, or why each is unavailable. Details go to the log;
 /// users see a short reason.
+/// A `collection_id` must be one of the caller's collections (else 404).
+async fn check_collection(
+    state: &AppState,
+    auth: &AuthUser,
+    req: &akasha_search::SearchRequest,
+) -> Result<(), ApiError> {
+    match req.filter.collection_id {
+        Some(id) => crate::routes::collections::ensure_owned(state, auth.user_id, id).await,
+        None => Ok(()),
+    }
+}
+
+/// A first-page search goes into the activity timeline (unless the user turned
+/// search history off; typing refines one entry). Agents' chunk searches and
+/// later pages are not recorded.
+async fn record(
+    state: &AppState,
+    auth: &AuthUser,
+    req: &akasha_search::SearchRequest,
+    results: usize,
+    more: bool,
+) {
+    let actor = crate::activity::Actor::from(auth);
+    let details = serde_json::json!({
+        "results": results,
+        "more": more,
+        "mode": req.mode,
+        "collection_id": req.filter.collection_id,
+    });
+    if let Err(e) =
+        akasha_db::activity::record_search(&state.db, auth.user_id, &req.query, details, actor.via)
+            .await
+    {
+        tracing::warn!(error = %e, "could not record a search");
+    }
+}
+
 pub async fn models(state: &AppState) -> Models {
     let (embedder, reranker) = tokio::join!(
         state.ml.embedder_within(MODEL_WAIT),

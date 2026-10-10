@@ -1,14 +1,17 @@
 //! Route table and OpenAPI document. Add each new feature as a sub-module and
 //! register its paths in [`ApiDoc`].
 
+mod activity;
 mod auth;
 pub(crate) mod chat;
+pub(crate) mod collections;
 mod cursor;
 pub(crate) mod files;
 mod health;
 mod me;
 mod meta;
 pub(crate) mod search;
+mod sessions;
 mod system;
 mod tokens;
 
@@ -39,7 +42,11 @@ use crate::{auth::session::COOKIE_NAME, error::ErrorBody, rate_limit, state::App
         files::bulk_delete, files::download::download, files::processing::reindex,
         files::enrich::enrich,
         files::extraction::get, files::similar::similar, files::thumbnail::thumbnail,
-        files::tags::list,
+        files::tags::list, files::open,
+        collections::list, collections::create, collections::get, collections::update,
+        collections::delete, collections::add_files, collections::remove_files,
+        activity::list, activity::clear,
+        sessions::list, sessions::revoke, sessions::revoke_others,
         search::search, search::search_chunks,
         chat::create, chat::list, chat::get, chat::update, chat::delete,
         chat::list_messages, chat::messages::post,
@@ -128,6 +135,38 @@ pub fn router(state: &AppState) -> Router<AppState> {
             "/api/v1/me/tokens/{id}",
             axum::routing::delete(tokens::revoke),
         )
+        .route("/api/v1/me/sessions", get(sessions::list))
+        .route(
+            "/api/v1/me/sessions/revoke-others",
+            post(sessions::revoke_others),
+        )
+        .route(
+            "/api/v1/me/sessions/{id}",
+            axum::routing::delete(sessions::revoke),
+        )
+        .route(
+            "/api/v1/activity",
+            get(activity::list).delete(activity::clear),
+        )
+        .route(
+            "/api/v1/collections",
+            get(collections::list).post(collections::create),
+        )
+        .route(
+            "/api/v1/collections/{id}",
+            get(collections::get)
+                .patch(collections::update)
+                .delete(collections::delete),
+        )
+        .route(
+            "/api/v1/collections/{id}/files",
+            post(collections::add_files),
+        )
+        .route(
+            "/api/v1/collections/{id}/files/remove",
+            post(collections::remove_files),
+        )
+        .route("/api/v1/files/{id}/open", post(files::open))
         .route("/api/v1/files", get(files::list))
         .route("/api/v1/files/bulk-delete", post(files::bulk_delete))
         .route("/api/v1/tags", get(files::tags::list))

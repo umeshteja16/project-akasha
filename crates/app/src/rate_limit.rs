@@ -75,6 +75,19 @@ pub fn check_user(limiter: &UserLimiter, user: Uuid, what: &str) -> Result<(), E
     })
 }
 
+/// [`check_user`], and on a hit note it in the user's security log (at most
+/// once per 10 minutes, in the background).
+pub fn check_user_audited(
+    db: &akasha_db::PgPool,
+    limiter: &UserLimiter,
+    actor: crate::activity::Actor,
+    what: &'static str,
+) -> Result<(), Error> {
+    check_user(limiter, actor.user_id, what).inspect_err(|_| {
+        crate::activity::rate_limited(db, actor, what);
+    })
+}
+
 /// Periodically forget idle clients so the limiters' memory stays bounded.
 pub fn spawn_cleanup(limiter: AuthLimiter, users: Vec<UserLimiter>) {
     tokio::spawn(async move {

@@ -49,9 +49,15 @@ pub async fn load(state: &AppState, dir: &Path, names: &[String]) -> anyhow::Res
         let mut staged = state.storage.stage().await?;
         staged.write(Bytes::from(bytes)).await?;
         let blob = staged.finish().await?;
-        store::save(state, user.id, blob, name, detected.mime)
-            .await
-            .map_err(|e| anyhow::anyhow!("{name}: {}", e.0))?;
+        store::save(
+            state,
+            crate::activity::Actor::session(user.id),
+            blob,
+            name,
+            detected.mime,
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("{name}: {}", e.0))?;
     }
 
     // One job at a time: chunk ids (score tie-breakers) come out the same every run.

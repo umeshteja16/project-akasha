@@ -32,6 +32,9 @@ pub struct Config {
     pub allow_registration: bool,
     /// How long a login session lasts, in days.
     pub session_ttl_days: u32,
+    /// Activity timeline and security log entries older than this many days are
+    /// deleted daily; 0 keeps them forever.
+    pub activity_retention_days: u32,
     /// Largest accepted upload, in MiB.
     pub max_upload_mb: u64,
     /// Where uploaded file contents are kept.
@@ -157,6 +160,7 @@ impl Default for Config {
             cookie_secure: false,
             allow_registration: true,
             session_ttl_days: 30,
+            activity_retention_days: 365,
             max_upload_mb: 512,
             storage_backend: StorageBackend::Local,
             storage_dir: "./storage".into(),

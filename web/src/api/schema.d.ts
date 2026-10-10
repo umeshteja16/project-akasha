@@ -4,6 +4,32 @@
  */
 
 export interface paths {
+    "/api/v1/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Your activity, newest first: files uploaded, renamed, tagged, opened and
+         *     deleted, searches, questions, collection changes, and the security log
+         *     (sign-ins with address and browser, password and session changes, tokens,
+         *     rate limits). Kept for `AKASHA_ACTIVITY_RETENTION_DAYS` (default 365).
+         */
+        get: operations["list_activity"];
+        put?: never;
+        post?: never;
+        /**
+         * Clear your activity history (all of it, or some categories). The security
+         *     log is kept: it ages out with the retention period.
+         */
+        delete: operations["clear_activity"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -49,6 +75,80 @@ export interface paths {
         put?: never;
         /** Create an account and sign in. */
         post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/collections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your collections, by name. */
+        get: operations["list_collections"];
+        put?: never;
+        /** Create a collection, optionally with files in it. */
+        post: operations["create_collection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/collections/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One of your collections. */
+        get: operations["get_collection"];
+        put?: never;
+        post?: never;
+        /** Delete a collection. Its files are kept. */
+        delete: operations["delete_collection"];
+        options?: never;
+        head?: never;
+        /** Rename, describe, recolour or change the icon of a collection. */
+        patch: operations["update_collection"];
+        trace?: never;
+    };
+    "/api/v1/collections/{id}/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add files to a collection (up to 100 per request). Files already in it, and
+         *     ids that are not your files, are skipped.
+         */
+        post: operations["add_collection_files"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/collections/{id}/files/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Take files out of a collection (the files themselves are kept). */
+        post: operations["remove_collection_files"];
         delete?: never;
         options?: never;
         head?: never;
@@ -238,6 +338,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/files/{id}/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Note that you opened a file: sets `last_opened_at` (for "Recently opened",
+         *     `sort=opened`) and adds an "opened" entry to your activity, at most once per
+         *     file per 30 minutes. The UI calls it when a file's page opens.
+         */
+        post: operations["open_file"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/files/{id}/reindex": {
         parameters: {
             query?: never;
@@ -327,6 +448,57 @@ export interface paths {
         /** Change password. Signs out every other session. */
         post: operations["change_password"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Where you are signed in. */
+        get: operations["list_sessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/sessions/revoke-others": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign out everywhere except here. */
+        post: operations["revoke_other_sessions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Sign out one of your other sessions (use `POST /auth/logout` for this one). */
+        delete: operations["revoke_session"];
         options?: never;
         head?: never;
         patch?: never;
@@ -502,6 +674,70 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * @description Broad groups of events (the timeline's filters).
+         * @enum {string}
+         */
+        ActivityCategory: "files" | "search" | "chat" | "collections" | "security";
+        ActivityCleared: {
+            /** Format: int64 */
+            deleted: number;
+        };
+        ActivityItem: {
+            category: components["schemas"]["ActivityCategory"];
+            /**
+             * Format: uuid
+             * @description The collection, while it still exists.
+             */
+            collection_id?: string | null;
+            /**
+             * Format: uuid
+             * @description The conversation, while it still exists.
+             */
+            conversation_id?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /**
+             * @description Kind-specific facts, e.g. `{"from": "a.pdf", "to": "b.pdf"}` for a rename,
+             *     `{"count": 3, "file_names": [..]}` for collection changes, `{"added": [..],
+             *     "removed": [..]}` for tags, `{"results": 4, "mode": "hybrid"}` for searches.
+             */
+            details: Record<string, never>;
+            /**
+             * Format: uuid
+             * @description The file, while it still exists.
+             */
+            file_id?: string | null;
+            /** Format: uuid */
+            id: string;
+            /** @description Client address (security events only). */
+            ip?: string | null;
+            kind: components["schemas"]["ActivityKind"];
+            /**
+             * @description What it was about, as named at the time: file name, search query,
+             *     question, collection or token name.
+             */
+            subject?: string | null;
+            /** @description Client user agent (security events only). */
+            user_agent?: string | null;
+            via?: null | components["schemas"]["ActivityVia"];
+        };
+        /**
+         * @description What happened.
+         * @enum {string}
+         */
+        ActivityKind: "FileUploaded" | "FileRenamed" | "FileTagged" | "FileDeleted" | "FileOpened" | "SearchPerformed" | "ChatAsked" | "CollectionCreated" | "CollectionUpdated" | "CollectionDeleted" | "CollectionFilesAdded" | "CollectionFilesRemoved" | "AccountCreated" | "SignedIn" | "SignInFailed" | "SignedOut" | "PasswordChanged" | "PasswordChangeFailed" | "AccountDeleteFailed" | "SessionRevoked" | "TokenCreated" | "TokenRevoked" | "RateLimited";
+        ActivityPage: {
+            /** @description Newest first. */
+            items: components["schemas"]["ActivityItem"][];
+            /** @description Pass as `cursor` for older events; `null` on the last page. */
+            next_cursor?: string | null;
+        };
+        /**
+         * @description Who acted: the browser session or an API token / MCP client.
+         * @enum {string}
+         */
+        ActivityVia: "session" | "token";
+        /**
          * @description How an answer ended.
          * @enum {string}
          */
@@ -649,6 +885,56 @@ export interface components {
             quote: string;
         };
         /**
+         * @description A collection's colour, from the UI's muted palette (never a raw colour).
+         * @enum {string}
+         */
+        CollectionColor: "sage" | "sky" | "ochre" | "clay" | "plum" | "slate";
+        CollectionFilesChanged: {
+            /** @description The collection afterwards. */
+            collection: components["schemas"]["CollectionResponse"];
+            /** @description The files actually added (or removed); already-present or unknown ids are left out. */
+            file_ids: string[];
+        };
+        CollectionFilesRequest: {
+            /** @description Up to 100 file ids. Ids that are not your files are skipped. */
+            file_ids: string[];
+        };
+        /**
+         * @description A collection's icon.
+         * @enum {string}
+         */
+        CollectionIcon: "folder" | "book" | "briefcase" | "flask" | "heart" | "star" | "archive" | "receipt" | "plane" | "home" | "graduation" | "code";
+        CollectionList: {
+            /** @description By name. */
+            items: components["schemas"]["CollectionResponse"][];
+        };
+        CollectionResponse: {
+            color: components["schemas"]["CollectionColor"];
+            /** Format: date-time */
+            created_at: string;
+            /** @description Plain text, may be empty. */
+            description: string;
+            /** Format: int64 */
+            file_count: number;
+            icon: components["schemas"]["CollectionIcon"];
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /**
+             * Format: date-time
+             * @description Last change, including files added or removed.
+             */
+            updated_at: string;
+        };
+        /** @description A collection a file belongs to. */
+        CollectionSummary: {
+            color: components["schemas"]["CollectionColor"];
+            icon: components["schemas"]["CollectionIcon"];
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
+        /**
          * @description How a component stands.
          * @enum {string}
          */
@@ -660,6 +946,12 @@ export interface components {
             next_cursor?: string | null;
         };
         ConversationResponse: {
+            /**
+             * Format: uuid
+             * @description Questions are answered from this collection (combined with `file_ids`
+             *     when both are set); `null`: no collection scope.
+             */
+            collection_id?: string | null;
             /** Format: date-time */
             created_at: string;
             /**
@@ -677,7 +969,22 @@ export interface components {
              */
             updated_at: string;
         };
+        CreateCollection: {
+            color?: null | components["schemas"]["CollectionColor"];
+            /** @description Up to 2000 characters. */
+            description?: string | null;
+            /** @description Files to put in it right away (up to 100; ids that are not yours are skipped). */
+            file_ids?: string[] | null;
+            icon?: null | components["schemas"]["CollectionIcon"];
+            /** @description 1-100 characters, unique among your collections (ignoring case). */
+            name: string;
+        };
         CreateConversation: {
+            /**
+             * Format: uuid
+             * @description Answer only from this collection (404 if it is not yours).
+             */
+            collection_id?: string | null;
             /** @description Answer only from these files (up to 100; ids that are not yours are dropped). */
             file_ids?: string[] | null;
             /** @description Optional; otherwise the first question becomes the title. */
@@ -777,6 +1084,8 @@ export interface components {
         FileCategory: "pdf" | "image" | "audio" | "video" | "text";
         /** @description One file plus the state of its latest processing job. */
         FileDetail: components["schemas"]["FileResponse"] & {
+            /** @description The collections the file is in, by name. */
+            collections: components["schemas"]["CollectionSummary"][];
             processing?: null | components["schemas"]["ProcessingJob"];
         };
         /** @description A file-level result: the file and its best matching chunks. */
@@ -842,10 +1151,17 @@ export interface components {
             /** Format: uuid */
             id: string;
             is_pinned: boolean;
+            /**
+             * Format: date-time
+             * @description When you last opened the file's page (`POST /files/{id}/open`).
+             */
+            last_opened_at?: string | null;
             /** @description Detected from the contents, not taken from the client. */
             mime_type: string;
             /** @description Sanitised original filename. */
             name: string;
+            /** Format: int32 */
+            open_count: number;
             /** Format: int64 */
             size_bytes: number;
             status: components["schemas"]["FileStatus"];
@@ -864,7 +1180,7 @@ export interface components {
          * @description Sort order of the file list.
          * @enum {string}
          */
-        FileSort: "newest" | "oldest" | "name" | "size";
+        FileSort: "newest" | "oldest" | "name" | "size" | "opened";
         /**
          * @description Processing state of a file.
          * @enum {string}
@@ -944,6 +1260,12 @@ export interface components {
             source: components["schemas"]["PageSource"];
         };
         PostMessage: {
+            /**
+             * Format: uuid
+             * @description Only answer from this collection. Omitted: the conversation's
+             *     `collection_id`.
+             */
+            collection_id?: string | null;
             /** @description The question, 1–4000 characters. */
             content: string;
             /**
@@ -1084,6 +1406,33 @@ export interface components {
             /** @description Server version (the `akasha` crate version). */
             version: string;
         };
+        SessionList: {
+            /** @description Most recently used first. */
+            items: components["schemas"]["SessionResponse"][];
+        };
+        SessionResponse: {
+            /**
+             * Format: date-time
+             * @description When this sign-in happened.
+             */
+            created_at: string;
+            /** @description This is the session making the request. */
+            current: boolean;
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: uuid */
+            id: string;
+            /** @description The address it signed in from. */
+            ip?: string | null;
+            /** Format: date-time */
+            last_seen_at: string;
+            /** @description The browser's user agent at sign-in. */
+            user_agent?: string | null;
+        };
+        SessionsRevoked: {
+            /** Format: int64 */
+            revoked: number;
+        };
         /** @description A file similar to another one. */
         SimilarFile: {
             file: components["schemas"]["FileInfo"];
@@ -1200,8 +1549,20 @@ export interface components {
             /** Format: int32 */
             output_tokens?: number | null;
         };
+        UpdateCollection: {
+            color?: null | components["schemas"]["CollectionColor"];
+            /** @description `""` clears it. */
+            description?: string | null;
+            icon?: null | components["schemas"]["CollectionIcon"];
+            name?: string | null;
+        };
         /** @description Change the title, the file scope, or both. */
         UpdateConversation: {
+            /**
+             * Format: uuid
+             * @description New collection scope; `null` clears it, absent keeps it.
+             */
+            collection_id?: string | null;
             /** @description New file scope (up to 100 ids); `[]`: all your files. */
             file_ids?: string[] | null;
             /** @description 1–200 characters. */
@@ -1221,8 +1582,14 @@ export interface components {
             tags?: string[] | null;
         };
         UpdateMeRequest: {
-            /** @description New display name; `null` or blank clears it. */
+            /** @description New display name; `null` or blank clears it, absent keeps it. */
             display_name?: string | null;
+            /**
+             * @description Keep a history of your searches (with the query text) in the activity
+             *     timeline. Turning it off stops recording; existing entries stay until
+             *     you clear them.
+             */
+            record_search_history?: boolean | null;
         };
         /** @description `multipart/form-data` body of an upload. */
         UploadForm: {
@@ -1239,6 +1606,8 @@ export interface components {
             email: string;
             /** Format: uuid */
             id: string;
+            /** @description Searches (with their query) appear in the activity timeline. */
+            record_search_history: boolean;
         };
         /**
          * @description `ok`: working through jobs or nothing to do; `stalled`: jobs wait and no
@@ -1284,6 +1653,109 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_activity: {
+        parameters: {
+            query?: {
+                /** @description Comma-separated categories (`files,search,chat,collections,security`); default all. */
+                category?: string;
+                /** @description Comma-separated kinds (e.g. `auth.signed_in,auth.sign_in_failed`); default all. */
+                kind?: string;
+                /** @description Only events about this file. */
+                file_id?: string;
+                /** @description `next_cursor` from the previous page. */
+                cursor?: string;
+                /** @description Page size, 1-100 (default 50). */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    clear_activity: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Comma-separated categories to clear (default: everything except `security`,
+                 *     which is never cleared by hand).
+                 */
+                category?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityCleared"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     login: {
         parameters: {
             query?: never;
@@ -1405,6 +1877,353 @@ export interface operations {
                 };
             };
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_collections: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_collection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCollection"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_collection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Collection id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_collection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Collection id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    update_collection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Collection id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCollection"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    add_collection_files: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Collection id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionFilesRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionFilesChanged"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove_collection_files: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Collection id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionFilesRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionFilesChanged"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1736,7 +2555,9 @@ export interface operations {
                 /** @description Only files carrying this tag (their own or a suggested one). */
                 tag?: string;
                 category?: components["schemas"]["FileCategory"];
-                /** @description Order of the list (default `newest`). */
+                /** @description Only files in this collection (404 if it is not yours). */
+                collection_id?: string;
+                /** @description Order of the list (default `newest`). `opened` lists only files you have opened. */
                 sort?: components["schemas"]["FileSort"];
                 /** @description `next_cursor` from the previous page (of the same `sort`). */
                 cursor?: string;
@@ -2170,6 +2991,52 @@ export interface operations {
             };
         };
     };
+    open_file: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description File id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     reindex: {
         parameters: {
             query?: never;
@@ -2454,6 +3321,129 @@ export interface operations {
             };
         };
     };
+    list_sessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    revoke_other_sessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionsRevoked"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    revoke_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed out */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_tokens: {
         parameters: {
             query?: never;
@@ -2630,6 +3620,8 @@ export interface operations {
                 pinned?: boolean;
                 /** @description Comma-separated file ids (up to 100) to search within. */
                 file_ids?: string;
+                /** @description Only files in this collection (404 if it is not yours). */
+                collection_id?: string;
                 /** @description Results per page, 1-50 (default 10). */
                 limit?: number;
                 /** @description 1-based page (default 1). Only the first 200 results can be paged through. */
@@ -2705,6 +3697,8 @@ export interface operations {
                 pinned?: boolean;
                 /** @description Comma-separated file ids (up to 100) to search within. */
                 file_ids?: string;
+                /** @description Only files in this collection (404 if it is not yours). */
+                collection_id?: string;
                 /** @description Results per page, 1-50 (default 10). */
                 limit?: number;
                 /** @description 1-based page (default 1). Only the first 200 results can be paged through. */

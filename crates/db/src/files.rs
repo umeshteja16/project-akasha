@@ -37,6 +37,9 @@ pub struct File {
     pub enriched_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Last time the owner opened the file's page (see [`mark_opened`]).
+    pub last_opened_at: Option<DateTime<Utc>>,
+    pub open_count: i32,
 }
 
 pub struct NewFile<'a> {
@@ -147,14 +150,18 @@ pub async fn insert(
     .await
 }
 
-pub async fn get(pool: &PgPool, owner_id: Uuid, id: Uuid) -> Result<Option<File>, sqlx::Error> {
+pub async fn get<'e>(
+    db: impl sqlx::PgExecutor<'e>,
+    owner_id: Uuid,
+    id: Uuid,
+) -> Result<Option<File>, sqlx::Error> {
     sqlx::query_as!(
         File,
         "SELECT * FROM files WHERE owner_id = $1 AND id = $2",
         owner_id,
         id
     )
-    .fetch_optional(pool)
+    .fetch_optional(db)
     .await
 }
 
@@ -169,8 +176,8 @@ pub struct FileChanges<'a> {
 }
 
 /// Change any of name, pin, tags and suggested tags.
-pub async fn update(
-    pool: &PgPool,
+pub async fn update<'e>(
+    db: impl sqlx::PgExecutor<'e>,
     owner_id: Uuid,
     id: Uuid,
     changes: FileChanges<'_>,
@@ -191,7 +198,7 @@ pub async fn update(
         changes.tags,
         changes.auto_tags,
     )
-    .fetch_optional(pool)
+    .fetch_optional(db)
     .await
 }
 
@@ -226,21 +233,48 @@ pub async fn delete(
     .await
 }
 
-/// Delete several of the owner's files. Returns `(id, content_hash)` of each one
-/// that existed.
+/// A deleted file row (see [`delete_many`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Deleted {
+    pub id: Uuid,
+    pub content_hash: String,
+    pub original_name: String,
+}
+
+/// Delete several of the owner's files. Returns each one that existed.
 pub async fn delete_many(
     conn: &mut PgConnection,
     owner_id: Uuid,
     ids: &[Uuid],
-) -> Result<Vec<(Uuid, String)>, sqlx::Error> {
-    let rows = sqlx::query!(
-        "DELETE FROM files WHERE owner_id = $1 AND id = ANY($2) RETURNING id, content_hash",
+) -> Result<Vec<Deleted>, sqlx::Error> {
+    sqlx::query_as!(
+        Deleted,
+        "DELETE FROM files WHERE owner_id = $1 AND id = ANY($2)
+         RETURNING id, content_hash, original_name",
         owner_id,
         ids
     )
     .fetch_all(conn)
-    .await?;
-    Ok(rows.into_iter().map(|r| (r.id, r.content_hash)).collect())
+    .await
+}
+
+/// Record that the owner opened a file: `last_opened_at = now()` and one more
+/// `open_count` (without touching `updated_at`). `None`: no such file.
+pub async fn mark_opened(
+    conn: &mut PgConnection,
+    owner_id: Uuid,
+    id: Uuid,
+) -> Result<Option<File>, sqlx::Error> {
+    sqlx::query_as!(
+        File,
+        r#"UPDATE files SET last_opened_at = now(), open_count = open_count + 1
+           WHERE owner_id = $1 AND id = $2
+           RETURNING *"#,
+        owner_id,
+        id
+    )
+    .fetch_optional(conn)
+    .await
 }
 
 /// Put a file back to `pending` (before re-running extraction).

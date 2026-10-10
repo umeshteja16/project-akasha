@@ -14,6 +14,7 @@
 
 mod ask;
 pub mod bridge;
+mod collections;
 mod output;
 mod read;
 mod server;
@@ -57,6 +58,16 @@ const TIMEOUT: Duration = Duration::from_secs(150);
 pub struct Caller {
     pub user_id: Uuid,
     pub can_write: bool,
+}
+
+impl Caller {
+    /// MCP clients always sign in with an API token.
+    pub fn actor(&self) -> crate::activity::Actor {
+        crate::activity::Actor {
+            user_id: self.user_id,
+            via: "token",
+        }
+    }
 }
 
 /// `/mcp`, authenticated with API tokens.

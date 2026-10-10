@@ -34,7 +34,10 @@ pub struct NewToken<'a> {
     pub expires_at: Option<DateTime<Utc>>,
 }
 
-pub async fn create(pool: &PgPool, new: &NewToken<'_>) -> Result<ApiToken, sqlx::Error> {
+pub async fn create<'e>(
+    db: impl sqlx::PgExecutor<'e>,
+    new: &NewToken<'_>,
+) -> Result<ApiToken, sqlx::Error> {
     sqlx::query_as!(
         ApiToken,
         r#"INSERT INTO api_tokens (owner_id, name, token_hash, prefix, scopes, expires_at)
@@ -48,7 +51,7 @@ pub async fn create(pool: &PgPool, new: &NewToken<'_>) -> Result<ApiToken, sqlx:
         new.scopes,
         new.expires_at,
     )
-    .fetch_one(pool)
+    .fetch_one(db)
     .await
 }
 
@@ -78,17 +81,25 @@ pub async fn count_active(pool: &PgPool, owner_id: Uuid) -> Result<i64, sqlx::Er
     Ok(n)
 }
 
-/// Revoke one of the owner's tokens (idempotent). `false`: no such token.
-pub async fn revoke(pool: &PgPool, owner_id: Uuid, id: Uuid) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query!(
-        r#"UPDATE api_tokens SET revoked_at = coalesce(revoked_at, now())
-           WHERE owner_id = $1 AND id = $2"#,
+/// Revoke one of the owner's tokens (idempotent). `None`: no such token;
+/// otherwise its name and whether this call revoked it (`false`: it already was).
+pub async fn revoke<'e>(
+    db: impl sqlx::PgExecutor<'e>,
+    owner_id: Uuid,
+    id: Uuid,
+) -> Result<Option<(String, bool)>, sqlx::Error> {
+    let row = sqlx::query!(
+        r#"UPDATE api_tokens t SET revoked_at = coalesce(t.revoked_at, now())
+           FROM (SELECT id, revoked_at FROM api_tokens
+                 WHERE owner_id = $1 AND id = $2 FOR UPDATE) old
+           WHERE t.id = old.id
+           RETURNING t.name, old.revoked_at IS NULL AS "newly!""#,
         owner_id,
         id,
     )
-    .execute(pool)
+    .fetch_optional(db)
     .await?;
-    Ok(result.rows_affected() > 0)
+    Ok(row.map(|r| (r.name, r.newly)))
 }
 
 /// Look up a usable token by hash. `last_used_at` is refreshed at most once a
@@ -160,9 +171,15 @@ mod tests {
         );
 
         // Someone else cannot revoke it.
-        assert!(!revoke(&pool, b, t.id).await.expect("revoke"));
-        assert!(revoke(&pool, a, t.id).await.expect("revoke"));
-        assert!(revoke(&pool, a, t.id).await.expect("again"));
+        assert!(revoke(&pool, b, t.id).await.expect("revoke").is_none());
+        assert_eq!(
+            revoke(&pool, a, t.id).await.expect("revoke"),
+            Some(("laptop".to_owned(), true))
+        );
+        assert_eq!(
+            revoke(&pool, a, t.id).await.expect("again"),
+            Some(("laptop".to_owned(), false))
+        );
         assert!(authenticate(&pool, b"one").await.expect("auth").is_none());
         assert_eq!(count_active(&pool, a).await.expect("count"), 0);
 

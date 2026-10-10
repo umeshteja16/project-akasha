@@ -12,6 +12,9 @@ pub struct Conversation {
     pub title: String,
     /// Files the conversation answers from by default; empty: all files.
     pub file_ids: Vec<Uuid>,
+    /// The collection the conversation answers from, if any (combined with
+    /// `file_ids` when both are set).
+    pub collection_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -46,22 +49,26 @@ pub struct NewMessage<'a> {
     pub latency_ms: Option<i32>,
 }
 
+/// Start a conversation. A `collection_id` that is not the owner's is dropped.
 pub async fn create_conversation(
     pool: &PgPool,
     owner_id: Uuid,
     title: &str,
     file_ids: &[Uuid],
+    collection_id: Option<Uuid>,
 ) -> Result<Conversation, sqlx::Error> {
     sqlx::query_as!(
         Conversation,
-        "INSERT INTO conversations (owner_id, title, file_ids)
+        "INSERT INTO conversations (owner_id, title, file_ids, collection_id)
          VALUES ($1, $2, ARRAY(SELECT f.id FROM files f
                                WHERE f.owner_id = $1 AND f.id = ANY($3::uuid[])
-                               ORDER BY array_position($3::uuid[], f.id)))
-         RETURNING id, owner_id, title, file_ids, created_at, updated_at",
+                               ORDER BY array_position($3::uuid[], f.id)),
+                 (SELECT c.id FROM collections c WHERE c.owner_id = $1 AND c.id = $4))
+         RETURNING id, owner_id, title, file_ids, collection_id, created_at, updated_at",
         owner_id,
         title,
-        file_ids
+        file_ids,
+        collection_id
     )
     .fetch_one(pool)
     .await
@@ -77,7 +84,7 @@ pub async fn list_conversations(
     let (before_at, before_id) = before.unzip();
     sqlx::query_as!(
         Conversation,
-        "SELECT id, owner_id, title, file_ids, created_at, updated_at FROM conversations
+        "SELECT id, owner_id, title, file_ids, collection_id, created_at, updated_at FROM conversations
          WHERE owner_id = $1
            AND ($2::timestamptz IS NULL OR (updated_at, id) < ($2, $3::uuid))
          ORDER BY updated_at DESC, id DESC
@@ -98,7 +105,7 @@ pub async fn get_conversation(
 ) -> Result<Option<Conversation>, sqlx::Error> {
     sqlx::query_as!(
         Conversation,
-        "SELECT id, owner_id, title, file_ids, created_at, updated_at FROM conversations
+        "SELECT id, owner_id, title, file_ids, collection_id, created_at, updated_at FROM conversations
          WHERE id = $1 AND owner_id = $2",
         id,
         owner_id
@@ -116,7 +123,7 @@ pub async fn rename_conversation(
     sqlx::query_as!(
         Conversation,
         "UPDATE conversations SET title = $3, title_source = 'user' WHERE id = $1 AND owner_id = $2
-         RETURNING id, owner_id, title, file_ids, created_at, updated_at",
+         RETURNING id, owner_id, title, file_ids, collection_id, created_at, updated_at",
         id,
         owner_id,
         title
@@ -140,10 +147,33 @@ pub async fn set_conversation_scope(
                               WHERE f.owner_id = $2 AND f.id = ANY($3::uuid[])
                               ORDER BY array_position($3::uuid[], f.id))
          WHERE id = $1 AND owner_id = $2
-         RETURNING id, owner_id, title, file_ids, created_at, updated_at",
+         RETURNING id, owner_id, title, file_ids, collection_id, created_at, updated_at",
         id,
         owner_id,
         file_ids
+    )
+    .fetch_optional(conn)
+    .await
+}
+
+/// Set (or clear) the collection a conversation answers from. A collection that
+/// is not the owner's clears it (callers check first).
+pub async fn set_conversation_collection(
+    conn: &mut PgConnection,
+    owner_id: Uuid,
+    id: Uuid,
+    collection_id: Option<Uuid>,
+) -> Result<Option<Conversation>, sqlx::Error> {
+    sqlx::query_as!(
+        Conversation,
+        "UPDATE conversations
+         SET collection_id = (SELECT c.id FROM collections c
+                              WHERE c.owner_id = $2 AND c.id = $3)
+         WHERE id = $1 AND owner_id = $2
+         RETURNING id, owner_id, title, file_ids, collection_id, created_at, updated_at",
+        id,
+        owner_id,
+        collection_id
     )
     .fetch_optional(conn)
     .await

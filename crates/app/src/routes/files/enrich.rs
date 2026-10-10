@@ -48,7 +48,12 @@ pub async fn enrich(
     if file.status != "ready" {
         return Err(Error::conflict("the file is still being processed (or failed)").into());
     }
-    rate_limit::check_user(&state.enrich_limiter, auth.user_id, "enrichments")?;
+    rate_limit::check_user_audited(
+        &state.db,
+        &state.enrich_limiter,
+        (&auth).into(),
+        "enrichments",
+    )?;
     let mut tx = state.db.begin().await?;
     akasha_jobs::enqueue(
         &mut tx,
@@ -59,12 +64,8 @@ pub async fn enrich(
     )
     .await?;
     tx.commit().await?;
-    let processing = processing::latest(&state.db, id).await?;
     Ok((
         StatusCode::ACCEPTED,
-        Json(processing::FileDetail {
-            file: file.into(),
-            processing,
-        }),
+        Json(processing::FileDetail::load(&state.db, file).await?),
     ))
 }

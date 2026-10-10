@@ -17,7 +17,7 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 
 | | |
 |---|---|
-| **Current step** | Step 6: Beyond parity (6a MCP + API tokens done) |
+| **Current step** | Step 6: Beyond parity (6a MCP + API tokens done; 6b collections/activity/audit API done, screens next) |
 | **Last updated** | 2026-10-10 |
 | **`just check`** | passing (280 Rust tests + 5 ignored OCR/real-model tests, 97 web tests, bundle budget); `just e2e` 9 Playwright tests (incl. axe, tokens + `/mcp`) |
 | **Old code** | `legacy/` (read-only reference; deleted in step 7) |
@@ -27,13 +27,12 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 **Step 6: beyond parity.** Step 5 (web UI) is complete. In order; each ends with
 `just check` green, `just e2e` green and a PROGRESS.md update:
 
-Done in step 6 so far: **MCP server + personal API tokens** (6a, ADR 0015).
+Done in step 6 so far: **MCP server + personal API tokens** (6a, ADR 0015); the API of
+**collections, activity timeline, security log, sessions and open tracking** (6b, ADR 0016).
 
-1. **Collections + activity timeline + audit log** (legacy parity, the screens step 5
-   deferred): migrations (`collections`, `collection_files`, `activity_events`), CRUD and
-   owner-scoped routes, the `ChunkFilter` collection seam in search, then the UI screens
-   (collection list/detail, add-to-collection from library and search, timeline).
-   Then expose collections to MCP (`collection` filter on `search`/`list_files`).
+1. **6b screens**: Collections in the sidebar, collection page (add files dialog), "Add to
+   collection" in the library and on file pages, collection search chip and chat scope,
+   `/activity` timeline, Settings → Security (sessions, recent sign-ins, search history).
 2. **Observability**: Prometheus `/metrics` (search latency, job queue depth, model load
    state from `system::status`), OpenTelemetry export behind a feature.
 3. **Watched folders / connectors** (Obsidian vault, Downloads) via the job queue.
@@ -118,7 +117,7 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 - [x] MCP server (`rmcp`, Streamable HTTP at `/mcp` + `akasha mcp` stdio bridge) and personal API tokens (scopes, expiry, revocation, Settings → Access tokens)
 - [ ] Audio/video transcription (`whisper-rs`)
 - [ ] Watched folders / connectors (Obsidian vault, Downloads)
-- [ ] Collections, activity timeline, audit log (legacy parity; API + screens)
+- [~] Collections, activity timeline, audit log, open tracking (legacy parity; API done, screens next)
 - [ ] OpenTelemetry export + Prometheus `/metrics`
 
 ### Step 7: Release v0.1
@@ -453,9 +452,34 @@ See [`docs/adr/`](docs/adr). Summary:
   `Config::load` and writes only protocol to stdout (logs to stderr). Tool argument schemas
   come from `schemars` 1 (`uuid1`, `chrono04` features) via `schema_for_type`.
 
+- Collections + activity (6b, ADR 0016, migrations 0013/0014): `collection_files` has
+  composite FKs `(collection_id, owner_id)` / `(file_id, owner_id)` (new unique keys
+  `files (id, owner_id)`, `collections (id, owner_id)`), so cross-owner rows are impossible.
+  `ChunkFilter.collection_id` / `ListFilter.collection_id` / `?collection_id=`; routes 404 on
+  a collection that is not the caller's (`routes::collections::ensure_owned`).
+- `activity_events` is the timeline *and* the audit log (`category = 'security'`). Record
+  with `crate::activity::{event, record}` inside the action's transaction, or
+  `record_best_effort` outside one. New kinds: add an `ActivityKind` variant (the `kinds!`
+  macro maps kind → category) and a UI label. `created_at` defaults to `clock_timestamp()`
+  (ordering within a transaction). Failed sign-ins are written from a spawned task (no
+  timing oracle); tests poll for them. Opens are deduped per file per 30 min, rate-limit
+  hits per 10 min (`rate_limit::check_user_audited`), searches merge prefix-refinements
+  within 2 min and only page 1 of `GET /search` is recorded (not `/search/chunks`, MCP).
+- `/activity` and `/me/sessions` take `SessionUser`: tokens get 403. `PATCH /me` fields are
+  now optional independently (`display_name` absent = keep, `null` = clear; helper
+  `extract::double_option`); `{}` is a 400. `users.record_search_history` (default on).
+- `files.last_opened_at/open_count` do not bump `updated_at` (trigger has a `WHEN`).
+  `sort=opened` (cursor tag `r`) lists only opened files. `store::save/delete*` and
+  `files::edit::update` take an `activity::Actor` (`via` session/token); MCP callers are
+  `Caller::actor()`.
+- `just check` here ran out of disk while linking the ~25 test binaries (linker "Bus
+  error" = disk full): `cargo clean -p akasha` and `CARGO_INCREMENTAL=0` keep it under ~12 GB.
+
 ## Session log
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
+
+- 2026-10-10 · Claude (cloud) · Step 6b API: migrations 0013 (collections, collection_files, conversation collection scope, open tracking) and 0014 (activity_events, search-history preference, session IP); collections CRUD + add/remove files, `collection_id` on files/search/chat, MCP `collection` filters + `list_collections`; activity recording for files/search/chat/collections/tokens/sign-ins/password/sessions/rate limits, `GET/DELETE /activity`, `/me/sessions` list/revoke/revoke-others, `POST /files/{id}/open`, `sort=opened`, daily `prune_activity` (`AKASHA_ACTIVITY_RETENTION_DAYS`), ADR 0016. Tests: db (collections/activity/sessions) and HTTP (collections, activity, sessions) incl. owner isolation, scopes, retention. Screens follow in the next commit.
 
 - 2026-10-10 · Claude (cloud) · Step 6a: personal API tokens (migration 0012, `/me/tokens` GET/POST/DELETE, Bearer auth in `AuthUser` with read/write scopes, cookie-only `SessionUser` for account and token management, Settings → Access tokens with copy-once dialog and Claude Code command) and the MCP server (`rmcp` 3.5.1, stateless Streamable HTTP at `/mcp`: search, get_file, read_file, list_files, ask, add_note, tag_file, `akasha://file/{id}` resources; `akasha mcp` stdio bridge), ADR 0015, README "Use Akasha from Claude / AI agents". Tests: Rust token + MCP suites (handshake, tools, scopes, owner isolation, 401), Vitest tokens panel, e2e creates a token in the UI and calls `/mcp`. Resumed twice after interruptions (container restart, usage limit).
 

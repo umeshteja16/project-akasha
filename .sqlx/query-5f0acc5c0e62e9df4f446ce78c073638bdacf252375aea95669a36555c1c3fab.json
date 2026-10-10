@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM activity_events WHERE id IN (\n                   SELECT id FROM activity_events\n                   WHERE created_at < now() - make_interval(days => $1)\n                   LIMIT $2\n               )",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5f0acc5c0e62e9df4f446ce78c073638bdacf252375aea95669a36555c1c3fab"
+}

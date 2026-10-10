@@ -4,8 +4,10 @@
 //! `sqlx migrate add -r <name> --source crates/db/migrations`). Never alter the
 //! schema from application code.
 
+pub mod activity;
 pub mod api_tokens;
 pub mod chat;
+pub mod collections;
 pub mod embeddings;
 pub mod enrichment;
 pub mod extraction;

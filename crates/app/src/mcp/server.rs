@@ -121,6 +121,7 @@ impl ServerHandler for AkashaMcp {
             pinned: None,
             tag: None,
             mime_patterns: Vec::new(),
+            collection_id: None,
             order: files::ListOrder::Newest,
             after: None,
             limit: RESOURCES_LISTED,

@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH allowed AS (\n               SELECT 1 FROM users WHERE id = $1 AND record_search_history\n           ), prev AS (\n               SELECT id, subject FROM activity_events\n               WHERE owner_id = $1 AND kind = $5\n                 AND created_at > now() - interval '2 minutes'\n               ORDER BY created_at DESC, id DESC LIMIT 1\n           ), merge AS (\n               SELECT prev.id FROM prev, allowed\n               WHERE starts_with(lower($2), lower(prev.subject))\n                  OR starts_with(lower(prev.subject), lower($2))\n           ), upd AS (\n               UPDATE activity_events a\n               SET subject = $2, details = $3, via = $4, created_at = now()\n               FROM merge WHERE a.id = merge.id\n               RETURNING a.id\n           )\n           INSERT INTO activity_events (owner_id, kind, category, subject, details, via)\n           SELECT $1, $5, 'search', $2, $3, $4\n           WHERE EXISTS (SELECT 1 FROM allowed) AND NOT EXISTS (SELECT 1 FROM merge)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Jsonb",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "96a9d122dce5688d5e0337b7dc3f028c412ea676b55b73e406b7b9c8e3524008"
+}

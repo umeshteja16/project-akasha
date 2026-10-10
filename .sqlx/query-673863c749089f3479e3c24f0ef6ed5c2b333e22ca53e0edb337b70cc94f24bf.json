@@ -1,0 +1,44 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT c.id AS chunk_id, c.file_id, ts_rank_cd(c.tsv, q.tsq, 32)::real AS \"score!\"\n           FROM file_chunks c\n           JOIN files f ON f.id = c.file_id AND f.owner_id = $1\n           CROSS JOIN websearch_to_tsquery('english', $2) AS q(tsq)\n           WHERE c.owner_id = $1 AND c.tsv @@ q.tsq\n             AND (cardinality($3::text[]) = 0 OR f.mime_type LIKE ANY($3))\n             AND ($4::timestamptz IS NULL OR f.created_at >= $4)\n             AND ($5::timestamptz IS NULL OR f.created_at < $5)\n             AND (f.tags || f.auto_tags) @> $6::text[]\n             AND ($7::bool IS NULL OR f.is_pinned = $7)\n             AND (cardinality($8::uuid[]) = 0 OR c.file_id = ANY($8))\n             AND ($9::uuid IS NULL OR c.file_id <> $9)\n             AND ($11::uuid IS NULL OR EXISTS (\n                 SELECT 1 FROM collection_files cf\n                 WHERE cf.owner_id = $1 AND cf.collection_id = $11 AND cf.file_id = f.id))\n           ORDER BY 3 DESC, c.id\n           LIMIT $10",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "chunk_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "file_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "score!",
+        "type_info": "Float4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "TextArray",
+        "Timestamptz",
+        "Timestamptz",
+        "TextArray",
+        "Bool",
+        "UuidArray",
+        "Uuid",
+        "Int8",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "673863c749089f3479e3c24f0ef6ed5c2b333e22ca53e0edb337b70cc94f24bf"
+}

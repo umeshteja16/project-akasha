@@ -64,7 +64,7 @@ pub async fn upload(
         let (blob, detected) = receive(&state, field, &name, limit).await?;
         // `save` enqueues the extraction job in the same transaction as the insert.
         return Ok(
-            match store::save(&state, auth.user_id, blob, &name, detected.mime).await? {
+            match store::save(&state, (&auth).into(), blob, &name, detected.mime).await? {
                 Saved::Created(file) => (StatusCode::CREATED, Json(file.into())),
                 Saved::Existing(file) => (StatusCode::OK, Json(file.into())),
             },

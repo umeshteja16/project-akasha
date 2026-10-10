@@ -198,5 +198,5 @@ async fn housekeeping_jobs_succeed(pool: PgPool) {
         assert_eq!(jobs_of(&pool, kind).await[0].1, "succeeded", "{kind}");
     }
     let schedules = akasha::jobs::schedules().expect("schedules");
-    assert_eq!(schedules.len(), 4);
+    assert_eq!(schedules.len(), 5);
 }

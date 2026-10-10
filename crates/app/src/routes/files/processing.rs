@@ -28,6 +28,8 @@ pub struct FileDetail {
     pub file: FileResponse,
     /// Latest processing job (extraction or embedding), if one was ever queued.
     pub processing: Option<ProcessingJob>,
+    /// The collections the file is in, by name.
+    pub collections: Vec<crate::routes::collections::types::CollectionSummary>,
 }
 
 /// State of a background job.
@@ -101,6 +103,23 @@ impl From<JobInfo> for ProcessingJob {
 
 /// The latest processing job for `file_id`: the embed job once extraction queued
 /// one, else the extraction job. Callers must have checked ownership.
+impl FileDetail {
+    /// The file with its latest job and its collections.
+    pub async fn load(db: &PgPool, file: akasha_db::files::File) -> Result<Self, ApiError> {
+        let processing = latest(db, file.id).await?;
+        let collections = akasha_db::collections::of_file(db, file.owner_id, file.id)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect();
+        Ok(Self {
+            file: file.into(),
+            processing,
+            collections,
+        })
+    }
+}
+
 pub async fn latest(db: &PgPool, file_id: Uuid) -> Result<Option<ProcessingJob>, ApiError> {
     let key = file_id.to_string();
     let extract = queue::latest_by_key(db, ExtractFile::KIND, &key).await?;
@@ -137,12 +156,8 @@ pub async fn reindex(
     // Also retries a thumbnail that failed (or predates thumbnails).
     crate::files::store::enqueue_thumbnail(&mut tx, &file).await?;
     tx.commit().await?;
-    let processing = latest(&state.db, id).await?;
     Ok((
         StatusCode::ACCEPTED,
-        Json(FileDetail {
-            file: file.into(),
-            processing,
-        }),
+        Json(FileDetail::load(&state.db, file).await?),
     ))
 }

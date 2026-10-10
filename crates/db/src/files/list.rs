@@ -22,6 +22,8 @@ pub enum ListOrder {
     Name,
     /// `size_bytes` descending.
     Largest,
+    /// `last_opened_at` descending; only files that were ever opened.
+    Opened,
 }
 
 /// The sort key of the last row seen, matching the order it came from.
@@ -34,6 +36,8 @@ pub enum ListKey {
     Name(String),
     /// For [`ListOrder::Largest`].
     Size(i64),
+    /// For [`ListOrder::Opened`].
+    Opened(DateTime<Utc>),
 }
 
 impl ListKey {
@@ -43,6 +47,7 @@ impl ListKey {
             ListOrder::Newest | ListOrder::Oldest => Self::Created(file.created_at),
             ListOrder::Name => Self::Name(file.original_name.clone()),
             ListOrder::Largest => Self::Size(file.size_bytes),
+            ListOrder::Opened => Self::Opened(file.last_opened_at.unwrap_or(file.created_at)),
         }
     }
 }
@@ -56,6 +61,8 @@ pub struct ListFilter {
     pub tag: Option<String>,
     /// `LIKE` patterns on `mime_type`; a file matches if any pattern does.
     pub mime_patterns: Vec<String>,
+    /// Only files in this collection (the caller checks that it is the owner's).
+    pub collection_id: Option<Uuid>,
     pub order: ListOrder,
     /// Keyset cursor: only rows after `(key, id)` in `order`. A key of the wrong
     /// kind for the order is ignored (the caller validates cursors).
@@ -83,6 +90,10 @@ pub async fn list(
         Some(ListKey::Size(size)) => Some(*size),
         _ => None,
     };
+    let after_opened = match key {
+        Some(ListKey::Opened(ts)) => Some(*ts),
+        _ => None,
+    };
     let f = filter;
     match f.order {
         ListOrder::Newest => {
@@ -94,6 +105,9 @@ pub async fn list(
                      AND ($3::bool IS NULL OR is_pinned = $3)
                      AND ($4::text IS NULL OR tags @> ARRAY[$4::text] OR auto_tags @> ARRAY[$4::text])
                      AND (cardinality($5::text[]) = 0 OR mime_type LIKE ANY($5))
+                     AND ($9::uuid IS NULL OR EXISTS (
+                         SELECT 1 FROM collection_files cf
+                         WHERE cf.owner_id = $1 AND cf.collection_id = $9 AND cf.file_id = files.id))
                      AND ($6::timestamptz IS NULL OR (created_at, id) < ($6, $7::uuid))
                    ORDER BY created_at DESC, id DESC
                    LIMIT $8"#,
@@ -105,6 +119,7 @@ pub async fn list(
                 after_ts,
                 after_id,
                 f.limit,
+                f.collection_id,
             )
             .fetch_all(pool)
             .await
@@ -118,6 +133,9 @@ pub async fn list(
                      AND ($3::bool IS NULL OR is_pinned = $3)
                      AND ($4::text IS NULL OR tags @> ARRAY[$4::text] OR auto_tags @> ARRAY[$4::text])
                      AND (cardinality($5::text[]) = 0 OR mime_type LIKE ANY($5))
+                     AND ($9::uuid IS NULL OR EXISTS (
+                         SELECT 1 FROM collection_files cf
+                         WHERE cf.owner_id = $1 AND cf.collection_id = $9 AND cf.file_id = files.id))
                      AND ($6::timestamptz IS NULL OR (created_at, id) > ($6, $7::uuid))
                    ORDER BY created_at ASC, id ASC
                    LIMIT $8"#,
@@ -129,6 +147,7 @@ pub async fn list(
                 after_ts,
                 after_id,
                 f.limit,
+                f.collection_id,
             )
             .fetch_all(pool)
             .await
@@ -142,6 +161,9 @@ pub async fn list(
                      AND ($3::bool IS NULL OR is_pinned = $3)
                      AND ($4::text IS NULL OR tags @> ARRAY[$4::text] OR auto_tags @> ARRAY[$4::text])
                      AND (cardinality($5::text[]) = 0 OR mime_type LIKE ANY($5))
+                     AND ($9::uuid IS NULL OR EXISTS (
+                         SELECT 1 FROM collection_files cf
+                         WHERE cf.owner_id = $1 AND cf.collection_id = $9 AND cf.file_id = files.id))
                      AND ($6::text IS NULL OR (lower(original_name), id) > (lower($6), $7::uuid))
                    ORDER BY lower(original_name) ASC, id ASC
                    LIMIT $8"#,
@@ -153,6 +175,7 @@ pub async fn list(
                 after_name,
                 after_id,
                 f.limit,
+                f.collection_id,
             )
             .fetch_all(pool)
             .await
@@ -166,6 +189,9 @@ pub async fn list(
                      AND ($3::bool IS NULL OR is_pinned = $3)
                      AND ($4::text IS NULL OR tags @> ARRAY[$4::text] OR auto_tags @> ARRAY[$4::text])
                      AND (cardinality($5::text[]) = 0 OR mime_type LIKE ANY($5))
+                     AND ($9::uuid IS NULL OR EXISTS (
+                         SELECT 1 FROM collection_files cf
+                         WHERE cf.owner_id = $1 AND cf.collection_id = $9 AND cf.file_id = files.id))
                      AND ($6::int8 IS NULL OR (size_bytes, id) < ($6, $7::uuid))
                    ORDER BY size_bytes DESC, id DESC
                    LIMIT $8"#,
@@ -177,6 +203,35 @@ pub async fn list(
                 after_size,
                 after_id,
                 f.limit,
+                f.collection_id,
+            )
+            .fetch_all(pool)
+            .await
+        }
+        ListOrder::Opened => {
+            sqlx::query_as!(
+                File,
+                r#"SELECT * FROM files
+                   WHERE owner_id = $1 AND last_opened_at IS NOT NULL
+                     AND ($2::text IS NULL OR status = $2)
+                     AND ($3::bool IS NULL OR is_pinned = $3)
+                     AND ($4::text IS NULL OR tags @> ARRAY[$4::text] OR auto_tags @> ARRAY[$4::text])
+                     AND (cardinality($5::text[]) = 0 OR mime_type LIKE ANY($5))
+                     AND ($9::uuid IS NULL OR EXISTS (
+                         SELECT 1 FROM collection_files cf
+                         WHERE cf.owner_id = $1 AND cf.collection_id = $9 AND cf.file_id = files.id))
+                     AND ($6::timestamptz IS NULL OR (last_opened_at, id) < ($6, $7::uuid))
+                   ORDER BY last_opened_at DESC, id DESC
+                   LIMIT $8"#,
+                owner_id,
+                f.status,
+                f.pinned,
+                f.tag,
+                &f.mime_patterns,
+                after_opened,
+                after_id,
+                f.limit,
+                f.collection_id,
             )
             .fetch_all(pool)
             .await

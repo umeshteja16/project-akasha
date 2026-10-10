@@ -92,6 +92,16 @@
         "ordinal": 17,
         "name": "enriched_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 18,
+        "name": "last_opened_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 19,
+        "name": "open_count",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -118,7 +128,9 @@
       true,
       true,
       true,
-      true
+      true,
+      true,
+      false
     ]
   },
   "hash": "eeade0a4d3879c410fe16e2807c55480b9f5d15fc64ec7cf3db19cb0e225ea14"
