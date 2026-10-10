@@ -3,6 +3,7 @@
 
 pub mod chat;
 pub mod llm;
+pub mod mcp;
 
 use std::net::SocketAddr;
 

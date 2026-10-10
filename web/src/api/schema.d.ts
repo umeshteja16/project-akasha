@@ -332,6 +332,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your API tokens. */
+        get: operations["list_tokens"];
+        put?: never;
+        /**
+         * Create an API token for an MCP client or script. The secret is in the
+         *     response only; it cannot be shown again.
+         */
+        post: operations["create_token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/tokens/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke an API token. It stops working at once; revoking twice is harmless. */
+        delete: operations["revoke_token"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/meta": {
         parameters: {
             query?: never;
@@ -644,6 +682,22 @@ export interface components {
             file_ids?: string[] | null;
             /** @description Optional; otherwise the first question becomes the title. */
             title?: string | null;
+        };
+        CreateTokenRequest: {
+            /**
+             * Format: int32
+             * @description Days until the token stops working, 1-3650; `null`: never.
+             */
+            expires_in_days?: number | null;
+            /** @description What the token is for, e.g. "Claude Desktop on my laptop". 1-100 characters. */
+            name: string;
+            /** @description `["read"]` (default) or `["read", "write"]`. */
+            scopes?: components["schemas"]["TokenScope"][] | null;
+        };
+        CreatedToken: {
+            /** @description The token itself (`akasha_pat_…`). Shown only this once; store it safely. */
+            secret: string;
+            token: components["schemas"]["TokenResponse"];
         };
         DeleteAccountRequest: {
             /** @description Current password, to confirm. */
@@ -1108,6 +1162,37 @@ export interface components {
             /** Format: double */
             total_ms: number;
         };
+        TokenList: {
+            /** @description Newest first, revoked and expired ones included. */
+            items: components["schemas"]["TokenResponse"][];
+        };
+        TokenResponse: {
+            /** Format: date-time */
+            created_at: string;
+            /**
+             * Format: date-time
+             * @description `null`: never expires.
+             */
+            expires_at?: string | null;
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: date-time
+             * @description Refreshed at most once a minute.
+             */
+            last_used_at?: string | null;
+            name: string;
+            /** @description The first characters of the token, to recognise it. */
+            prefix: string;
+            /** Format: date-time */
+            revoked_at?: string | null;
+            scopes: components["schemas"]["TokenScope"][];
+        };
+        /**
+         * @description What a token may do.
+         * @enum {string}
+         */
+        TokenScope: "read" | "write";
         /** @description Token counts reported by the provider. */
         TokenUsage: {
             /** Format: int32 */
@@ -2360,6 +2445,141 @@ export interface operations {
                 };
             };
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_tokens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTokenRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedToken"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    revoke_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Token id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

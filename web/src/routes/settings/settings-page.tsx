@@ -10,6 +10,7 @@ import { DangerSection } from "./danger-section";
 import { PasswordSection } from "./password-section";
 import { ProfileSection } from "./profile-section";
 import { SystemPanel } from "./system-panel";
+import { TokensPanel } from "./tokens-panel";
 
 const route = getRouteApi("/app/settings");
 
@@ -18,7 +19,13 @@ export function SettingsPage() {
   const { data: me } = useQuery(meQuery(api));
   const meta = useQuery(metaQuery(api));
   const { tab = "account" } = route.useSearch();
-  useDocumentTitle(tab === "system" ? "System · Settings" : "Settings");
+  useDocumentTitle(
+    tab === "system"
+      ? "System · Settings"
+      : tab === "tokens"
+        ? "Access tokens · Settings"
+        : "Settings",
+  );
   const navigate = route.useNavigate();
   if (!me) return null;
   return (
@@ -26,16 +33,20 @@ export function SettingsPage() {
       <PageHeader
         eyebrow="Account"
         title="Settings"
-        description="Your profile, appearance and security, and how this server is set up."
+        description="Your profile, appearance and security, access for AI assistants, and how this server is set up."
       />
       <Tabs
         value={tab}
         onValueChange={(value) =>
-          void navigate({ search: value === "system" ? { tab: "system" } : {}, replace: true })
+          void navigate({
+            search: value === "system" || value === "tokens" ? { tab: value } : {},
+            replace: true,
+          })
         }
       >
         <TabsList aria-label="Settings sections">
           <TabsTrigger value="account">Account</TabsTrigger>
+          <TabsTrigger value="tokens">Access tokens</TabsTrigger>
           <TabsTrigger value="system">System</TabsTrigger>
         </TabsList>
         <TabsContent value="account" className="pt-0">
@@ -49,6 +60,9 @@ export function SettingsPage() {
               Akasha server {meta.data.version}
             </p>
           ) : null}
+        </TabsContent>
+        <TabsContent value="tokens" className="pt-0">
+          <TokensPanel />
         </TabsContent>
         <TabsContent value="system" className="pt-0">
           <SystemPanel />

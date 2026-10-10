@@ -17,9 +17,9 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 
 | | |
 |---|---|
-| **Current step** | Step 6: Beyond parity (Step 5 done) |
-| **Last updated** | 2026-10-09 |
-| **`just check`** | passing (262 Rust tests + 5 ignored OCR/real-model tests, 95 web tests, bundle budget); `just e2e` 9 Playwright tests (incl. axe) |
+| **Current step** | Step 6: Beyond parity (6a MCP + API tokens done) |
+| **Last updated** | 2026-10-10 |
+| **`just check`** | passing (280 Rust tests + 5 ignored OCR/real-model tests, 97 web tests, bundle budget); `just e2e` 9 Playwright tests (incl. axe, tokens + `/mcp`) |
 | **Old code** | `legacy/` (read-only reference; deleted in step 7) |
 
 ## Next up
@@ -27,16 +27,17 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 **Step 6: beyond parity.** Step 5 (web UI) is complete. In order; each ends with
 `just check` green, `just e2e` green and a PROGRESS.md update:
 
+Done in step 6 so far: **MCP server + personal API tokens** (6a, ADR 0015).
+
 1. **Collections + activity timeline + audit log** (legacy parity, the screens step 5
    deferred): migrations (`collections`, `collection_files`, `activity_events`), CRUD and
    owner-scoped routes, the `ChunkFilter` collection seam in search, then the UI screens
    (collection list/detail, add-to-collection from library and search, timeline).
-2. **MCP server** (`akasha mcp`, `rmcp`): search, read passage, list files as tools over
-   stdio with a per-user token; reuse `akasha_search::search_chunks` (relevance floor on).
-3. **Observability**: Prometheus `/metrics` (search latency, job queue depth, model load
+   Then expose collections to MCP (`collection` filter on `search`/`list_files`).
+2. **Observability**: Prometheus `/metrics` (search latency, job queue depth, model load
    state from `system::status`), OpenTelemetry export behind a feature.
-4. **Watched folders / connectors** (Obsidian vault, Downloads) via the job queue.
-5. **Audio/video transcription** (`whisper-rs`), into the existing extract pipeline.
+3. **Watched folders / connectors** (Obsidian vault, Downloads) via the job queue.
+4. **Audio/video transcription** (`whisper-rs`), into the existing extract pipeline.
 
 Open follow-ups:
 - Tune the unmeasured relevance floors (e5-small 0.80, bge 0.55, nomic/bge-m3 0.45, ONNX
@@ -44,6 +45,9 @@ Open follow-ups:
   `negative_clean`); calibrate the real-reranker refusal threshold the same way.
 - Commit a real-model eval baseline for the default models; consider an OR fallback for
   keyword search (it ANDs every word).
+- MCP follow-ups: try the HTTP endpoint with real Claude Code / Claude Desktop (only raw
+  JSON-RPC and the stdio bridge against a local server were exercised here); a `trust_proxy`
+  option is still needed before per-IP limits mean anything behind a reverse proxy.
 - Chat: `no_llm` fallback on a provider outage. PWA offline shell (service worker) was
   deferred: the app is installable (manifest + icons) but needs the server to work.
 
@@ -111,7 +115,7 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 - [x] Playwright end-to-end tests in CI (auth, library, search, chat, accessibility)
 
 ### Step 6: Beyond parity
-- [ ] MCP server (`akasha mcp`, `rmcp`) exposing search/read to AI agents
+- [x] MCP server (`rmcp`, Streamable HTTP at `/mcp` + `akasha mcp` stdio bridge) and personal API tokens (scopes, expiry, revocation, Settings → Access tokens)
 - [ ] Audio/video transcription (`whisper-rs`)
 - [ ] Watched folders / connectors (Obsidian vault, Downloads)
 - [ ] Collections, activity timeline, audit log (legacy parity; API + screens)
@@ -144,7 +148,8 @@ See [`docs/adr/`](docs/adr). Summary:
 0011 Search eval tiers, spelling vocabulary, thumbnails ·
 0012 LLM providers (`crates/llm`) and grounded chat ·
 0013 Model-written file summaries, suggested tags and conversation titles ·
-0014 Relevance floor for results found by meaning alone.
+0014 Relevance floor for results found by meaning alone ·
+0015 MCP server (stateless Streamable HTTP, stdio bridge) and personal API tokens.
 
 ## Known issues and gotchas
 
@@ -433,9 +438,26 @@ See [`docs/adr/`](docs/adr). Summary:
   gives realistic streamed answers; Playwright scripts must live under `web/` to resolve
   `@playwright/test`. Never `pkill -f` a pattern that also matches your own shell command.
 
+- API tokens (6a, migration 0012): `akasha_pat_` + 43 base64url chars, SHA-256 at rest,
+  prefix shown in the list. `AuthUser` takes `Authorization: Bearer` before the cookie; a
+  read-only token gets 403 on any non-GET/HEAD in the extractor (so `POST` chat needs a write
+  token; MCP `ask` does not). `SessionUser` (cookie only) guards `/me/tokens`, `PATCH /me`,
+  password, account deletion and logout. `AuthUser.session_id` is gone: use `SessionUser`
+  when a handler needs the session.
+- MCP (6a, ADR 0015, `crates/app/src/mcp/`): `rmcp` pinned `=3.5.1`, stateless + JSON
+  responses; rmcp rejects requests without a `Host` header (400), so tests set one
+  (`tests/support/mcp.rs`). The handler gets the user from
+  `ctx.extensions::<http::request::Parts>().extensions::<AuthUser>()`, put there by the
+  `/mcp` middleware. `/mcp` has its own 150 s timeout (outside the 30 s layer). Tool errors
+  are `isError` results; unknown tools are JSON-RPC errors. `akasha mcp` is handled before
+  `Config::load` and writes only protocol to stdout (logs to stderr). Tool argument schemas
+  come from `schemars` 1 (`uuid1`, `chrono04` features) via `schema_for_type`.
+
 ## Session log
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
+
+- 2026-10-10 · Claude (cloud) · Step 6a: personal API tokens (migration 0012, `/me/tokens` GET/POST/DELETE, Bearer auth in `AuthUser` with read/write scopes, cookie-only `SessionUser` for account and token management, Settings → Access tokens with copy-once dialog and Claude Code command) and the MCP server (`rmcp` 3.5.1, stateless Streamable HTTP at `/mcp`: search, get_file, read_file, list_files, ask, add_note, tag_file, `akasha://file/{id}` resources; `akasha mcp` stdio bridge), ADR 0015, README "Use Akasha from Claude / AI agents". Tests: Rust token + MCP suites (handshake, tools, scopes, owner isolation, 401), Vitest tokens panel, e2e creates a token in the UI and calls `/mcp`. Resumed twice after interruptions (container restart, usage limit).
 
 - 2026-10-09 · Claude (cloud) · Step 5d, Step 5 complete. Search relevance floor (ADR 0014): semantic-only results must clear a per-model threshold (rerank score or cosine), keyword/file-name hits always count, the rest are "loosely related" (`include_weak`, collapsed UI section); eval gains Precision@10 and `negative_clean` (baselines re-recorded as an intended change, MiniLM floor calibrated). Conversations store their file scope (migration 0011). `GET /system/status` + Settings → System. UI: first-run onboarding, axe in e2e over every screen light/dark (fixed `fg-subtle` contrast, heading order, dl markup, target sizes, landmarks), answer live-region announcements, `?` shortcuts sheet, page titles, per-screen error boundaries, edit and ask again, toasts, optimistic tags, PWA manifest + icons, compressed assets, bundle budget script. Deferred: offline shell (service worker).
 

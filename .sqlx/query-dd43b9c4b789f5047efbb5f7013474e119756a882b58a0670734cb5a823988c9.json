@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH t AS (\n               SELECT id, owner_id, scopes, last_used_at FROM api_tokens\n               WHERE token_hash = $1 AND revoked_at IS NULL\n                 AND (expires_at IS NULL OR expires_at > now())\n           ), touched AS (\n               UPDATE api_tokens SET last_used_at = now()\n               WHERE id IN (SELECT id FROM t\n                            WHERE last_used_at IS NULL\n                               OR last_used_at < now() - interval '1 minute')\n           )\n           SELECT id AS \"token_id!\", owner_id AS \"owner_id!\", scopes AS \"scopes!\" FROM t",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "token_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "owner_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "scopes!",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "dd43b9c4b789f5047efbb5f7013474e119756a882b58a0670734cb5a823988c9"
+}

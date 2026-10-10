@@ -8,7 +8,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
-    auth::{AuthUser, password, session},
+    auth::{AuthUser, SessionUser, password, session},
     error::{ApiError, ErrorBody},
     extract::Json,
     state::AppState,
@@ -65,7 +65,7 @@ pub async fn get_me(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<UserResponse>, ApiError> {
-    Ok(Json(load(&state, auth).await?.into()))
+    Ok(Json(load(&state, auth.user_id).await?.into()))
 }
 
 /// Update profile fields.
@@ -80,7 +80,7 @@ pub async fn get_me(
 )]
 pub async fn update_me(
     State(state): State<AppState>,
-    auth: AuthUser,
+    auth: SessionUser,
     Json(req): Json<UpdateMeRequest>,
 ) -> Result<Json<UserResponse>, ApiError> {
     let display_name = normalize_display_name(req.display_name.as_deref())?;
@@ -103,10 +103,10 @@ pub async fn update_me(
 )]
 pub async fn change_password(
     State(state): State<AppState>,
-    auth: AuthUser,
+    auth: SessionUser,
     Json(req): Json<ChangePasswordRequest>,
 ) -> Result<StatusCode, ApiError> {
-    let user = load(&state, auth).await?;
+    let user = load(&state, auth.user_id).await?;
     if !password::verify(req.current_password, Some(user.password_hash)).await {
         return Err(Error::unauthorized("current password is incorrect").into());
     }
@@ -129,11 +129,11 @@ pub async fn change_password(
 )]
 pub async fn delete_me(
     State(state): State<AppState>,
-    auth: AuthUser,
+    auth: SessionUser,
     jar: CookieJar,
     Json(req): Json<DeleteAccountRequest>,
 ) -> Result<(StatusCode, CookieJar), ApiError> {
-    let user = load(&state, auth).await?;
+    let user = load(&state, auth.user_id).await?;
     if !password::verify(req.password, Some(user.password_hash)).await {
         return Err(Error::unauthorized("password is incorrect").into());
     }
@@ -148,8 +148,8 @@ pub async fn delete_me(
     Ok((StatusCode::NO_CONTENT, jar))
 }
 
-async fn load(state: &AppState, auth: AuthUser) -> Result<users::User, ApiError> {
-    users::find_by_id(&state.db, auth.user_id)
+async fn load(state: &AppState, user_id: Uuid) -> Result<users::User, ApiError> {
+    users::find_by_id(&state.db, user_id)
         .await?
         .ok_or_else(|| Error::unauthorized("account no longer exists").into())
 }

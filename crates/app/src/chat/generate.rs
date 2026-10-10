@@ -73,7 +73,7 @@ fn finished(stop: StopReason, text: String, sources: &[Source]) -> Outcome {
 }
 
 /// The model gave the "not found" answer it was told to give.
-fn is_not_found(text: &str) -> bool {
+pub(crate) fn is_not_found(text: &str) -> bool {
     let norm = |s: &str| {
         s.chars()
             .filter(|c| c.is_alphanumeric() || c.is_whitespace())

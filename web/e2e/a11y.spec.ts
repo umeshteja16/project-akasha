@@ -93,6 +93,21 @@ test("every main screen passes axe in light and dark", async ({ page }) => {
   await expect(page.getByText("hash-384")).toBeVisible();
   await inBothSchemes(page, "settings system");
 
+  // Access tokens: create one, copy it from the one-time dialog, use it over MCP.
+  await page.getByRole("tab", { name: "Access tokens" }).click();
+  await expect(page.getByText("No tokens yet.")).toBeVisible();
+  await inBothSchemes(page, "settings tokens");
+  await page.getByLabel("Name").fill("e2e agent");
+  await page.getByRole("button", { name: "Create token" }).click();
+  const dialog = page.getByRole("dialog", { name: "Copy your new token" });
+  await expect(dialog).toBeVisible();
+  await inBothSchemes(page, "new token dialog");
+  const secret = (await dialog.locator("code").first().textContent()) ?? "";
+  expect(secret).toMatch(/^akasha_pat_/);
+  await dialog.getByRole("button", { name: "I've saved it" }).click();
+  await expect(page.getByText("e2e agent")).toBeVisible();
+  await mcpSearch(page, secret);
+
   await page.goto("/library");
   await expect(page.getByRole("heading", { level: 1, name: "Library" })).toBeVisible();
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
@@ -111,6 +126,27 @@ test("every main screen passes axe in light and dark", async ({ page }) => {
 
   expect(problems).toEqual([]);
 });
+
+/** The MCP endpoint answers a tool call with the new token (real server). */
+async function mcpSearch(page: Page, secret: string) {
+  const res = await page.request.post("/mcp", {
+    headers: {
+      Authorization: `Bearer ${secret}`,
+      Accept: "application/json, text/event-stream",
+      "MCP-Protocol-Version": "2025-06-18",
+    },
+    data: {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name: "search", arguments: { query: "lunar module eagle" } },
+    },
+  });
+  expect(res.status()).toBe(200);
+  const body = await res.json();
+  expect(body.result.isError).toBeFalsy();
+  expect(body.result.content[0].text).toContain("moon-landing.md");
+}
 
 /** Skip link, visible focus, shortcuts, titles, in-app 404, reduced motion, manifest. */
 async function keyboardBasics(page: Page) {

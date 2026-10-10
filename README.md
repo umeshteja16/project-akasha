@@ -130,6 +130,48 @@ Both work with `AKASHA_STRICT_OFFLINE=true` (`ollama` is a single-label Docker s
 The container runs on CPU; for a GPU, add a `deploy.resources.reservations.devices` entry
 (see the Ollama image docs) or keep using Ollama on the host.
 
+## Use Akasha from Claude / AI agents (MCP)
+
+Akasha is an [MCP](https://modelcontextprotocol.io) server: AI assistants can search your
+library, read files, list them and ask grounded questions (and, with a write token, add notes
+and tag files). Create a token in **Settings → Access tokens** (it is shown once), then:
+
+**Claude Code** (remote, Streamable HTTP):
+
+```sh
+claude mcp add --transport http akasha https://akasha.example.com/mcp \
+  --header "Authorization: Bearer akasha_pat_…"
+```
+
+**Claude Desktop and other clients that start a local program** (stdio): install the
+`akasha` binary on your laptop and add to the client's MCP config (for Claude Desktop,
+`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "akasha": {
+      "command": "akasha",
+      "args": ["mcp"],
+      "env": { "AKASHA_URL": "https://akasha.example.com", "AKASHA_TOKEN": "akasha_pat_…" }
+    }
+  }
+}
+```
+
+`akasha mcp` only forwards messages to the server's `/mcp` endpoint (it needs no database
+or models); on the server itself use `AKASHA_URL=http://127.0.0.1:8080`. Any other MCP
+client: Streamable HTTP at `<server>/mcp` with the `Authorization: Bearer` header.
+
+Tools: `search`, `get_file`, `read_file`, `list_files`, `ask`; with the write scope also
+`add_note` and `tag_file`. Files are also resources (`akasha://file/{id}`).
+
+Security: a token can read **everything** in your library. Prefer read-only tokens with an
+expiry, one per client, and revoke unused ones. Expose the server only over **HTTPS** (a
+reverse proxy with TLS), never plain HTTP across the internet. Tokens can't manage your
+account or other tokens. The same tokens work for the REST API
+(`Authorization: Bearer …`; read-only tokens may only `GET`). Design: ADR 0015.
+
 ## Development
 
 `just check` runs exactly what CI runs. Contributor and agent conventions: [`CLAUDE.md`](CLAUDE.md).

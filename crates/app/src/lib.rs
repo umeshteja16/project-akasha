@@ -12,6 +12,7 @@ pub mod extract;
 pub mod files;
 pub mod jobs;
 pub mod llm;
+pub mod mcp;
 pub mod rate_limit;
 pub mod routes;
 pub mod state;

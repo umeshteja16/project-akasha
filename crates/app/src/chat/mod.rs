@@ -9,6 +9,6 @@
 pub mod citations;
 pub mod events;
 pub mod evidence;
-mod generate;
+pub(crate) mod generate;
 pub mod prompt;
 pub mod turn;

@@ -28,6 +28,17 @@ enum Command {
     Migrate,
     /// Print the OpenAPI document as JSON and exit.
     Openapi,
+    /// Serve MCP over stdio for local AI clients (Claude Desktop, IDEs) by
+    /// forwarding to a running Akasha server's `/mcp` endpoint with an API token.
+    Mcp {
+        /// The Akasha server's base URL.
+        #[arg(long, env = "AKASHA_URL", default_value = "http://127.0.0.1:8080")]
+        url: String,
+        /// A personal API token (Settings → Access tokens). Prefer the env var:
+        /// command-line arguments are visible to other local users.
+        #[arg(long, env = "AKASHA_TOKEN", hide_env_values = true)]
+        token: String,
+    },
     /// Manage ML model files.
     Models {
         #[command(subcommand)]
@@ -83,6 +94,11 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
+    // Needs neither the database nor the config; stdout is the protocol.
+    if let Command::Mcp { url, token } = cli.command {
+        return akasha::mcp::bridge::run(akasha::mcp::bridge::BridgeOptions { url, token }).await;
+    }
+
     let config = Config::load()?;
     telemetry::init(config.log_format);
 
@@ -116,6 +132,6 @@ async fn main() -> anyhow::Result<()> {
             };
             eval::run_cli(config, opts).await
         }
-        Command::Openapi => unreachable!("handled above"),
+        Command::Openapi | Command::Mcp { .. } => unreachable!("handled above"),
     }
 }

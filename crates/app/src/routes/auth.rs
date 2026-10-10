@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use super::me::UserResponse;
 use crate::{
-    auth::{AuthUser, password, session},
+    auth::{SessionUser, password, session},
     error::{ApiError, ErrorBody},
     extract::Json,
     state::AppState,
@@ -102,7 +102,7 @@ pub async fn login(
 )]
 pub async fn logout(
     State(state): State<AppState>,
-    auth: AuthUser,
+    auth: SessionUser,
     jar: CookieJar,
 ) -> Result<(StatusCode, CookieJar), ApiError> {
     akasha_db::sessions::delete(&state.db, auth.session_id).await?;

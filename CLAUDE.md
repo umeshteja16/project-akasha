@@ -23,7 +23,8 @@ crates/search hybrid retrieval (FTS + pgvector, RRF, rerank, snippets, similar f
 crates/llm    chat model providers (Ollama, Claude, Gemini, OpenAI-compatible, fake; ADR 0012)
 crates/app    the `akasha` binary: axum routes (src/routes/*), auth/, jobs/ (job kinds +
               handlers), chat/ (grounded answers), enrich/ (file summaries + suggested
-              tags, ADR 0013), eval/ (`akasha eval`), state, telemetry
+              tags, ADR 0013), eval/ (`akasha eval`), mcp/ (MCP server at /mcp + `akasha mcp`
+              stdio bridge, ADR 0015), state, telemetry
 eval/         search benchmark: corpus/, queries.json, gate.json, baselines/ (ADR 0011)
 .sqlx/        offline cache of checked SQL queries (`just sqlx-prepare`)
 web/          React + TS frontend (Vite, Tailwind 4, Radix ui/, TanStack Router + Query,
@@ -46,7 +47,8 @@ and runs Playwright against a real server (not part of `just check`; CI job `e2e
 - **SQL**: use the checked macros (`sqlx::query!`, `query_as!`) in `crates/db`. After changing
   one, run `just sqlx-prepare` and commit `.sqlx/`. CI fails if the cache is stale.
 - **Auth**: take `AuthUser` as a handler argument to require sign-in, and always filter queries
-  by `auth.user_id` (ownership). Credential-checking routes go in the rate-limited group in
+  by `auth.user_id` (ownership). `AuthUser` also accepts API tokens (Bearer; read-only tokens
+  are limited to GET in the extractor); account/token management takes `SessionUser` (cookie only). Credential-checking routes go in the rate-limited group in
   `routes.rs`. Request bodies use `crate::extract::Json` (errors in the standard shape).
 - **Errors**: return `akasha_core::Error` (code + message); the HTTP layer renders
   `{ "error": { "code", "message" } }`. Success bodies are plain JSON objects.

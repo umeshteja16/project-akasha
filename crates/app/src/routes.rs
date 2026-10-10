@@ -10,6 +10,7 @@ mod me;
 mod meta;
 pub(crate) mod search;
 mod system;
+mod tokens;
 
 use std::time::Duration;
 
@@ -22,7 +23,7 @@ use axum::{
 use tower_http::{compression::CompressionLayer, timeout::TimeoutLayer};
 use utoipa::{
     Modify, OpenApi,
-    openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
+    openapi::security::{ApiKey, ApiKeyValue, HttpAuthScheme, HttpBuilder, SecurityScheme},
 };
 
 use crate::{auth::session::COOKIE_NAME, error::ErrorBody, rate_limit, state::AppState};
@@ -43,6 +44,7 @@ use crate::{auth::session::COOKIE_NAME, error::ErrorBody, rate_limit, state::App
         chat::create, chat::list, chat::get, chat::update, chat::delete,
         chat::list_messages, chat::messages::post,
         system::status,
+        tokens::list, tokens::create, tokens::revoke,
     ),
     components(schemas(
         ErrorBody, health::Health, files::types::FileCategory, files::types::FileSort,
@@ -61,6 +63,17 @@ impl Modify for SessionCookie {
         components.add_security_scheme(
             "session_cookie",
             SecurityScheme::ApiKey(ApiKey::Cookie(ApiKeyValue::new(COOKIE_NAME))),
+        );
+        // Personal API tokens (`akasha_pat_…`) work wherever the cookie does,
+        // except account and token management; read-only tokens only for GET.
+        components.add_security_scheme(
+            "api_token",
+            SecurityScheme::Http(
+                HttpBuilder::new()
+                    .scheme(HttpAuthScheme::Bearer)
+                    .description(Some("Personal API token (akasha_pat_…)"))
+                    .build(),
+            ),
         );
     }
 }
@@ -110,6 +123,11 @@ pub fn router(state: &AppState) -> Router<AppState> {
         .route("/api/v1/system/status", get(system::status))
         .route("/api/v1/auth/logout", post(auth::logout))
         .route("/api/v1/me", get(me::get_me).patch(me::update_me))
+        .route("/api/v1/me/tokens", get(tokens::list).post(tokens::create))
+        .route(
+            "/api/v1/me/tokens/{id}",
+            axum::routing::delete(tokens::revoke),
+        )
         .route("/api/v1/files", get(files::list))
         .route("/api/v1/files/bulk-delete", post(files::bulk_delete))
         .route("/api/v1/tags", get(files::tags::list))
@@ -145,6 +163,7 @@ pub fn router(state: &AppState) -> Router<AppState> {
             REQUEST_TIMEOUT,
         ))
         .merge(transfers)
+        .merge(crate::mcp::router(state))
         // Unknown `/api` paths are JSON 404s; browser paths get the embedded UI,
         // compressed (gzip or brotli, as the browser accepts).
         .fallback_service(
