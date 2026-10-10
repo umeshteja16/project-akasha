@@ -84,3 +84,26 @@ jobs:
             $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
             $(printf '${{ env.IMAGE }}@sha256:%s ' *)
       - run: docker buildx imagetools inspect ${{ env.IMAGE }}:${{ steps.meta.outputs.version }}
+
+  github-release:
+    # A GitHub release for the tag, with its CHANGELOG.md section as the notes.
+    needs: merge
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          VERSION="${TAG#v}"
+          awk -v v="$VERSION" '
+            /^## \[/ { if (found) exit; if (index($0, "## [" v "]") == 1) { found = 1; next } }
+            found && !/^\[[^]]+\]: / { print }
+          ' CHANGELOG.md > notes.md
+          test -s notes.md
+          printf '\n```\ndocker pull ghcr.io/%s:%s\n```\n' "$GITHUB_REPOSITORY" "$VERSION" >> notes.md
+          gh release create "$TAG" --title "Akasha $TAG" --notes-file notes.md --verify-tag

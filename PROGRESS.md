@@ -29,9 +29,11 @@ log, trusted proxies, transcription, portable multi-arch image, watched folders,
 metrics + traces). In order; each ends with `just check` green, `just e2e` green and a
 PROGRESS.md update:
 
-1. **Release mechanics**: version 0.1.0 in the workspace, CHANGELOG, run
-   `release.yml` on a `v0.1.0` tag and check the ghcr.io manifest (amd64 + arm64) by
-   pulling and running `models check` on both.
+1. **Release mechanics**: version 0.1.0 and `CHANGELOG.md` are in; `release.yml` also
+   creates the GitHub release from the CHANGELOG section. Left: push the `v0.1.0` tag once
+   CI is green on `master`, check the ghcr.io manifest (amd64 + arm64) and the release, and
+   make the ghcr package public (new packages start private; owner action in GitHub
+   package settings).
 
 Transcription follow-ups: run a real Whisper model on real speech (only the fake model ran
 here: Hugging Face is blocked in cloud sessions; CI's Docker smoke test runs `tiny` on a
@@ -574,6 +576,7 @@ See [`docs/adr/`](docs/adr). Summary:
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
 
+- 2026-10-10 · Claude · `CHANGELOG.md` for 0.1.0; `release.yml` creates the GitHub release with the CHANGELOG section as notes. Tag not pushed yet.
 - 2026-10-10 · Claude (cloud) · Self-hosting docs + first-run polish: `docs/self-hosting.md` (requirements, Compose quick start from a clean dir, build from source + systemd, first run/models/offline, LLM providers, Caddy + nginx, optional features, troubleshooting), `docs/README.md`; README now intro + Self-hosting + feature reference + Development (duplicated setup, proxy and Ollama text moved to the guide). Polish: `compose.yaml` uses the published image (`ghcr.io/umeshteja16/project-akasha:${AKASHA_VERSION:-latest}`, build fallback) and passes through registration, upload limit, OpenAI, model and download-URL settings, `AKASHA_HTTP_BIND`; the no-SSE4.2 warning named an invalid setting (`AKASHA_WHISPER_MODEL=none`, now `AKASHA_TRANSCRIBE_ENABLED=false`); `models download --help` mentions Whisper; stale README links. Not verified here: the guide's Docker flow against the real ghcr image (no release exists yet) and curl of the raw compose URL (repo visibility), RAM guidance is unmeasured. Next: release mechanics.
 - 2026-10-10 · Claude · CI: no-AVX QEMU smoke test moved from every push to `portability.yml` (weekly, release tags, manual); a CI run drops from ~44 to ~13 min.
 - 2026-10-10 · Claude (cloud) · Step 7.2 operations docs: `docs/operations.md` (what to back up and why dump-then-blobs is the safe order, Docker Compose and bare-binary variants, upgrade notes: migrations run on `serve`/`worker`/`reembed`/`migrate`, `akasha reembed`, no downgrades; configuration reference of every `Config` key checked against the struct), `scripts/backup.sh` + `restore.sh` (pg_dump -Fc / pg_restore, SHA256SUMS, refuse non-empty targets without `-f`) and `scripts/backup-test.sh` / `just backup-test` (migrate scratch DB, user+file+chunk+384-d vector+blob, back up, restore into a second DB, verify rows, HNSW query, blob; passes). Not in CI: needs a pg client matching the server's major version there. README links it. Next: release mechanics.

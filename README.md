@@ -22,6 +22,7 @@ requirements, Docker Compose quick start (prebuilt multi-arch image
 models, choosing a chat model, HTTPS behind Caddy or nginx, and troubleshooting.
 **[docs/operations.md](docs/operations.md)** covers backup and restore, upgrades and the
 reference of every setting. [`.env.example`](.env.example) lists the settings with defaults.
+Release notes: [CHANGELOG.md](CHANGELOG.md).
 
 ## Architecture
 
