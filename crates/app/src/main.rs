@@ -77,7 +77,7 @@ enum Command {
 
 #[derive(Subcommand)]
 enum ModelsCommand {
-    /// Download every configured model (OCR, embedding, rerank) into
+    /// Download every configured model (OCR, embedding, rerank, Whisper) into
     /// AKASHA_MODELS_DIR, for offline and air-gapped installs.
     Download,
     /// Load the configured embedding model and reranker and run one inference

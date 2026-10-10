@@ -1,11 +1,15 @@
+# Self-hosting guide: docs/self-hosting.md. Settings go in a `.env` next to this file.
 # Development: `just db-up` starts only Postgres.
-# Full stack:  `docker compose --profile app up --build`
-#   (chat uses Ollama on the host: run it with OLLAMA_HOST=0.0.0.0, see README).
+# Published image:  `docker compose --profile app pull && docker compose --profile app up -d`
+#   (or put COMPOSE_PROFILES=app in .env and drop `--profile app`).
+# Build from source instead:  `docker compose --profile app up -d --build`
+# Chat uses Ollama on the host by default: run it with OLLAMA_HOST=0.0.0.0 (docs/self-hosting.md).
 # With Ollama in a container too:
-#   AKASHA_OLLAMA_URL=http://ollama:11434 docker compose --profile app --profile ollama up --build
+#   AKASHA_OLLAMA_URL=http://ollama:11434 docker compose --profile app --profile ollama up -d
 #   docker compose exec ollama ollama pull llama3.1:8b
-# Monitoring (Prometheus on :9091, Grafana on :3000 with the Akasha dashboard):
-#   AKASHA_METRICS_ENABLED=true docker compose --profile app --profile monitoring up --build
+# Monitoring (Prometheus on :9091, Grafana on :3000 with the Akasha dashboard; needs the
+# deploy/ folder next to this file):
+#   AKASHA_METRICS_ENABLED=true docker compose --profile app --profile monitoring up -d
 services:
   postgres:
     image: pgvector/pgvector:pg17
@@ -25,18 +29,25 @@ services:
 
   akasha:
     profiles: ["app"]
+    # The published multi-arch image; `--build` (or a missing image with this checkout)
+    # builds it from source instead. AKASHA_VERSION pins a release, e.g. 0.1.0.
+    image: ghcr.io/umeshteja16/project-akasha:${AKASHA_VERSION:-latest}
     build: .
     environment:
       DATABASE_URL: postgres://akasha:${POSTGRES_PASSWORD:-akasha}@postgres:5432/akasha
       AKASHA_LOG_FORMAT: json
       # API and background worker in one process (the image default too).
       AKASHA_SERVE_WITH_WORKER: "true"
+      # Anyone who can reach the server may register (all accounts are equal): set to
+      # false once the people who need an account have signed up.
+      AKASHA_ALLOW_REGISTRATION: ${AKASHA_ALLOW_REGISTRATION:-true}
+      AKASHA_MAX_UPLOAD_MB: ${AKASHA_MAX_UPLOAD_MB:-512}
       # Set to true once the server is behind HTTPS.
       AKASHA_COOKIE_SECURE: ${AKASHA_COOKIE_SECURE:-false}
-      # A reverse proxy in front (README, "Deploying behind a reverse proxy"): its address
+      # A reverse proxy in front (docs/self-hosting.md, "Reverse proxy and HTTPS"): its address
       # or network, e.g. 172.16.0.0/12 for a proxy container on this Compose network.
       AKASHA_TRUSTED_PROXIES: ${AKASHA_TRUSTED_PROXIES:-}
-      # Chat answers from Ollama on the host by default (see README, "Chat & LLM providers");
+      # Chat answers from Ollama on the host by default (docs/self-hosting.md, "Choosing an LLM for chat");
       # AKASHA_OLLAMA_URL=http://ollama:11434 with `--profile ollama` uses the container below.
       AKASHA_LLM_PROVIDER: ${AKASHA_LLM_PROVIDER:-ollama}
       AKASHA_OLLAMA_URL: ${AKASHA_OLLAMA_URL:-http://host.docker.internal:11434}
@@ -44,6 +55,17 @@ services:
       AKASHA_STRICT_OFFLINE: ${AKASHA_STRICT_OFFLINE:-false}
       AKASHA_ANTHROPIC_API_KEY: ${AKASHA_ANTHROPIC_API_KEY:-}
       AKASHA_GEMINI_API_KEY: ${AKASHA_GEMINI_API_KEY:-}
+      # Any OpenAI-compatible server (AKASHA_LLM_PROVIDER=openai; AKASHA_LLM_MODEL is required).
+      AKASHA_OPENAI_BASE_URL: ${AKASHA_OPENAI_BASE_URL:-https://api.openai.com/v1}
+      AKASHA_OPENAI_API_KEY: ${AKASHA_OPENAI_API_KEY:-}
+      # Models (docs/self-hosting.md): change AKASHA_EMBED_MODEL only with `akasha reembed`.
+      AKASHA_EMBED_MODEL: ${AKASHA_EMBED_MODEL:-multilingual-e5-small}
+      AKASHA_RERANK_MODEL: ${AKASHA_RERANK_MODEL:-jina-reranker-v1-turbo-en}
+      # Download sources; set to an empty value (AKASHA_ML_MODELS_URL=) to never download.
+      AKASHA_ML_MODELS_URL: ${AKASHA_ML_MODELS_URL-https://huggingface.co}
+      AKASHA_OCR_MODELS_URL: ${AKASHA_OCR_MODELS_URL-https://ocrs-models.s3-accelerate.amazonaws.com}
+      AKASHA_TRANSCRIBE_ENABLED: ${AKASHA_TRANSCRIBE_ENABLED:-true}
+      AKASHA_WHISPER_MODEL: ${AKASHA_WHISPER_MODEL:-base}
       # Watched folders (Settings → Sources): mount folders under /watch (see volumes)
       # and allow them here, e.g. AKASHA_WATCH_ROOTS=/watch.
       AKASHA_WATCH_ROOTS: ${AKASHA_WATCH_ROOTS:-}
@@ -57,7 +79,9 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "127.0.0.1:8080:8080"
+      # Loopback only. Behind a reverse proxy on another machine, or for LAN access over
+      # plain HTTP, set AKASHA_HTTP_BIND=0.0.0.0 in .env.
+      - "${AKASHA_HTTP_BIND:-127.0.0.1}:8080:8080"
     volumes:
       - storage:/var/lib/akasha/storage
       - models:/var/lib/akasha/models

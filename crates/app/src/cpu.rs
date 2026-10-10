@@ -53,7 +53,7 @@ mod imp {
         if build_variant() == "baseline" && !std::arch::is_x86_feature_detected!("sse4.2") {
             eprintln!(
                 "warning: this CPU has no SSE4.2; speech-to-text (whisper.cpp) needs it and \
-                 transcription will crash. Set AKASHA_WHISPER_MODEL=none."
+                 transcription will crash. Set AKASHA_TRANSCRIBE_ENABLED=false."
             );
         }
         if build_variant() != "baseline" || std::env::var_os(GUARD_ENV).is_some() {

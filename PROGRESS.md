@@ -32,8 +32,6 @@ PROGRESS.md update:
 1. **Release mechanics**: version 0.1.0 in the workspace, CHANGELOG, run
    `release.yml` on a `v0.1.0` tag and check the ghcr.io manifest (amd64 + arm64) by
    pulling and running `models check` on both.
-2. **First-run polish found while doing the above** (only small fixes; bigger items go
-   to the follow-ups below).
 
 Transcription follow-ups: run a real Whisper model on real speech (only the fake model ran
 here: Hugging Face is blocked in cloud sessions; CI's Docker smoke test runs `tiny` on a
@@ -41,6 +39,7 @@ tone) and measure speed per model; consider word-level timestamps for finer seek
 speaker turns, and an optional ffmpeg fallback for AC-3/AVI/WMA.
 
 Open follow-ups:
+- Self-hosting: after the `v0.1.0` release, walk `docs/self-hosting.md` end to end on a clean host with the real ghcr image (the Compose flow, `COMPOSE_PROFILES`, `AKASHA_TRUSTED_PROXIES=172.16.0.0/12` behind a host proxy); the image has no container healthcheck (distroless has no curl: would need an `akasha healthcheck` subcommand); RAM needs per model are unmeasured.
 - Parity gaps found by the audit: (a) per-user storage quota has no API or UI (only
   `users.storage_quota_bytes` in the DB, enforced on upload; legacy had a usage bar and a
   self-service limit in Settings): add usage + quota to `/me` and a Settings card;
@@ -131,6 +130,7 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 
 ### Step 7: Release v0.1
 - [x] Feature parity with `legacy/` confirmed (see "Parity result" below); `legacy/` deleted
+- [x] Self-hosting guide `docs/self-hosting.md` (Compose quick start with the ghcr image, bare binary + systemd, first run, LLM choice, HTTPS proxies, troubleshooting), README slimmed to intro + reference, `docs/README.md` index; first-run polish done
 - [x] Operations docs: backup/restore (`scripts/backup.sh`, `restore.sh`, `just backup-test`), upgrade notes, configuration reference in `docs/operations.md`
 - [ ] Tagged release with Docker image (release mechanics)
 
@@ -572,9 +572,10 @@ See [`docs/adr/`](docs/adr). Summary:
 
 ## Session log
 
-- 2026-10-10 · Claude · CI: no-AVX QEMU smoke test moved from every push to `portability.yml` (weekly, release tags, manual); a CI run drops from ~44 to ~13 min.
 Newest first. One line per session: date · who · what changed · anything left half-done.
 
+- 2026-10-10 · Claude (cloud) · Self-hosting docs + first-run polish: `docs/self-hosting.md` (requirements, Compose quick start from a clean dir, build from source + systemd, first run/models/offline, LLM providers, Caddy + nginx, optional features, troubleshooting), `docs/README.md`; README now intro + Self-hosting + feature reference + Development (duplicated setup, proxy and Ollama text moved to the guide). Polish: `compose.yaml` uses the published image (`ghcr.io/umeshteja16/project-akasha:${AKASHA_VERSION:-latest}`, build fallback) and passes through registration, upload limit, OpenAI, model and download-URL settings, `AKASHA_HTTP_BIND`; the no-SSE4.2 warning named an invalid setting (`AKASHA_WHISPER_MODEL=none`, now `AKASHA_TRANSCRIBE_ENABLED=false`); `models download --help` mentions Whisper; stale README links. Not verified here: the guide's Docker flow against the real ghcr image (no release exists yet) and curl of the raw compose URL (repo visibility), RAM guidance is unmeasured. Next: release mechanics.
+- 2026-10-10 · Claude · CI: no-AVX QEMU smoke test moved from every push to `portability.yml` (weekly, release tags, manual); a CI run drops from ~44 to ~13 min.
 - 2026-10-10 · Claude (cloud) · Step 7.2 operations docs: `docs/operations.md` (what to back up and why dump-then-blobs is the safe order, Docker Compose and bare-binary variants, upgrade notes: migrations run on `serve`/`worker`/`reembed`/`migrate`, `akasha reembed`, no downgrades; configuration reference of every `Config` key checked against the struct), `scripts/backup.sh` + `restore.sh` (pg_dump -Fc / pg_restore, SHA256SUMS, refuse non-empty targets without `-f`) and `scripts/backup-test.sh` / `just backup-test` (migrate scratch DB, user+file+chunk+384-d vector+blob, back up, restore into a second DB, verify rows, HNSW query, blob; passes). Not in CI: needs a pg client matching the server's major version there. README links it. Next: release mechanics.
 - 2026-10-10 · Claude (cloud) · Step 7.1 parity audit: all legacy inventory items covered or deliberately dropped; added Library → New note (legacy "capture"); storage-quota UI and URL capture deferred to follow-ups. Deleted `legacy/` and its leftovers (.dockerignore, README, CLAUDE.md layout, comments). Next: operations docs.
 - 2026-10-10 · Claude (cloud) · Observability: Prometheus metrics (HTTP by route, jobs outcome/duration/wait/depth, ingest stages, search stages, LLM calls/tokens, model readiness, build info) on a separate listener or token-protected `/metrics`, OTLP/HTTP trace export (feature `otel`) with request-id and `traceparent`, `deploy/grafana/akasha.json`, compose `--profile monitoring`, ADR 0019, README "Monitoring". CI: no-AVX QEMU step bounded and informational. Step 6 complete; Next up is Step 7.

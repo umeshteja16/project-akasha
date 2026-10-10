@@ -1,11 +1,27 @@
 # Akasha
 
-A self-hosted, private knowledge retrieval server: upload your documents, images and notes,
-then search and ask questions over them with grounded, cited answers. It can run fully offline.
+A self-hosted, private knowledge base: upload your documents, scans, notes, audio and video,
+then search them and ask questions that are answered from your own files, with citations. It
+runs on your own hardware and can work fully offline.
 
-> **Status: rewrite in progress.** The project is being rebuilt in Rust. See
-> [`PROGRESS.md`](PROGRESS.md) for what works today and what is next. The previous TypeScript
-> implementation was removed after the parity audit (it stays in git history).
+- **Hybrid search**: keywords plus semantic search, reranked, with filters and "similar files".
+- **Grounded chat**: answers cite numbered sources and say so when your files do not contain
+  the answer. Bring Ollama (local), Claude, Gemini or any OpenAI-compatible server.
+- **Reads everything**: text, Markdown, PDF, images (OCR) and recordings (speech-to-text).
+- **Connected**: watched folders (Obsidian vaults), an MCP server and API tokens for AI agents.
+- **One binary, one database**: Rust server with the web UI embedded; Postgres + pgvector.
+
+> **Status:** pre-release; v0.1 is being prepared. See [`PROGRESS.md`](PROGRESS.md) for what works
+> and what is next.
+
+## Self-hosting
+
+**[docs/self-hosting.md](docs/self-hosting.md)** takes you from nothing to a running server:
+requirements, Docker Compose quick start (prebuilt multi-arch image
+`ghcr.io/umeshteja16/project-akasha`), building from source with systemd, first run and
+models, choosing a chat model, HTTPS behind Caddy or nginx, and troubleshooting.
+**[docs/operations.md](docs/operations.md)** covers backup and restore, upgrades and the
+reference of every setting. [`.env.example`](.env.example) lists the settings with defaults.
 
 ## Architecture
 
@@ -15,53 +31,24 @@ React + TypeScript UI  ──REST (OpenAPI)──▶  akasha (single Rust binary
 ```
 
 - **Backend:** Rust, Axum, Tokio, SQLx, Postgres 17 + pgvector
-- **ML:** embeddings and reranking in-process via ONNX Runtime (`fastembed`, [ADR 0009](docs/adr/0009-embeddings-onnx-runtime.md)); LLMs via Ollama / Claude / Gemini (planned)
+- **ML:** embeddings and reranking in-process via ONNX Runtime (`fastembed`, [ADR 0009](docs/adr/0009-embeddings-onnx-runtime.md)); chat via Ollama, Claude, Gemini or any OpenAI-compatible server
 - **Frontend:** React 19, TypeScript, Vite, Tailwind CSS 4, Radix (shadcn/ui-style), TanStack Router + Query, Biome, Vitest, Playwright ([`web/DESIGN.md`](web/DESIGN.md))
 
 Design decisions are recorded in [`docs/adr/`](docs/adr).
 
-## Quick start
+## Features and reference
 
-```bash
-mise install                 # toolchain (or install Rust, Node 22, pnpm, just yourself)
-cp .env.example .env
-just setup                   # cargo fetch + pnpm install
-just db-up                   # Postgres in Docker (or: just db-local)
-just serve                   # API on http://localhost:8080
-just web                     # UI on http://localhost:5173
-```
+Setup is in the self-hosting guide; this is how the features behave.
 
-Production-style run of the whole stack: `docker compose --profile app up --build`.
-The image is one binary serving both the API and the web UI (embedded at build time
-with the `embed-ui` cargo feature). Natively: `just build-ui`, then
-`target/debug/akasha serve` serves the UI on http://localhost:8080.
+### Search models
 
-### Supported platforms
+Embeddings and reranking run inside the binary on ONNX Runtime (`fastembed`,
+[ADR 0009](docs/adr/0009-embeddings-onnx-runtime.md)); models are downloaded on first start.
+`AKASHA_EMBED_MODEL` (default `multilingual-e5-small`) and `AKASHA_RERANK_MODEL` (default
+`jina-reranker-v1-turbo-en`) choose them; changing the embedding model needs `akasha reembed`
+([operations](docs/operations.md#upgrading)). Offline installs: [self-hosting](docs/self-hosting.md#offline-and-air-gapped-installs).
 
-Release images (`ghcr.io/umeshteja16/project-akasha`, built by
-`.github/workflows/release.yml` for `v*` tags) are multi-arch:
-
-| Platform | CPUs | Notes |
-|---|---|---|
-| `linux/amd64` | any x86-64 with SSE4.2 (2008 and newer, incl. AVX-less NAS Celerons/Atoms) | ships two builds of whisper.cpp; `akasha` switches to the AVX2/FMA build (`akasha-avx2`, Haswell 2013+) at start-up when the CPU has it. `AKASHA_CPU_VARIANT=baseline` forces the portable one. `akasha models check` prints which build ran. |
-| `linux/arm64` | ARMv8-A with NEON: Raspberry Pi 4/5 (64-bit OS), Ampere, Graviton, Apple Silicon hosts | one portable build. A Pi handles search well; Whisper `tiny`/`base` only for transcription. |
-
-ONNX Runtime (embeddings, reranking) is pinned and checksummed per architecture and picks
-CPU features at run time by itself. 32-bit ARM (`armv7`) is not supported. Both
-architectures are built and smoke-tested (ONNX model + Whisper `tiny`) on native CI
-runners; amd64 is also tested on an emulated CPU without AVX.
-
-## ML models and offline installs
-
-Embeddings and reranking run inside the binary on ONNX Runtime. The Docker image ships the
-runtime library; for a native build run `just onnxruntime` (or install ONNX Runtime ≥ 1.24)
-and set `AKASHA_ORT_DYLIB_PATH`. Models are downloaded into `AKASHA_MODELS_DIR` on first use:
-
-| Setting | Default | Notes |
-|---|---|---|
-| `AKASHA_EMBED_MODEL` | `multilingual-e5-small` (384 d) | also `bge-small-en-v1.5`, `bge-base-en-v1.5`, `nomic-embed-text-v1.5`, `bge-m3` |
-| `AKASHA_RERANK_MODEL` | `jina-reranker-v1-turbo-en` | also `bge-reranker-base`, `bge-reranker-v2-m3`, `none` |
-| `AKASHA_ML_MODELS_URL` | `https://huggingface.co` | any Hugging Face mirror; empty = never download |
+### Transcription
 
 **Audio and video** are transcribed on the server with whisper.cpp (ADR 0017): MP3, WAV,
 M4A/AAC, FLAC, Ogg (Vorbis/Opus), MP4/MOV (AAC) and WebM (Opus/Vorbis); the file page shows
@@ -76,51 +63,12 @@ the transcript next to the player, and search results and chat citations point a
 | `AKASHA_TRANSCRIBE_MAX_MINUTES` | `120` | only the start of longer recordings is transcribed |
 | `AKASHA_TRANSCRIBE_LANGUAGE` | empty | ISO 639-1 code (`en`, `de`, ...); empty detects it |
 
-Native builds need cmake and a C++ compiler for whisper.cpp (`cargo build
---no-default-features --features onnx` leaves it out).
-
-**Air-gapped hosts:** on a connected machine with the same settings run
-`akasha models download` (OCR, embedding, rerank and Whisper models), copy the models directory to the
-target, set `AKASHA_ML_MODELS_URL=` and `AKASHA_OCR_MODELS_URL=` (empty), and verify with
-`akasha models check`. With Docker:
-`docker run --rm -v akasha_models:/var/lib/akasha/models <image> models download`.
-
-**Changing the embedding model** invalidates every stored vector, so the server refuses to
-start with a model other than the one the index was built with. To switch: stop the
-workers, set `AKASHA_EMBED_MODEL`, run `akasha reembed` (resizes the vector column and
-queues every file), then start again. Files stay searchable by keyword meanwhile.
-
-## Chat & LLM providers
+### Chat & LLM providers
 
 `POST /api/v1/conversations/{id}/messages` answers a question from your files: it searches
 them, refuses ("I couldn't find this in your files.") when the best passage is too weak,
 otherwise streams an answer over Server-Sent Events (`sources`, `delta`, `done`/`error`) that
-cites numbered sources as `[n]`. Generation runs on an external model (ADR 0012):
-
-```sh
-# Offline (default): Ollama on this machine. `ollama pull llama3.1:8b` first.
-AKASHA_LLM_PROVIDER=ollama
-AKASHA_OLLAMA_URL=http://localhost:11434
-AKASHA_LLM_MODEL=llama3.1:8b
-AKASHA_STRICT_OFFLINE=true        # refuse to start with any non-local provider
-
-# Anthropic Claude (default model claude-sonnet-5-5; set AKASHA_LLM_MODEL=claude-opus-5-5 for Opus)
-AKASHA_LLM_PROVIDER=anthropic
-AKASHA_ANTHROPIC_API_KEY=sk-ant-...   # or ANTHROPIC_API_KEY
-
-# Google Gemini (default model gemini-2.5-flash; the key is sent as a header)
-AKASHA_LLM_PROVIDER=gemini
-AKASHA_GEMINI_API_KEY=...             # or GEMINI_API_KEY
-
-# Any OpenAI-compatible server: LM Studio, vLLM, llama.cpp server, OpenRouter, OpenAI
-AKASHA_LLM_PROVIDER=openai
-AKASHA_OPENAI_BASE_URL=http://localhost:1234/v1
-AKASHA_LLM_MODEL=qwen2.5-7b-instruct
-# AKASHA_OPENAI_API_KEY=...           # if the server needs one
-
-# No model: chat returns the matching passages (status `no_llm`)
-AKASHA_LLM_PROVIDER=none
-```
+cites numbered sources as `[n]`. Generation runs on an external model (ADR 0012). Choose the provider and its settings in the [self-hosting guide](docs/self-hosting.md#choosing-an-llm-for-chat).
 
 With strict offline mode, Ollama and OpenAI-compatible servers are allowed only on loopback,
 private-network or single-label (Docker service) addresses. Requests are retried on
@@ -144,24 +92,7 @@ never changes; tag filters and search match both, and `PATCH /api/v1/files/{id}`
 first answer, a conversation is renamed by the model (`AKASHA_LLM_CONVERSATION_TITLES`) unless
 you renamed it yourself.
 
-### Ollama with Docker Compose
-
-The `akasha` container reaches Ollama **on the host** at `http://host.docker.internal:11434`
-(`extra_hosts: host-gateway` makes that name work on Linux too). Ollama only listens on
-`127.0.0.1` by default, so start it with `OLLAMA_HOST=0.0.0.0 ollama serve` (or
-`systemctl edit ollama` → `Environment="OLLAMA_HOST=0.0.0.0"`) and keep port 11434
-firewalled from the network. Or run Ollama as a container next to Akasha:
-
-```sh
-AKASHA_OLLAMA_URL=http://ollama:11434 docker compose --profile app --profile ollama up -d --build
-docker compose exec ollama ollama pull llama3.1:8b   # once; models live in the `ollama` volume
-```
-
-Both work with `AKASHA_STRICT_OFFLINE=true` (`ollama` is a single-label Docker service name).
-The container runs on CPU; for a GPU, add a `deploy.resources.reservations.devices` entry
-(see the Ollama image docs) or keep using Ollama on the host.
-
-## Use Akasha from Claude / AI agents (MCP)
+### Use Akasha from Claude / AI agents (MCP)
 
 Akasha is an [MCP](https://modelcontextprotocol.io) server: AI assistants can search your
 library, read files, list them and ask grounded questions (and, with a write token, add notes
@@ -203,7 +134,7 @@ reverse proxy with TLS), never plain HTTP across the internet. Tokens can't mana
 account or other tokens. The same tokens work for the REST API
 (`Authorization: Bearer …`; read-only tokens may only `GET`). Design: ADR 0015.
 
-## Watched folders (Obsidian vaults, Documents, Downloads)
+### Watched folders (Obsidian vaults, Documents, Downloads)
 
 Akasha can import folders on the server and keep them in sync: new and changed files show
 up within seconds, renamed files keep their tags and collections, deleted files are
@@ -231,7 +162,7 @@ volume) deletes nothing. Large trees are imported in batches; on Linux, raise
 `fs.inotify.max_user_watches` for very large ones (periodic scans still cover them).
 Design: ADR 0018.
 
-## Monitoring
+### Monitoring
 
 Prometheus metrics (HTTP requests and latency by route, job queue depth, wait, duration
 and failures by kind, extraction/embedding/transcription time, search latency by stage,
@@ -257,66 +188,19 @@ OpenTelemetry spans over OTLP/HTTP; the other standard `OTEL_*` variables apply
 every response returns (and that JSON logs include), and continue an incoming
 `traceparent`. Design: ADR 0019.
 
-## Deploying behind a reverse proxy (HTTPS)
-
-Run Akasha on a private address and put a TLS-terminating proxy in front. Tell Akasha
-which proxies to believe, otherwise every request looks like it comes from the proxy:
-the per-IP sign-in rate limit becomes one shared bucket and the security log and
-session list show the proxy's address.
-
-```sh
-AKASHA_TRUSTED_PROXIES=127.0.0.1,::1      # CIDRs or addresses, comma-separated; empty = trust nobody
-AKASHA_COOKIE_SECURE=true                 # optional: requests the proxy reports as https get Secure cookies anyway
-```
-
-Only when the TCP peer is in that list does Akasha read `X-Forwarded-For` (the client is
-the rightmost address that is not a trusted proxy, so a forged left-hand entry is
-ignored), `X-Forwarded-Proto` and, when there is no `X-Forwarded-For`, `Forwarded`.
-Chain several proxies (CDN → nginx) by listing all of them. In Docker Compose the proxy
-reaches the app from the Compose network, e.g. `AKASHA_TRUSTED_PROXIES=172.16.0.0/12`.
-
-Caddy (sets `X-Forwarded-For`/`-Proto` itself):
-
-```caddyfile
-akasha.example.com {
-    request_body {
-        max_size 520MB
-    }
-    reverse_proxy 127.0.0.1:8080 {
-        flush_interval -1   # stream chat answers (SSE) as they are written
-    }
-}
-```
-
-nginx:
-
-```nginx
-server {
-    listen 443 ssl;
-    server_name akasha.example.com;
-    # ssl_certificate ...;
-    client_max_body_size 520m;            # AKASHA_MAX_UPLOAD_MB plus a little
-    location / {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_buffering off;              # stream chat answers (SSE)
-        proxy_read_timeout 3600s;         # long uploads and downloads
-        proxy_request_buffering off;
-    }
-}
-```
-
-Traefik sets the same headers by default; list its address (or network) as trusted.
-
-## Operations
-
-[`docs/operations.md`](docs/operations.md) covers **backup and restore** (`scripts/backup.sh`,
-`scripts/restore.sh`, Docker Compose and bare-binary variants), **upgrade notes** (migrations
-on start, `akasha reembed`, no downgrades) and the **configuration reference** with every
-setting and its default. The feature sections above only show the settings relevant to them.
-
 ## Development
 
-`just check` runs exactly what CI runs. Contributor and agent conventions: [`CLAUDE.md`](CLAUDE.md).
+```bash
+mise install                 # toolchain (or install Rust, Node 22, pnpm, just yourself)
+cp .env.example .env
+just setup                   # cargo fetch + pnpm install
+just db-up                   # Postgres in Docker (or: just db-local)
+just serve                   # API + worker on http://localhost:8080
+just web                     # UI dev server on http://localhost:5173
+```
+
+Native runs need ONNX Runtime for embeddings (`just onnxruntime`), and cmake plus a C++
+compiler for whisper.cpp (`cargo build --no-default-features --features onnx` leaves speech
+out). `just build-ui` embeds the built UI in the server binary. `just check` runs exactly what
+CI runs; `just` lists every recipe. Contributor and agent conventions: [`CLAUDE.md`](CLAUDE.md).
+Design decisions are in [`docs/adr/`](docs/adr); the docs index is [`docs/README.md`](docs/README.md).

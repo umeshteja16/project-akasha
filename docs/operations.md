@@ -1,7 +1,8 @@
 # Operations
 
 Running Akasha for real: backups, upgrades and the configuration reference. For install
-and feature setup see the [README](../README.md).
+and first-run setup see the [self-hosting guide](self-hosting.md); feature details are in the
+[README](../README.md#features-and-reference).
 
 - [Backup and restore](#backup-and-restore)
 - [Upgrading](#upgrading)
