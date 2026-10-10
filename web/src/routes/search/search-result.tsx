@@ -4,13 +4,23 @@ import type { FileHit } from "@/api/search";
 import { Highlighted } from "@/components/common/highlighted";
 import { FileThumb } from "@/features/files/file-thumb";
 import { kindOf } from "@/features/files/kind";
-import { passageSearch } from "@/features/files/passage";
+import { formatTimestamp, locationLabel, passageSearch } from "@/features/files/passage";
 import { formatRelative } from "@/lib/format";
 
-/** Distinct page numbers of the matches, in order ("p. 3, 7"). */
+/** Distinct page numbers of the matches, in order ("p. 3, 7"); for recordings
+ *  the times ("1:05, 12:40"). */
 export function pagesLabel(hit: FileHit): string | null {
   const pages = [...new Set(hit.matches.map((m) => m.page).filter((p): p is number => p != null))];
-  if (pages.length === 0) return null;
+  if (pages.length === 0) {
+    const times = [
+      ...new Set(hit.matches.map((m) => m.start_ms).filter((t): t is number => t != null)),
+    ];
+    if (times.length === 0) return null;
+    return times
+      .sort((a, b) => a - b)
+      .map(formatTimestamp)
+      .join(", ");
+  }
   return `${pages.length === 1 ? "p." : "pp."} ${pages.sort((a, b) => a - b).join(", ")}`;
 }
 
@@ -46,7 +56,9 @@ export function SearchResult({ hit }: { hit: FileHit }) {
             <Link
               to="/files/$fileId"
               params={{ fileId: file.id }}
-              search={best ? passageSearch(best.char_start, best.char_end, best.page) : {}}
+              search={
+                best ? passageSearch(best.char_start, best.char_end, best.page, best.start_ms) : {}
+              }
               className="break-words decoration-accent/50 underline-offset-4 hover:underline"
             >
               {file.name}
@@ -90,7 +102,12 @@ export function SearchResult({ hit }: { hit: FileHit }) {
                 <Link
                   to="/files/$fileId"
                   params={{ fileId: file.id }}
-                  search={passageSearch(match.char_start, match.char_end, match.page)}
+                  search={passageSearch(
+                    match.char_start,
+                    match.char_end,
+                    match.page,
+                    match.start_ms,
+                  )}
                   className="group/passage -mx-3 grid grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-md px-3 py-2 transition-colors hover:bg-surface-2"
                 >
                   <span
@@ -98,9 +115,9 @@ export function SearchResult({ hit }: { hit: FileHit }) {
                     aria-hidden
                   />
                   <span className="min-w-0">
-                    {match.page ? (
+                    {locationLabel(match) ? (
                       <span className="mr-2 font-mono text-2xs tracking-wide text-fg-subtle uppercase">
-                        p. {match.page}
+                        {locationLabel(match)}
                       </span>
                     ) : null}
                     <span className="font-display text-[0.97rem] leading-relaxed text-fg-muted [overflow-wrap:anywhere]">

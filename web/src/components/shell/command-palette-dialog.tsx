@@ -21,7 +21,7 @@ import { Highlighted } from "@/components/common/highlighted";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Kbd } from "@/components/ui/kbd";
 import { kindOf } from "@/features/files/kind";
-import { passageSearch } from "@/features/files/passage";
+import { locationLabel, passageSearch } from "@/features/files/passage";
 import { useUploader } from "@/features/upload/upload-context";
 import { useTheme } from "@/lib/theme";
 import { useDebouncedValue } from "@/lib/use-debounced";
@@ -131,7 +131,12 @@ export function CommandPalette({
                               to: "/files/$fileId",
                               params: { fileId: hit.file.id },
                               search: best
-                                ? passageSearch(best.char_start, best.char_end, best.page)
+                                ? passageSearch(
+                                    best.char_start,
+                                    best.char_end,
+                                    best.page,
+                                    best.start_ms,
+                                  )
                                 : {},
                             }),
                         )
@@ -147,9 +152,9 @@ export function CommandPalette({
                           </span>
                         ) : null}
                       </span>
-                      {best?.page ? (
+                      {best && locationLabel(best) ? (
                         <span className="mt-0.5 font-mono text-2xs text-fg-subtle">
-                          p. {best.page}
+                          {locationLabel(best)}
                         </span>
                       ) : null}
                     </Command.Item>

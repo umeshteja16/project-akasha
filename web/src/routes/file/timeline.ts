@@ -34,12 +34,22 @@ function jobDetail(file: FileDetail, running: string): string {
   }
 }
 
+function transcribing(file: FileDetail): string {
+  const p = file.processing?.progress;
+  return p != null ? `Transcribing, ${Math.round(p * 100)}%` : "Transcribing";
+}
+
 export function timelineSteps(file: FileDetail, chatModel: boolean, now = Date.now()): Step[] {
   const stage = file.processing?.stage ?? "extract";
   const ready = file.status === "ready";
   const failed = file.status === "failed";
 
-  const extract: Step = { key: "extract", label: "Read the text", state: "waiting" };
+  const media = file.mime_type.startsWith("audio/") || file.mime_type.startsWith("video/");
+  const extract: Step = {
+    key: "extract",
+    label: media ? "Transcribe" : "Read the text",
+    state: "waiting",
+  };
   const embed: Step = { key: "embed", label: "Index for search", state: "waiting" };
   if (ready) {
     extract.state = "done";
@@ -55,7 +65,7 @@ export function timelineSteps(file: FileDetail, chatModel: boolean, now = Date.n
     extract.state = failed ? "failed" : "active";
     extract.detail = failed
       ? (file.error ?? "Extraction failed")
-      : jobDetail(file, "Extracting text");
+      : jobDetail(file, media ? transcribing(file) : "Extracting text");
   }
   if (failed && stage !== "embed") embed.state = "skipped";
 

@@ -13,7 +13,7 @@ import {
   SparklesIcon,
   Trash2Icon,
 } from "lucide-react";
-import { type ReactNode, useEffect, useId, useState } from "react";
+import { lazy, type ReactNode, Suspense, useEffect, useId, useState } from "react";
 import { isApiError } from "@/api/client";
 import { useApi } from "@/api/context";
 import { downloadUrl, type FileDetail, fileKeys, fileQuery } from "@/api/files";
@@ -54,6 +54,8 @@ import { SimilarFiles } from "./similar-files";
 import { TagsEditor } from "./tags-editor";
 
 const route = getRouteApi("/app/files/$fileId");
+// Player + transcript for audio and video, loaded only for recordings.
+const MediaView = lazy(() => import("./media-view"));
 const INLINE_TYPES = new Set(["pdf", "image", "audio", "video"]);
 
 export function FilePage() {
@@ -96,7 +98,7 @@ function FileView({ file }: { file: FileDetail }) {
   const reindex = useReindex();
   const enrich = useEnrich();
   const [enrichedAt, setEnrichedAt] = useState(0);
-  const { at, page } = route.useSearch();
+  const { at, page, t } = route.useSearch();
   const passage = parsePassage(at);
   // A link to a passage (search result, citation) opens the text at that passage.
   const [tab, setTab] = useState(passage ? "text" : "preview");
@@ -249,18 +251,26 @@ function FileView({ file }: { file: FileDetail }) {
       ) : null}
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_19rem]">
-        <Tabs value={tab} onValueChange={setTab} className="min-w-0">
-          <TabsList className="w-full">
-            <TabsTrigger value="preview">Preview</TabsTrigger>
-            <TabsTrigger value="text">Text</TabsTrigger>
-          </TabsList>
-          <TabsContent value="preview">
-            <FilePreview file={file} page={page} />
-          </TabsContent>
-          <TabsContent value="text">
-            <ExtractionViewer file={file} passage={passage} />
-          </TabsContent>
-        </Tabs>
+        {category === "audio" || category === "video" ? (
+          <Suspense fallback={<Skeleton className="h-[40vh]" />}>
+            <div className="min-w-0">
+              <MediaView file={file} startAt={t} passage={passage} />
+            </div>
+          </Suspense>
+        ) : (
+          <Tabs value={tab} onValueChange={setTab} className="min-w-0">
+            <TabsList className="w-full">
+              <TabsTrigger value="preview">Preview</TabsTrigger>
+              <TabsTrigger value="text">Text</TabsTrigger>
+            </TabsList>
+            <TabsContent value="preview">
+              <FilePreview file={file} page={page} />
+            </TabsContent>
+            <TabsContent value="text">
+              <ExtractionViewer file={file} passage={passage} />
+            </TabsContent>
+          </Tabs>
+        )}
 
         <aside className="grid content-start gap-7" aria-label="About this file">
           <Section title="Summary">

@@ -4,18 +4,31 @@ import { useRef, useState } from "react";
 import type { Citation } from "@/api/chat";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { kindOf } from "@/features/files/kind";
-import { passageSearch } from "@/features/files/passage";
+import { formatTimestamp, locationLabel, passageSearch } from "@/features/files/passage";
 
 /** Link target of a citation: the file, opened at the cited passage and page. */
 export function citationLink(c: Citation) {
   return {
     to: "/files/$fileId" as const,
     params: { fileId: c.file_id },
-    search: passageSearch(c.char_start, c.char_end, c.page),
+    search: passageSearch(c.char_start, c.char_end, c.page, c.start_ms),
   };
 }
 
 const HOVER_DELAY = 120;
+
+/** ", page 3" / ", at 1:05" for screen readers. */
+function spokenLocation(c: Citation): string {
+  if (c.page) return `, page ${c.page}`;
+  if (c.start_ms != null) return `, at ${formatTimestamp(c.start_ms)}`;
+  return "";
+}
+
+function openLabel(c: Citation): string {
+  if (c.page) return `Open at page ${c.page}`;
+  if (c.start_ms != null) return `Play from ${formatTimestamp(c.start_ms)}`;
+  return "Open the passage";
+}
 
 /**
  * An inline `[n]`. Mouse: hover shows the quote, click opens the file there.
@@ -38,7 +51,7 @@ export function CitationChip({ citation }: { citation: Citation }) {
         <button
           type="button"
           data-citation={citation.n}
-          aria-label={`Source ${citation.n}: ${citation.file_name}${citation.page ? `, page ${citation.page}` : ""}`}
+          aria-label={`Source ${citation.n}: ${citation.file_name}${spokenLocation(citation)}`}
           aria-expanded={open}
           onPointerDown={(e) => {
             pointer.current = e.pointerType;
@@ -80,9 +93,9 @@ export function CitationChip({ citation }: { citation: Citation }) {
           </span>
           <Icon className="size-3.5 shrink-0 text-fg-subtle" aria-hidden />
           <span className="min-w-0 flex-1 truncate font-medium text-fg">{citation.file_name}</span>
-          {citation.page ? (
+          {locationLabel(citation) ? (
             <span className="shrink-0 font-mono text-2xs text-fg-subtle uppercase">
-              p. {citation.page}
+              {locationLabel(citation)}
             </span>
           ) : null}
         </p>
@@ -94,7 +107,7 @@ export function CitationChip({ citation }: { citation: Citation }) {
           onClick={() => setOpen(false)}
           className="inline-flex w-fit items-center gap-1 text-xs font-medium text-accent-text hover:underline"
         >
-          Open {citation.page ? `at page ${citation.page}` : "the passage"}
+          {openLabel(citation)}
           <ArrowUpRightIcon className="size-3" aria-hidden />
         </Link>
       </PopoverContent>

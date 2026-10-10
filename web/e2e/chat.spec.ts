@@ -49,7 +49,10 @@ test("chat: streamed answer with citations, refusal, rename and delete", async (
   await expect(page).toHaveURL(/\/chat\/[0-9a-f-]+$/);
   await expect(main.getByRole("button", { name: /^Source 1: lease\.md/ })).toBeVisible();
 
-  // A question the files can't answer is refused, not guessed.
+  // A question the files can't answer is refused, not guessed. (Move the mouse off
+  // the chip first: its hover popover can reopen after going back.)
+  await page.mouse.move(0, 0);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await box.fill("What is the airspeed velocity of an unladen swallow?");
   await box.press("Enter");
   await expect(main.getByText("I couldn't find this in your files.")).toBeVisible({

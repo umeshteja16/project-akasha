@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ChevronRightIcon } from "lucide-react";
 import { useId, useState } from "react";
 import type { Citation } from "@/api/chat";
+import { locationLabel } from "@/features/files/passage";
 import { citationLink } from "./citation-chip";
 
 /** The passages an answer cites, numbered like the chips in the text. */
@@ -50,9 +51,9 @@ export function SourcesPanel({
                     <span className="truncate font-medium text-fg group-hover:underline">
                       {c.file_name}
                     </span>
-                    {c.page ? (
+                    {locationLabel(c) ? (
                       <span className="shrink-0 font-mono text-2xs text-fg-subtle uppercase">
-                        p. {c.page}
+                        {locationLabel(c)}
                       </span>
                     ) : null}
                   </span>
