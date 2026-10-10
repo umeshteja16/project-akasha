@@ -20,7 +20,7 @@ async fn upload_detects_type_and_dedupes(pool: PgPool) {
     let ada = app.user("ada@example.com").await;
     let bob = app.user("bob@example.com").await;
 
-    // legacy/scratch/test_magic_bytes.sh, case B: a real PDF is accepted.
+    // old magic-bytes script, case B: a real PDF is accepted.
     let first = app.upload(&ada, "valid_real.pdf", PDF).await;
     assert_eq!(first.status, StatusCode::CREATED);
     let file = first.json();
@@ -48,7 +48,7 @@ async fn upload_rejects_disallowed_and_masquerading_files(pool: PgPool) {
     elf.resize(128, 0);
 
     let cases: [(&str, &[u8]); 6] = [
-        // legacy/scratch/test_magic_bytes.sh, case A.
+        // old magic-bytes script, case A.
         (
             "fake_malicious.pdf",
             b"echo 'Malicious binary masquerader!'\n",
@@ -114,7 +114,7 @@ async fn upload_sanitises_filenames(pool: PgPool) {
     let app = TestApp::new(pool);
     let ada = app.user("ada@example.com").await;
 
-    // legacy/scratch/test_filename_upload.sh (HTML is not accepted, so as Markdown).
+    // old filename upload script (HTML is not accepted, so as Markdown).
     let special = "Digital Product Design & Development Agency - Significa.md";
     let res = app.upload(&ada, special, b"# special & chars").await;
     assert_eq!(res.status, StatusCode::CREATED);

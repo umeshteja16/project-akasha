@@ -7,7 +7,7 @@ A fixed benchmark for search quality (ADR 0011), run by `akasha eval`.
 - `queries.json`: 56 queries with the files that answer them, grouped by `kind`:
   `keyword` (20, shares the document's words), `paraphrase` (15, same meaning, other
   words), `multi` (5, several relevant files), `filename` (3), `legacy` (3, ported from
-  `legacy/apps/api/benchmark_queries.json` / `eval-benchmark.json`), `precision` (4, short
+  the old TypeScript implementation's benchmark), `precision` (4, short
   queries where unrelated files must not show up) and `negative` (6, about nothing in the
   corpus: a good search returns nothing; they list no relevant files).
 - `gate.json`: 18 questions the corpus answers and 12 it does not, for the chat refusal

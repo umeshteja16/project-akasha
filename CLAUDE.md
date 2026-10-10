@@ -32,7 +32,6 @@ eval/         search benchmark: corpus/, queries.json, gate.json, baselines/ (AD
 .sqlx/        offline cache of checked SQL queries (`just sqlx-prepare`)
 web/          React + TS frontend (Vite, Tailwind 4, Radix ui/, TanStack Router + Query,
               Biome, Vitest, Playwright e2e/); design system in web/DESIGN.md
-legacy/       old TypeScript implementation: read-only reference, do not edit
 docs/adr/     architecture decisions
 openapi.json  generated API contract (`just openapi`), checked in CI
 ```

@@ -5,7 +5,7 @@ then search and ask questions over them with grounded, cited answers. It can run
 
 > **Status: rewrite in progress.** The project is being rebuilt in Rust. See
 > [`PROGRESS.md`](PROGRESS.md) for what works today and what is next. The previous TypeScript
-> implementation is kept in [`legacy/`](legacy) for reference.
+> implementation was removed after the parity audit (it stays in git history).
 
 ## Architecture
 

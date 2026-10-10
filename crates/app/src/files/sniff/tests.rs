@@ -46,7 +46,7 @@ fn accepts_allowed_types() {
     assert!(!detect(PDF, "a.pdf").expect("pdf").is_text);
 }
 
-/// Ported from `legacy/scratch/test_magic_bytes.sh`, case A: a script uploaded as
+/// Ported from the old implementation's magic-bytes script, case A: a script uploaded as
 /// `fake_malicious.pdf` (declared `application/pdf`) must be refused with 415.
 #[test]
 fn rejects_text_masquerading_as_pdf() {

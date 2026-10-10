@@ -100,7 +100,7 @@ mod tests {
         assert_eq!(sanitize(".hidden.md"), "hidden.md");
     }
 
-    /// Ported from `legacy/scratch/test_filename_upload.sh`: special characters are kept.
+    /// Ported from the old implementation's filename upload script: special characters are kept.
     #[test]
     fn keeps_ordinary_special_characters() {
         let name = "Digital Product Design & Development Agency - Significa.md";

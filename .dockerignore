@@ -1,6 +1,5 @@
 target
 **/node_modules
 web/dist
-legacy
 .git
 .env

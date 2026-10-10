@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
-import { FolderPlusIcon, SearchIcon, UploadIcon } from "lucide-react";
+import { FolderPlusIcon, NotebookPenIcon, SearchIcon, UploadIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiError } from "@/api/client";
 import { useApi } from "@/api/context";
@@ -15,6 +15,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { AddToCollectionMenu } from "@/features/collections/add-to-collection-menu";
 import { ConfirmDeleteDialog } from "@/features/files/confirm-delete-dialog";
 import { useReindex, useTogglePin } from "@/features/files/mutations";
+import { NewNoteDialog } from "@/features/notes/new-note-dialog";
 import { useUploader } from "@/features/upload/upload-context";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { FileCollection } from "./file-collection";
@@ -33,6 +34,7 @@ export function LibraryPage() {
   const navigate = useNavigate();
   const [prefs, setPrefs] = useLibraryPrefs();
   const { pick } = useUploader();
+  const [noteOpen, setNoteOpen] = useState(false);
   const filters = useMemo(() => toFilters(search), [search]);
   const query = useInfiniteQuery(filesQuery(api, filters, prefs.sort));
   const me = useQuery(meQuery(api)).data;
@@ -96,6 +98,10 @@ export function LibraryPage() {
                 Upload
               </Button>
             </Tooltip>
+            <Button variant="secondary" onClick={() => setNoteOpen(true)}>
+              <NotebookPenIcon />
+              New note
+            </Button>
           </>
         }
       />
@@ -175,6 +181,7 @@ export function LibraryPage() {
         </>
       )}
 
+      <NewNoteDialog open={noteOpen} onOpenChange={setNoteOpen} />
       <ConfirmDeleteDialog
         open={deleting !== null}
         onOpenChange={(open) => {

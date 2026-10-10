@@ -1,1 +1,0 @@
-> **Archived.** This is the original TypeScript implementation, kept read-only as a reference while the Rust rewrite reaches parity. See the root [PROGRESS.md](../PROGRESS.md). It will be deleted in step 7.

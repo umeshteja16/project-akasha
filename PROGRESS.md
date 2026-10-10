@@ -20,7 +20,7 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 | **Current step** | Step 7: Release v0.1 (step 6 complete) |
 | **Last updated** | 2026-10-10 |
 | **`just check`** | passing (359 Rust tests + 6 ignored OCR/real-model/Whisper tests, 108 web tests, bundle budget 174/180 kB); `just e2e` 11 Playwright tests (incl. axe on every screen, tokens + `/mcp`, collections + sessions, recordings, watched folder) |
-| **Old code** | `legacy/` (read-only reference; deleted in step 7) |
+| **Old code** | removed in step 7 (parity audit done; lives on in git history) |
 
 ## Next up
 
@@ -29,18 +29,15 @@ log, trusted proxies, transcription, portable multi-arch image, watched folders,
 metrics + traces). In order; each ends with `just check` green, `just e2e` green and a
 PROGRESS.md update:
 
-1. **Parity audit**: walk the legacy inventory below against the new app (API + UI),
-   note any gap (e.g. legacy "capture", refresh tokens → sessions) as fixed or
-   deliberately dropped, then delete `legacy/` (and its CI/tooling leftovers).
-2. **Operations docs**: backup and restore (Postgres dump + storage dir/S3 bucket +
+1. **Operations docs**: backup and restore (Postgres dump + storage dir/S3 bucket +
    models volume; a tested restore script), upgrade notes (migrations run on start,
    `akasha reembed` when changing models), configuration reference generated from
    `Config` or kept in one README table.
-3. **Release mechanics**: version 0.1.0 in the workspace, CHANGELOG, make the no-AVX QEMU
+2. **Release mechanics**: version 0.1.0 in the workspace, CHANGELOG, make the no-AVX QEMU
    CI step required (or narrow it to Whisper) once its run time is known, run
    `release.yml` on a `v0.1.0` tag and check the ghcr.io manifest (amd64 + arm64) by
    pulling and running `models check` on both.
-4. **First-run polish found while doing the above** (only small fixes; bigger items go
+3. **First-run polish found while doing the above** (only small fixes; bigger items go
    to the follow-ups below).
 
 Transcription follow-ups: run a real Whisper model on real speech (only the fake model ran
@@ -49,6 +46,12 @@ tone) and measure speed per model; consider word-level timestamps for finer seek
 speaker turns, and an optional ffmpeg fallback for AC-3/AVI/WMA.
 
 Open follow-ups:
+- Parity gaps found by the audit: (a) per-user storage quota has no API or UI (only
+  `users.storage_quota_bytes` in the DB, enforced on upload; legacy had a usage bar and a
+  self-service limit in Settings): add usage + quota to `/me` and a Settings card;
+  (b) note capture from a URL (legacy fetched and stored the page text) is not built, on
+  purpose pending an SSRF-safe fetcher and the offline stance; plain-text notes are covered
+  by Library → New note.
 - Tune the unmeasured relevance floors (e5-small 0.80, bge 0.55, nomic/bge-m3 0.45, ONNX
   rerankers -2.0) from the nightly `eval.yml` real-model artifact (it now reports P@10 and
   `negative_clean`); calibrate the real-reranker refusal threshold the same way.
@@ -132,19 +135,31 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 - [x] Prometheus `/metrics` (separate port or bearer token) + OpenTelemetry traces over OTLP (feature `otel`, request-id correlation), Grafana dashboard, compose `--profile monitoring` (ADR 0019)
 
 ### Step 7: Release v0.1
-- [ ] Feature parity with `legacy/` confirmed against the list below; delete `legacy/`
+- [x] Feature parity with `legacy/` confirmed (see "Parity result" below); `legacy/` deleted
 - [ ] Backup/restore docs, upgrade notes, tagged release with Docker image
 
 ### Step 8: Desktop (after server is stable)
 - [ ] Tauri 2 app reusing the crates; storage backend decision (embedded Postgres vs SQLite) in an ADR
 
-## Legacy feature inventory (parity checklist for step 7)
+## Parity result (step 7 audit, 2026-10-10)
 
-Auth (register, login, refresh, logout) · profile/display name · storage limit setting ·
-file upload incl. "capture" · list/get/rename/delete/bulk-delete · download · thumbnail ·
-extraction view · tags · pin · open tracking · reindex · similar files · collections CRUD ·
-keyword/semantic/hybrid search with filters and spelling suggestion · grounded chat with
-citations and conversations · activity timeline · audit log · strict offline mode.
+Legacy inventory walked against the Rust API and web UI before `legacy/` was deleted.
+
+- **Covered** (API in `crates/app/src/routes`, UI in `web/src/routes`): register/login/logout
+  (`auth.rs`, auth screens) · profile and display name (`me.rs`, Settings → Profile) ·
+  upload, list, get, rename, delete, bulk delete, download, thumbnail, extraction view,
+  tags, pin, open tracking, reindex, similar files (`files/*`, Library + file page) ·
+  collections CRUD (`collections/`) · keyword/semantic/hybrid search with filters and
+  spelling suggestion (`search/`) · grounded chat with citations and conversations
+  (`chat/`) · activity timeline and security audit log (`activity.rs`, Activity +
+  Settings → Security) · strict offline mode (`AKASHA_STRICT_OFFLINE`, shown in
+  Settings → System).
+- **Deliberately dropped**: refresh tokens (replaced by server-side cookie sessions with
+  list/revoke, ADR 0004); URL capture, see follow-up below.
+- **Fixed in the audit**: "capture" of a typed thought, as Library → New note (saved as a
+  Markdown file through the normal upload path).
+- **Deferred**: storage quota usage/limit UI and API; URL capture (both under "Open
+  follow-ups").
 
 ## Decisions
 
@@ -563,6 +578,7 @@ See [`docs/adr/`](docs/adr). Summary:
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
 
+- 2026-10-10 · Claude (cloud) · Step 7.1 parity audit: all legacy inventory items covered or deliberately dropped; added Library → New note (legacy "capture"); storage-quota UI and URL capture deferred to follow-ups. Deleted `legacy/` and its leftovers (.dockerignore, README, CLAUDE.md layout, comments). Next: operations docs.
 - 2026-10-10 · Claude (cloud) · Observability: Prometheus metrics (HTTP by route, jobs outcome/duration/wait/depth, ingest stages, search stages, LLM calls/tokens, model readiness, build info) on a separate listener or token-protected `/metrics`, OTLP/HTTP trace export (feature `otel`) with request-id and `traceparent`, `deploy/grafana/akasha.json`, compose `--profile monitoring`, ADR 0019, README "Monitoring". CI: no-AVX QEMU step bounded and informational. Step 6 complete; Next up is Step 7.
 - 2026-10-10 · Claude (cloud) · Watched folders: migration 0016 (`sources`, `source_files`), `/api/v1/sources` CRUD + rescan, `scan_source`/`scan_all_sources` jobs (batched, resumable, rename detection, quota/unreadable retries, empty-folder guard), debounced `notify` watcher, O_NOFOLLOW + inode-checked opens, globs, Obsidian front-matter tags, `source.*` activity events; Settings → Sources UI; tests: db (5), unit (paths, filter, walk, front matter, debounce), HTTP (import, change, rename, delete, keep, symlink escape, roots, owner isolation, token scope, pause, remove), Vitest, e2e step with axe.
 - 2026-10-10 · Claude (cloud) · CPU portability: portable (SSE4.2) + AVX2 builds of the binary in the amd64 image with start-up dispatch (`cpu.rs`), arm64 image, CI docker matrix on native arm runners + no-AVX QEMU smoke test, `release.yml` multi-arch push to ghcr.io, README "Supported platforms". The Docker build cannot run here (no daemon); CI verifies it.
