@@ -7,6 +7,7 @@ pub mod admin;
 pub mod auth;
 pub mod chat;
 pub mod client_ip;
+pub mod cpu;
 pub mod enrich;
 pub mod error;
 pub mod eval;
@@ -85,7 +86,12 @@ pub async fn run_serve(config: Config, with_worker: bool) -> anyhow::Result<()> 
     let listener = tokio::net::TcpListener::bind(&config.bind_addr)
         .await
         .with_context(|| format!("binding {}", config.bind_addr))?;
-    tracing::info!(addr = %config.bind_addr, with_worker, "listening");
+    tracing::info!(
+        addr = %config.bind_addr,
+        with_worker,
+        cpu_build = cpu::build_variant(),
+        "listening"
+    );
 
     let state = AppState::with_llm(pool, config, storage, llm);
     rate_limit::spawn_cleanup(

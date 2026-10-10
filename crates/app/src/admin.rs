@@ -183,10 +183,11 @@ pub async fn run_models_check(config: Config) -> anyhow::Result<()> {
             .await
             .context("transcription task")??;
             println!(
-                "transcription: {} ok ({} segments, {:?})",
+                "transcription: {} ok ({} segments, {:?}, cpu build {})",
                 config.whisper_model,
                 segments.len(),
-                started.elapsed()
+                started.elapsed(),
+                crate::cpu::build_variant()
             );
         }
         None => println!("transcription: disabled"),

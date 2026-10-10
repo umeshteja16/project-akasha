@@ -36,6 +36,21 @@ The image is one binary serving both the API and the web UI (embedded at build t
 with the `embed-ui` cargo feature). Natively: `just build-ui`, then
 `target/debug/akasha serve` serves the UI on http://localhost:8080.
 
+### Supported platforms
+
+Release images (`ghcr.io/umeshteja16/project-akasha`, built by
+`.github/workflows/release.yml` for `v*` tags) are multi-arch:
+
+| Platform | CPUs | Notes |
+|---|---|---|
+| `linux/amd64` | any x86-64 with SSE4.2 (2008 and newer, incl. AVX-less NAS Celerons/Atoms) | ships two builds of whisper.cpp; `akasha` switches to the AVX2/FMA build (`akasha-avx2`, Haswell 2013+) at start-up when the CPU has it. `AKASHA_CPU_VARIANT=baseline` forces the portable one. `akasha models check` prints which build ran. |
+| `linux/arm64` | ARMv8-A with NEON: Raspberry Pi 4/5 (64-bit OS), Ampere, Graviton, Apple Silicon hosts | one portable build. A Pi handles search well; Whisper `tiny`/`base` only for transcription. |
+
+ONNX Runtime (embeddings, reranking) is pinned and checksummed per architecture and picks
+CPU features at run time by itself. 32-bit ARM (`armv7`) is not supported. Both
+architectures are built and smoke-tested (ONNX model + Whisper `tiny`) on native CI
+runners; amd64 is also tested on an emulated CPU without AVX.
+
 ## ML models and offline installs
 
 Embeddings and reranking run inside the binary on ONNX Runtime. The Docker image ships the

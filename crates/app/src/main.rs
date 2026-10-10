@@ -85,8 +85,14 @@ enum ModelsCommand {
     Check,
 }
 
+fn main() -> anyhow::Result<()> {
+    // Before any thread starts: may replace this process with the AVX2 build.
+    akasha::cpu::dispatch();
+    run()
+}
+
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn run() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     if let Command::Openapi = cli.command {

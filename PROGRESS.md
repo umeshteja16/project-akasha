@@ -119,6 +119,7 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 - [x] MCP server (`rmcp`, Streamable HTTP at `/mcp` + `akasha mcp` stdio bridge) and personal API tokens (scopes, expiry, revocation, Settings → Access tokens)
 - [x] Audio/video transcription (whisper.cpp via `whisper-rs`, pure-Rust decoding, timestamps in search/citations/MCP, transcript player; ADR 0017)
 - [x] Trusted reverse proxies (`AKASHA_TRUSTED_PROXIES`: client IP for rate limits, security log, sessions; `Secure` cookies via `X-Forwarded-Proto`)
+- [x] CPU-portable, multi-arch image: amd64 runs on any SSE4.2 CPU and switches to an AVX2 build at start-up; linux/arm64 (Raspberry Pi 4/5); release workflow to ghcr.io
 - [ ] Watched folders / connectors (Obsidian vault, Downloads)
 - [x] Collections, activity timeline, security audit log, sessions, open tracking (legacy parity; API + screens, ADR 0016)
 - [ ] OpenTelemetry export + Prometheus `/metrics`
@@ -511,6 +512,20 @@ See [`docs/adr/`](docs/adr). Summary:
   `Box<dyn FnMut>`, calls it as `F`): only ever pass it a `Box<dyn FnMut() -> bool>`,
   otherwise whisper aborts with "failed to encode" (-6). Only the Docker smoke test
   (`models check` with `tiny`) runs real Whisper in CI.
+- CPU portability (Dockerfile, `crates/app/src/cpu.rs`): whisper-rs-sys 0.15 links ggml
+  statically, so ggml's own runtime dispatch (`GGML_BACKEND_DL` + `GGML_CPU_ALL_VARIANTS`,
+  shared libraries only) is unavailable. The amd64 image builds the binary twice instead:
+  `akasha` (ggml SSE4.2 only) and `akasha-avx2`; `cpu::dispatch()` runs first in `main`
+  and `exec`s the AVX2 build when AVX/AVX2/FMA/F16C/BMI2 are present
+  (`AKASHA_CPU_VARIANT=baseline` forces the portable one, `AKASHA_CPU_DISPATCHED` stops
+  loops). The build script ignores `GGML_*` changes, so the Dockerfile runs
+  `cargo clean --release -p whisper-rs-sys` before each variant. `AKASHA_BUILD_CPU_VARIANT`
+  (compile time) names the build (`avx2`/`baseline`/`armv8`, local builds `native`); it is
+  logged at start-up and printed by `models check`. arm64 builds once for plain ARMv8-A.
+  CI's docker job is a matrix on native runners (`ubuntu-24.04-arm` is free for public
+  repos) and runs the portable amd64 build under `qemu-x86_64-static -cpu Nehalem`.
+  `release.yml` pushes the multi-arch image to ghcr.io on `v*` tags (per-arch digests,
+  then `imagetools create`); it has not run yet.
 - `just check` here ran out of disk while linking the ~25 test binaries (linker "Bus
   error" = disk full): `cargo clean -p akasha` and `CARGO_INCREMENTAL=0` keep it under ~12 GB.
 
@@ -518,6 +533,7 @@ See [`docs/adr/`](docs/adr). Summary:
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
 
+- 2026-10-10 · Claude (cloud) · CPU portability: portable (SSE4.2) + AVX2 builds of the binary in the amd64 image with start-up dispatch (`cpu.rs`), arm64 image, CI docker matrix on native arm runners + no-AVX QEMU smoke test, `release.yml` multi-arch push to ghcr.io, README "Supported platforms". The Docker build cannot run here (no daemon); CI verifies it.
 - 2026-10-10 · Claude (cloud) · Step 6c transcription: new `crates/media` (Symphonia + `opus-decoder` decoding to 16 kHz mono with a streaming windowed-sinc resampler, windowed transcription with quiet-point cuts, cancellation, progress, Whisper model catalog with pinned SHA-256 and streamed download, whisper.cpp via `whisper-rs` 0.16, deterministic tone model), migration 0015 (`file_extractions.segments/duration_ms`, `file_chunks.start_ms/end_ms`, `jobs.progress`), `extract_file` transcribes audio/video (`AKASHA_TRANSCRIBE_*`, `AKASHA_WHISPER_MODEL`), times in search results, chat citations/prompt and MCP, transcription in system status and `models download/check`; UI: lazily loaded player + timestamped transcript (seek, active line, `?t=`), times on search results/citations/palette, "Transcribing N%" in the timeline. Docker installs cmake and builds portable whisper.cpp; CI smoke test runs Whisper `tiny`. Tests: media unit/integration (formats incl. MP4/WebM with video, resampling, windowing, cap, cancel), ingest transcript chunking, job progress, HTTP (upload WAV → timed chunks → search/chat), Vitest, e2e recording flow with axe. Also made the chat e2e move the mouse off a citation before asking again (hover popover flake). CI's Docker smoke test then caught a whisper-rs abort-callback bug (real Whisper aborted every run); fixed with a correctly typed callback.
 - 2026-10-10 · Claude (cloud) · Trusted reverse proxies: `AKASHA_TRUSTED_PROXIES`, one client-IP resolver (rightmost untrusted XFF hop / `Forwarded`, `X-Forwarded-Proto` → `Secure` cookies) used by the auth rate limiter, security log and sessions; tests for spoofing, chains and per-client limits; README Caddy/nginx notes.
 - 2026-10-10 · Claude (cloud) · Step 6b screens: Collections in the sidebar (+ phone account menu, palette, `g o`/`g a`), collections list and collection page (header with swatch mark, add-files picker, remove from collection, edit/delete, search in it, ask), "Add to collection" in library multi-select and on file pages (membership checkboxes), collection search chip and chat collection scope bar, `/activity` timeline (day groups, filters, links, clear history), Settings → Security (sessions with sign-out, sign out others, recent sign-ins, search-history toggle), "Recently opened" sort, open tracking; fixed a mobile overflow in the library/search filter rows. Vitest 99, e2e 10 (collections → search within → activity → revoke a session; axe over the new screens). Screenshots `p6-*` in the scratchpad.
