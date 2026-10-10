@@ -6,6 +6,7 @@ pub mod activity;
 pub mod admin;
 pub mod auth;
 pub mod chat;
+pub mod client_ip;
 pub mod enrich;
 pub mod error;
 pub mod eval;
@@ -38,7 +39,15 @@ const REQUEST_ID: HeaderName = HeaderName::from_static("x-request-id");
 
 /// Build the full HTTP application.
 pub fn app(state: AppState) -> Router {
-    web::security_headers(routes::router(&state).with_state(state))
+    let trusted = std::sync::Arc::clone(&state.trusted_proxies);
+    let routes = routes::router(&state)
+        .with_state(state)
+        // Outside every route layer, so the rate limiter sees the real client.
+        .layer(axum::middleware::from_fn_with_state(
+            trusted,
+            client_ip::middleware,
+        ));
+    web::security_headers(routes)
         .layer(CatchPanicLayer::new())
         .layer(TraceLayer::new_for_http())
         .layer(PropagateRequestIdLayer::new(REQUEST_ID))
@@ -62,6 +71,9 @@ pub async fn run_migrate(config: Config) -> anyhow::Result<()> {
 /// process (single-box installs). Both stop on SIGINT/SIGTERM: the server drains
 /// requests, the worker finishes in-flight jobs within its grace period.
 pub async fn run_serve(config: Config, with_worker: bool) -> anyhow::Result<()> {
+    client_ip::TrustedProxies::parse(&config.trusted_proxies)
+        .map_err(anyhow::Error::msg)
+        .context("AKASHA_TRUSTED_PROXIES")?;
     let pool = akasha_db::connect(&config.database_url, config.db_max_connections)
         .await
         .context("connecting to database")?;

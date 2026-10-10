@@ -9,11 +9,8 @@
 //! Privacy: events are only ever listed to their owner (`GET /api/v1/activity`).
 //! Searches keep the query text unless the owner turns search history off.
 
-use std::net::{IpAddr, SocketAddr};
-
 use axum::{
-    Extension,
-    extract::{ConnectInfo, FromRequestParts},
+    extract::FromRequestParts,
     http::{header::USER_AGENT, request::Parts},
 };
 use serde::{Deserialize, Serialize};
@@ -21,7 +18,10 @@ use sqlx::PgConnection;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use crate::auth::{AuthUser, Credential};
+use crate::{
+    auth::{AuthUser, Credential},
+    client_ip::ClientAddr,
+};
 use akasha_db::{PgPool, activity::NewEvent};
 
 /// Broad groups of events (the timeline's filters).
@@ -265,12 +265,14 @@ pub fn rate_limited(db: &PgPool, actor: Actor, what: &'static str) {
 }
 
 /// The client's address and user agent, for sign-ins and the audit log. Never
-/// fails: either may be missing. The address is the TCP peer (no proxy headers
-/// are trusted yet; see PROGRESS.md).
+/// fails: either may be missing. The address is the one [`crate::client_ip`]
+/// resolved (the client behind a trusted reverse proxy, else the TCP peer).
 #[derive(Debug, Clone, Default)]
 pub struct ClientMeta {
     pub ip: Option<String>,
     pub user_agent: Option<String>,
+    /// A trusted proxy reported HTTPS: session cookies get `Secure`.
+    pub https: bool,
 }
 
 impl ClientMeta {
@@ -283,29 +285,18 @@ impl ClientMeta {
 impl<S: Send + Sync> FromRequestParts<S> for ClientMeta {
     type Rejection = std::convert::Infallible;
 
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let peer = Option::<Extension<ConnectInfo<SocketAddr>>>::from_request_parts(parts, state)
-            .await
-            .ok()
-            .flatten()
-            .map(|Extension(ConnectInfo(addr))| canonical(addr.ip()).to_string());
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let client = parts.extensions.get::<ClientAddr>().copied();
         let user_agent = parts
             .headers
             .get(USER_AGENT)
             .and_then(|v| v.to_str().ok())
             .map(|ua| ua.chars().take(256).collect());
         Ok(Self {
-            ip: peer,
+            ip: client.map(|c| c.ip.to_string()),
             user_agent,
+            https: client.is_some_and(|c| c.https),
         })
-    }
-}
-
-/// `::ffff:1.2.3.4` → `1.2.3.4`.
-fn canonical(ip: IpAddr) -> IpAddr {
-    match ip {
-        IpAddr::V6(v6) => v6.to_ipv4_mapped().map_or(IpAddr::V6(v6), IpAddr::V4),
-        v4 => v4,
     }
 }
 
@@ -323,9 +314,5 @@ mod tests {
             assert!(ok(area) && ok(verb), "{}", kind.as_str());
         }
         assert_eq!(ActivityKind::parse("nope.never"), None);
-        assert_eq!(
-            canonical("::ffff:10.0.0.1".parse().expect("ip")).to_string(),
-            "10.0.0.1"
-        );
     }
 }

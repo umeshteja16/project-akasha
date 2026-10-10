@@ -131,7 +131,7 @@ pub async fn logout(
     let mut ev = activity::event(Actor::session(auth.user_id), ActivityKind::SignedOut);
     client.apply(&mut ev);
     activity::record_best_effort(&state.db, &ev).await;
-    let jar = jar.add(session::removal(state.config.cookie_secure));
+    let jar = jar.add(session::removal(state.config.cookie_secure || client.https));
     Ok((StatusCode::NO_CONTENT, jar))
 }
 
@@ -153,7 +153,11 @@ async fn start_session(
         client.ip.as_deref(),
     )
     .await?;
-    Ok(jar.add(session::cookie(token, ttl, state.config.cookie_secure)))
+    Ok(jar.add(session::cookie(
+        token,
+        ttl,
+        state.config.cookie_secure || client.https,
+    )))
 }
 
 /// Basic sanity checks only; deliverability is not our concern.

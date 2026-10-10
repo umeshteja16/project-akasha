@@ -176,7 +176,7 @@ pub async fn delete_me(
     users::delete(&mut *tx, user.id).await?;
     crate::jobs::blobs::release(&mut tx, &hashes).await?;
     tx.commit().await?;
-    let jar = jar.add(session::removal(state.config.cookie_secure));
+    let jar = jar.add(session::removal(state.config.cookie_secure || client.https));
     Ok((StatusCode::NO_CONTENT, jar))
 }
 

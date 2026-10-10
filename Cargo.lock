@@ -76,6 +76,7 @@ dependencies = [
  "http-body-util",
  "image",
  "infer",
+ "ipnet",
  "mime_guess",
  "reqwest",
  "rmcp",

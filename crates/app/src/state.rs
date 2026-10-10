@@ -6,6 +6,7 @@ use akasha_llm::ChatModel;
 use akasha_storage::Storage;
 
 use crate::{
+    client_ip::TrustedProxies,
     jobs::ml::MlProvider,
     rate_limit::{self, AuthLimiter, UserLimiter},
     web::WebAssets,
@@ -23,6 +24,8 @@ pub struct AppState {
     pub storage: Storage,
     /// Per-IP limiter for the credential endpoints (login, register, password change).
     pub auth_limiter: AuthLimiter,
+    /// Reverse proxies whose forwarding headers are believed (`AKASHA_TRUSTED_PROXIES`).
+    pub trusted_proxies: Arc<TrustedProxies>,
     /// Per-user limiter for search (`AKASHA_SEARCH_RATE_PER_MINUTE`).
     pub search_limiter: UserLimiter,
     /// Per-user limiter for chat questions (`AKASHA_CHAT_RATE_PER_MINUTE`).
@@ -54,7 +57,14 @@ impl AppState {
         storage: Storage,
         llm: Option<Arc<dyn ChatModel>>,
     ) -> Self {
+        // `serve` refuses an invalid list first; elsewhere (tests, tools) trust nobody.
+        let trusted_proxies =
+            TrustedProxies::parse(&config.trusted_proxies).unwrap_or_else(|err| {
+                tracing::error!(%err, "AKASHA_TRUSTED_PROXIES ignored");
+                TrustedProxies::default()
+            });
         Self {
+            trusted_proxies: Arc::new(trusted_proxies),
             ml: Arc::new(MlProvider::from_config(&config)),
             llm,
             web: Arc::new(WebAssets::embedded()),

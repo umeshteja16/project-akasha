@@ -1,6 +1,27 @@
 //! Value types used by [`super::Config`].
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+
+/// A list given either as a TOML array or as one string separated by commas
+/// and/or whitespace (the natural form for an environment variable).
+pub(super) fn string_list<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum List {
+        One(String),
+        Many(Vec<String>),
+    }
+    let items = match List::deserialize(d)? {
+        List::One(s) => vec![s],
+        List::Many(v) => v,
+    };
+    Ok(items
+        .iter()
+        .flat_map(|s| s.split(|c: char| c == ',' || c.is_whitespace()))
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+        .collect())
+}
 
 /// Blob storage backend.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]

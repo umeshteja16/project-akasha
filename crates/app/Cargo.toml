@@ -37,6 +37,7 @@ clap.workspace = true
 futures-util.workspace = true
 governor.workspace = true
 infer.workspace = true
+ipnet.workspace = true
 mime_guess.workspace = true
 reqwest.workspace = true
 rmcp.workspace = true

@@ -172,6 +172,59 @@ reverse proxy with TLS), never plain HTTP across the internet. Tokens can't mana
 account or other tokens. The same tokens work for the REST API
 (`Authorization: Bearer …`; read-only tokens may only `GET`). Design: ADR 0015.
 
+## Deploying behind a reverse proxy (HTTPS)
+
+Run Akasha on a private address and put a TLS-terminating proxy in front. Tell Akasha
+which proxies to believe, otherwise every request looks like it comes from the proxy:
+the per-IP sign-in rate limit becomes one shared bucket and the security log and
+session list show the proxy's address.
+
+```sh
+AKASHA_TRUSTED_PROXIES=127.0.0.1,::1      # CIDRs or addresses, comma-separated; empty = trust nobody
+AKASHA_COOKIE_SECURE=true                 # optional: requests the proxy reports as https get Secure cookies anyway
+```
+
+Only when the TCP peer is in that list does Akasha read `X-Forwarded-For` (the client is
+the rightmost address that is not a trusted proxy, so a forged left-hand entry is
+ignored), `X-Forwarded-Proto` and, when there is no `X-Forwarded-For`, `Forwarded`.
+Chain several proxies (CDN → nginx) by listing all of them. In Docker Compose the proxy
+reaches the app from the Compose network, e.g. `AKASHA_TRUSTED_PROXIES=172.16.0.0/12`.
+
+Caddy (sets `X-Forwarded-For`/`-Proto` itself):
+
+```caddyfile
+akasha.example.com {
+    request_body {
+        max_size 520MB
+    }
+    reverse_proxy 127.0.0.1:8080 {
+        flush_interval -1   # stream chat answers (SSE) as they are written
+    }
+}
+```
+
+nginx:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name akasha.example.com;
+    # ssl_certificate ...;
+    client_max_body_size 520m;            # AKASHA_MAX_UPLOAD_MB plus a little
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;              # stream chat answers (SSE)
+        proxy_read_timeout 3600s;         # long uploads and downloads
+        proxy_request_buffering off;
+    }
+}
+```
+
+Traefik sets the same headers by default; list its address (or network) as trusted.
+
 ## Development
 
 `just check` runs exactly what CI runs. Contributor and agent conventions: [`CLAUDE.md`](CLAUDE.md).

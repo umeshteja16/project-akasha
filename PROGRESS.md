@@ -43,8 +43,7 @@ Open follow-ups:
 - Commit a real-model eval baseline for the default models; consider an OR fallback for
   keyword search (it ANDs every word).
 - MCP follow-ups: try the HTTP endpoint with real Claude Code / Claude Desktop (only raw
-  JSON-RPC and the stdio bridge against a local server were exercised here); a `trust_proxy`
-  option is still needed before per-IP limits mean anything behind a reverse proxy.
+  JSON-RPC and the stdio bridge against a local server were exercised here).
 - Chat: `no_llm` fallback on a provider outage. PWA offline shell (service worker) was
   deferred: the app is installable (manifest + icons) but needs the server to work.
 
@@ -167,8 +166,14 @@ See [`docs/adr/`](docs/adr). Summary:
 - First `cargo build` takes ~3 minutes; dependencies are compiled with `opt-level = 2`.
 - Changing any `sqlx::query!` needs a running database and then `just sqlx-prepare`; commit
   the `.sqlx/` changes. Without `DATABASE_URL`, builds use the cache (that is how Docker builds).
-- The rate limiter keys on the TCP peer IP. Behind a reverse proxy all clients share one bucket.
-  Add a `trust_proxy` option (use `SmartIpKeyExtractor`) before deploying behind a proxy.
+- Client addresses (`crates/app/src/client_ip.rs`): one middleware in `app()` resolves the
+  client once per request into a `ClientAddr` extension; the credential limiter
+  (`ClientIpKeyExtractor`), `ClientMeta` (activity/security log, sessions) read it. Proxy
+  headers count only from peers in `AKASHA_TRUSTED_PROXIES` (CIDRs/addresses, empty =
+  nobody): rightmost untrusted `X-Forwarded-For` hop; `Forwarded` only without XFF (a proxy
+  that sets only XFF cannot be bypassed with a forged `Forwarded`). `X-Forwarded-Proto: https`
+  from a trusted proxy makes session cookies `Secure` even with `AKASHA_COOKIE_SECURE=false`.
+  Never read `ConnectInfo` or forwarding headers directly in handlers.
 - The router must be served with `into_make_service_with_connect_info::<SocketAddr>()`
   (`run_serve` does this); without it rate-limited routes return 500. Tests inject
   `Extension(ConnectInfo(..))`, see `crates/app/tests/auth.rs`.
@@ -487,6 +492,7 @@ See [`docs/adr/`](docs/adr). Summary:
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
 
+- 2026-10-10 · Claude (cloud) · Trusted reverse proxies: `AKASHA_TRUSTED_PROXIES`, one client-IP resolver (rightmost untrusted XFF hop / `Forwarded`, `X-Forwarded-Proto` → `Secure` cookies) used by the auth rate limiter, security log and sessions; tests for spoofing, chains and per-client limits; README Caddy/nginx notes.
 - 2026-10-10 · Claude (cloud) · Step 6b screens: Collections in the sidebar (+ phone account menu, palette, `g o`/`g a`), collections list and collection page (header with swatch mark, add-files picker, remove from collection, edit/delete, search in it, ask), "Add to collection" in library multi-select and on file pages (membership checkboxes), collection search chip and chat collection scope bar, `/activity` timeline (day groups, filters, links, clear history), Settings → Security (sessions with sign-out, sign out others, recent sign-ins, search-history toggle), "Recently opened" sort, open tracking; fixed a mobile overflow in the library/search filter rows. Vitest 99, e2e 10 (collections → search within → activity → revoke a session; axe over the new screens). Screenshots `p6-*` in the scratchpad.
 - 2026-10-10 · Claude (cloud) · Step 6b API: migrations 0013 (collections, collection_files, conversation collection scope, open tracking) and 0014 (activity_events, search-history preference, session IP); collections CRUD + add/remove files, `collection_id` on files/search/chat, MCP `collection` filters + `list_collections`; activity recording for files/search/chat/collections/tokens/sign-ins/password/sessions/rate limits, `GET/DELETE /activity`, `/me/sessions` list/revoke/revoke-others, `POST /files/{id}/open`, `sort=opened`, daily `prune_activity` (`AKASHA_ACTIVITY_RETENTION_DAYS`), ADR 0016. Tests: db (collections/activity/sessions) and HTTP (collections, activity, sessions) incl. owner isolation, scopes, retention. Screens follow in the next commit.
 

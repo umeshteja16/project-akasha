@@ -24,6 +24,7 @@ axum-extra = { version = "0.10", features = ["cookie"] }
 base64 = "0.22"
 chrono = { version = "0.4", features = ["serde"] }
 sha2 = "0.10"
+ipnet = "2"
 tower_governor = { version = "0.7", default-features = false, features = ["axum"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 axum = { version = "0.8", features = ["multipart"] }

@@ -1,8 +1,8 @@
 //! Rate limiting.
 //!
-//! - Credential endpoints: per client IP, to slow down password guessing. Keyed on the TCP
-//!   peer address; behind a reverse proxy every request shares the proxy's IP (trusting
-//!   `X-Forwarded-For` is a planned config option, see PROGRESS.md).
+//! - Credential endpoints: per client IP, to slow down password guessing. Keyed on the
+//!   address [`crate::client_ip`] resolved (the TCP peer, or the client behind a trusted
+//!   reverse proxy).
 //! - Search: per signed-in user ([`UserLimiter`]), checked inside the handler once the
 //!   session is known.
 
@@ -17,18 +17,18 @@ use governor::{
 use tower_governor::{
     GovernorLayer,
     governor::{GovernorConfig, GovernorConfigBuilder},
-    key_extractor::PeerIpKeyExtractor,
 };
 use uuid::Uuid;
 
-use crate::error::ApiError;
+use crate::{client_ip::ClientIpKeyExtractor, error::ApiError};
 use akasha_core::{Error, ErrorCode};
 
-pub type AuthLimiter = Arc<GovernorConfig<PeerIpKeyExtractor, NoOpMiddleware>>;
+pub type AuthLimiter = Arc<GovernorConfig<ClientIpKeyExtractor, NoOpMiddleware>>;
 
 /// Burst of 10 attempts, then one more every 6 seconds.
 pub fn auth_limiter() -> AuthLimiter {
     let config = GovernorConfigBuilder::default()
+        .key_extractor(ClientIpKeyExtractor)
         .per_second(6)
         .burst_size(10)
         .error_handler(|err| {
@@ -43,10 +43,10 @@ pub fn auth_limiter() -> AuthLimiter {
         })
         .finish();
     // `finish` only fails for a zero period or burst, which the constants above rule out.
-    Arc::new(config.unwrap_or_default())
+    Arc::new(config.unwrap_or_else(|| unreachable!("non-zero rate limit constants")))
 }
 
-pub fn layer(limiter: &AuthLimiter) -> GovernorLayer<PeerIpKeyExtractor, NoOpMiddleware> {
+pub fn layer(limiter: &AuthLimiter) -> GovernorLayer<ClientIpKeyExtractor, NoOpMiddleware> {
     GovernorLayer {
         config: Arc::clone(limiter),
     }

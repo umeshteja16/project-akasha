@@ -27,7 +27,13 @@ pub struct Config {
     /// Log output format.
     pub log_format: LogFormat,
     /// Mark the session cookie `Secure` (HTTPS only). Turn on in production.
+    /// Requests a trusted proxy reports as HTTPS get a `Secure` cookie anyway.
     pub cookie_secure: bool,
+    /// Reverse proxies (CIDRs or addresses, comma-separated) whose
+    /// `X-Forwarded-For` / `Forwarded` / `X-Forwarded-Proto` headers are believed.
+    /// Empty (default): trust nobody and use the TCP peer address.
+    #[serde(deserialize_with = "types::string_list")]
+    pub trusted_proxies: Vec<String>,
     /// Allow anyone who can reach the server to create an account.
     pub allow_registration: bool,
     /// How long a login session lasts, in days.
@@ -158,6 +164,7 @@ impl Default for Config {
             db_max_connections: 10,
             log_format: LogFormat::Pretty,
             cookie_secure: false,
+            trusted_proxies: Vec::new(),
             allow_registration: true,
             session_ttl_days: 30,
             activity_retention_days: 365,
@@ -260,6 +267,26 @@ mod tests {
             assert_eq!(config.bind_addr, "127.0.0.1:2");
             assert_eq!(config.log_format, LogFormat::Json);
             assert_eq!(config.database_url, "postgres://x@y/z");
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn trusted_proxies_accept_a_comma_separated_string_or_a_list() {
+        figment::Jail::expect_with(|jail| {
+            jail.set_env("AKASHA_TRUSTED_PROXIES", "10.0.0.0/8, 127.0.0.1 ::1");
+            let config = Config::figment().extract::<Config>()?;
+            assert_eq!(config.trusted_proxies, ["10.0.0.0/8", "127.0.0.1", "::1"]);
+            jail.set_env("AKASHA_TRUSTED_PROXIES", "");
+            jail.create_file("akasha.toml", r#"trusted_proxies = ["172.16.0.0/12"]"#)?;
+            let config = Config::figment().extract::<Config>()?;
+            assert!(config.trusted_proxies.is_empty(), "env wins: {config:?}");
+            Ok(())
+        });
+        figment::Jail::expect_with(|jail| {
+            jail.create_file("akasha.toml", r#"trusted_proxies = ["172.16.0.0/12"]"#)?;
+            let config = Config::figment().extract::<Config>()?;
+            assert_eq!(config.trusted_proxies, ["172.16.0.0/12"]);
             Ok(())
         });
     }
