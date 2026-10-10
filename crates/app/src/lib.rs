@@ -18,6 +18,7 @@ pub mod llm;
 pub mod mcp;
 pub mod rate_limit;
 pub mod routes;
+pub mod sources;
 pub mod state;
 pub mod telemetry;
 pub mod web;
@@ -104,6 +105,7 @@ pub async fn run_serve(config: Config, with_worker: bool) -> anyhow::Result<()> 
     let worker = if with_worker {
         let ctx = jobs::JobContext::from(&state);
         warm_up(&ctx);
+        sources::watch::spawn(ctx.db.clone(), &state.config, wait_for(stop.clone()));
         let worker = jobs::worker(ctx, &state.config)?;
         Some(tokio::spawn(worker.run(wait_for(stop.clone()))))
     } else {
@@ -138,6 +140,7 @@ pub async fn run_worker(config: Config) -> anyhow::Result<()> {
     let ctx = jobs::JobContext::new(pool, storage, &config).with_llm(llm);
     warm_up(&ctx);
     let stop = shutdown_trigger();
+    sources::watch::spawn(ctx.db.clone(), &config, wait_for(stop.clone()));
     jobs::worker(ctx, &config)?.run(wait_for(stop)).await?;
     tracing::info!("shut down cleanly");
     Ok(())

@@ -153,3 +153,41 @@ pub struct PruneActivity {}
 impl Job for PruneActivity {
     const KIND: &'static str = "prune_activity";
 }
+
+/// Bring one watched folder's imports up to date (see `sources::scan`). Queued when a
+/// source is added or changed, by "Rescan now", by the filesystem watcher and by
+/// [`ScanAllSources`]; a large folder queues follow-up runs carrying the counts.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScanSource {
+    pub source_id: Uuid,
+    /// Counts of the pass so far (follow-up runs only).
+    #[serde(default)]
+    pub carried: crate::sources::scan::ScanStats,
+}
+
+impl ScanSource {
+    pub fn new(source_id: Uuid) -> Self {
+        Self {
+            source_id,
+            carried: Default::default(),
+        }
+    }
+}
+
+impl Job for ScanSource {
+    const KIND: &'static str = "scan_source";
+    const MAX_ATTEMPTS: i32 = 5;
+
+    fn dedupe_key(&self) -> Option<String> {
+        Some(self.source_id.to_string())
+    }
+}
+
+/// Queue a [`ScanSource`] for every enabled watched folder (every
+/// `AKASHA_WATCH_SCAN_MINUTES`).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ScanAllSources {}
+
+impl Job for ScanAllSources {
+    const KIND: &'static str = "scan_all_sources";
+}

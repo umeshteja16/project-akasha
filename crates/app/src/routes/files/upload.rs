@@ -3,11 +3,11 @@
 use axum::{
     extract::{
         Multipart, State,
-        multipart::{Field, MultipartError, MultipartRejection},
+        multipart::{MultipartError, MultipartRejection},
     },
     http::StatusCode,
 };
-use bytes::Bytes;
+use futures_util::TryStreamExt;
 
 use super::types::{FileResponse, UploadForm};
 use crate::{
@@ -16,13 +16,12 @@ use crate::{
     extract::Json,
     files::{
         name,
-        sniff::{self, Detected, SNIFF_LEN, TextValidator},
+        receive::receive,
         store::{self, Saved},
     },
     state::AppState,
 };
 use akasha_core::Error;
-use akasha_storage::{FinishedBlob, StagedBlob};
 
 /// The multipart field that carries the file.
 const FILE_FIELD: &str = "file";
@@ -61,7 +60,8 @@ pub async fn upload(
             continue;
         }
         let name = name::sanitize(field.file_name().unwrap_or_default());
-        let (blob, detected) = receive(&state, field, &name, limit).await?;
+        let body = field.map_err(multipart_error);
+        let (blob, detected) = receive(&state.storage, &name, limit, body).await?;
         // `save` enqueues the extraction job in the same transaction as the insert.
         return Ok(
             match store::save(&state, (&auth).into(), blob, &name, detected.mime).await? {
@@ -79,107 +79,4 @@ fn multipart_error(err: MultipartError) -> Error {
     } else {
         Error::bad_request(err.body_text())
     }
-}
-
-/// Stream one field into staging, sniffing and validating as it goes.
-async fn receive(
-    state: &AppState,
-    field: Field<'_>,
-    name: &str,
-    limit: u64,
-) -> Result<(FinishedBlob, Detected), ApiError> {
-    let mut staged = state.storage.stage().await.map_err(Error::from)?;
-    match Receiver::new(name, limit).run(field, &mut staged).await {
-        Ok(detected) => {
-            let blob = staged.finish().await.map_err(Error::from)?;
-            Ok((blob, detected))
-        }
-        Err(err) => {
-            if let Err(abort_err) = staged.abort().await {
-                tracing::warn!(err = %abort_err, "failed to abort staged upload");
-            }
-            Err(err.into())
-        }
-    }
-}
-
-struct Receiver<'a> {
-    name: &'a str,
-    limit: u64,
-    received: u64,
-    /// Bytes held back until there are enough to sniff.
-    head: Vec<u8>,
-    detected: Option<Detected>,
-    text: Option<TextValidator>,
-}
-
-impl<'a> Receiver<'a> {
-    fn new(name: &'a str, limit: u64) -> Self {
-        Self {
-            name,
-            limit,
-            received: 0,
-            head: Vec::with_capacity(SNIFF_LEN),
-            detected: None,
-            text: None,
-        }
-    }
-
-    async fn run(
-        mut self,
-        mut field: Field<'_>,
-        staged: &mut StagedBlob,
-    ) -> Result<Detected, Error> {
-        while let Some(chunk) = field.chunk().await.map_err(multipart_error)? {
-            self.received += chunk.len() as u64;
-            if self.received > self.limit {
-                return Err(Error::payload_too_large(format!(
-                    "file exceeds the upload limit of {} MiB",
-                    self.limit / (1024 * 1024)
-                )));
-            }
-            if self.detected.is_some() {
-                self.write(staged, chunk).await?;
-            } else {
-                self.head.extend_from_slice(&chunk);
-                if self.head.len() >= SNIFF_LEN {
-                    self.sniff(staged).await?;
-                }
-            }
-        }
-        if self.detected.is_none() {
-            if self.head.is_empty() {
-                return Err(Error::bad_request("file is empty"));
-            }
-            self.sniff(staged).await?;
-        }
-        if self.text.take().is_some_and(|t| !t.finish()) {
-            return Err(not_text());
-        }
-        self.detected
-            .ok_or_else(|| Error::internal("upload type was not detected"))
-    }
-
-    async fn sniff(&mut self, staged: &mut StagedBlob) -> Result<(), Error> {
-        let detected = sniff::detect(&self.head, self.name)?;
-        if detected.is_text {
-            self.text = Some(TextValidator::default());
-        }
-        self.detected = Some(detected);
-        let head = Bytes::from(std::mem::take(&mut self.head));
-        self.write(staged, head).await
-    }
-
-    async fn write(&mut self, staged: &mut StagedBlob, chunk: Bytes) -> Result<(), Error> {
-        if let Some(text) = &mut self.text
-            && !text.feed(&chunk)
-        {
-            return Err(not_text());
-        }
-        staged.write(chunk).await.map_err(Error::from)
-    }
-}
-
-fn not_text() -> Error {
-    Error::unsupported_media_type("text files must be UTF-8 without NUL bytes")
 }

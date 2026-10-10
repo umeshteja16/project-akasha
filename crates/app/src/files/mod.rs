@@ -3,5 +3,6 @@
 
 pub mod edit;
 pub mod name;
+pub mod receive;
 pub mod sniff;
 pub mod store;

@@ -75,6 +75,11 @@ pub struct Detected {
     pub is_text: bool,
 }
 
+/// Whether the name has an extension Akasha imports (watched folders list only these).
+pub fn known_extension(name: &str) -> bool {
+    extension(name).is_some_and(|ext| EXTENSIONS.iter().any(|(known, ..)| *known == ext))
+}
+
 fn extension(name: &str) -> Option<String> {
     let (stem, ext) = name.rsplit_once('.')?;
     (!stem.is_empty() && !ext.is_empty()).then(|| ext.to_ascii_lowercase())

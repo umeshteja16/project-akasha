@@ -19,6 +19,7 @@
 
 use akasha_db::files::{self, File, NewFile};
 use akasha_storage::FinishedBlob;
+use sqlx::PgConnection;
 use uuid::Uuid;
 
 use crate::{
@@ -47,25 +48,63 @@ pub async fn save(
     name: &str,
     mime: &str,
 ) -> Result<Saved, ApiError> {
-    let owner = actor.user_id;
-    let hash = blob.hash().to_hex();
-    let size =
-        i64::try_from(blob.size()).map_err(|_| Error::payload_too_large("file too large"))?;
-
     let mut tx = state.db.begin().await?;
-    files::lock_hash(&mut tx, &hash).await?;
-    let Some(usage) = files::usage(&mut tx, owner, true).await? else {
-        blob.discard().await;
-        return Err(Error::unauthorized("account no longer exists").into());
-    };
-    if let Some(existing) = files::find_by_hash(&mut tx, owner, &hash).await? {
-        blob.discard().await;
-        tx.commit().await?;
-        return Ok(Saved::Existing(existing));
+    let saved = save_in(&mut tx, actor.user_id, blob, name, mime).await?;
+    if let Saved::Created(file) = &saved {
+        let mut ev = activity::event(actor, ActivityKind::FileUploaded);
+        ev.subject = Some(&file.original_name);
+        ev.file_id = Some(file.id);
+        ev.details =
+            serde_json::json!({ "size_bytes": file.size_bytes, "mime_type": file.mime_type });
+        activity::record(&mut tx, &ev).await?;
     }
-    if usage.remaining().is_some_and(|left| size > left) {
+    tx.commit().await?;
+    Ok(saved)
+}
+
+/// [`save`] inside the caller's transaction, without an activity event (watched
+/// folders write their own rows in the same transaction). The blob is discarded on
+/// every error.
+pub async fn save_in(
+    tx: &mut PgConnection,
+    owner: Uuid,
+    blob: FinishedBlob,
+    name: &str,
+    mime: &str,
+) -> Result<Saved, ApiError> {
+    let hash = blob.hash().to_hex();
+    let Ok(size) = i64::try_from(blob.size()) else {
         blob.discard().await;
-        return Err(Error::quota_exceeded("storage quota exceeded").into());
+        return Err(Error::payload_too_large("file too large").into());
+    };
+    let checked = async {
+        files::lock_hash(tx, &hash).await?;
+        let Some(usage) = files::usage(tx, owner, true).await? else {
+            return Ok(Err(Error::unauthorized("account no longer exists")));
+        };
+        if let Some(existing) = files::find_by_hash(tx, owner, &hash).await? {
+            return Ok(Ok(Some(existing)));
+        }
+        if usage.remaining().is_some_and(|left| size > left) {
+            return Ok(Err(Error::quota_exceeded("storage quota exceeded")));
+        }
+        Ok::<_, sqlx::Error>(Ok(None))
+    }
+    .await;
+    match checked {
+        Ok(Ok(None)) => {}
+        Ok(Ok(Some(existing))) => {
+            blob.discard().await;
+            return Ok(Saved::Existing(existing));
+        }
+        Ok(Err(err)) => {
+            blob.discard().await;
+            return Err(err.into());
+        }
+        Err(err) => {
+            blob.discard().await;
+            return Err(err.into());
+        }
     }
     blob.commit().await.map_err(Error::from)?;
     let new = NewFile {
@@ -75,23 +114,86 @@ pub async fn save(
         mime_type: mime,
         size_bytes: size,
     };
-    let file = files::insert(&mut tx, &new)
+    let file = files::insert(tx, &new)
         .await?
         .ok_or_else(|| Error::conflict("file was uploaded concurrently; retry"))?;
-    akasha_jobs::enqueue(&mut tx, &ExtractFile { file_id: file.id }).await?;
-    enqueue_thumbnail(&mut tx, &file).await?;
-    let mut ev = activity::event(actor, ActivityKind::FileUploaded);
-    ev.subject = Some(&file.original_name);
-    ev.file_id = Some(file.id);
-    ev.details = serde_json::json!({ "size_bytes": file.size_bytes, "mime_type": file.mime_type });
-    activity::record(&mut tx, &ev).await?;
-    tx.commit().await?;
+    akasha_jobs::enqueue(tx, &ExtractFile { file_id: file.id }).await?;
+    enqueue_thumbnail(tx, &file).await?;
     Ok(Saved::Created(file))
+}
+
+/// Result of [`replace_in`].
+pub enum Replaced {
+    /// The file now has the new bytes and is queued for processing again.
+    Updated(File),
+    /// The owner already has another file with these bytes (nothing changed).
+    Duplicate(File),
+    /// The file no longer exists.
+    Gone,
+}
+
+/// Give one of `owner`'s files new bytes (a watched file changed), in the caller's
+/// transaction: keeps its id, name, tags, collections and pin; re-runs extraction and
+/// releases the old blob. Enforces the quota on the growth. The blob is discarded on
+/// every error.
+pub async fn replace_in(
+    tx: &mut PgConnection,
+    owner: Uuid,
+    file_id: Uuid,
+    blob: FinishedBlob,
+    mime: &str,
+) -> Result<Replaced, ApiError> {
+    let hash = blob.hash().to_hex();
+    let Ok(size) = i64::try_from(blob.size()) else {
+        blob.discard().await;
+        return Err(Error::payload_too_large("file too large").into());
+    };
+    let checked = async {
+        files::lock_hash(tx, &hash).await?;
+        let Some(current) = files::get(&mut *tx, owner, file_id).await? else {
+            return Ok(Err(Replaced::Gone));
+        };
+        if current.content_hash == hash {
+            return Ok(Err(Replaced::Updated(current)));
+        }
+        if let Some(existing) = files::find_by_hash(tx, owner, &hash).await? {
+            return Ok(Err(Replaced::Duplicate(existing)));
+        }
+        let usage = files::usage(tx, owner, true).await?;
+        let grows = size - current.size_bytes;
+        let over =
+            usage.is_some_and(|u| grows > 0 && u.remaining().is_some_and(|left| grows > left));
+        Ok::<_, sqlx::Error>(Ok((current, over)))
+    }
+    .await;
+    let current = match checked {
+        Ok(Ok((_, true))) => {
+            blob.discard().await;
+            return Err(Error::quota_exceeded("storage quota exceeded").into());
+        }
+        Ok(Ok((current, false))) => current,
+        Ok(Err(done)) => {
+            blob.discard().await;
+            return Ok(done);
+        }
+        Err(err) => {
+            blob.discard().await;
+            return Err(err.into());
+        }
+    };
+    blob.commit().await.map_err(Error::from)?;
+    let Some(file) = files::replace_content(tx, owner, file_id, &hash, mime, size).await? else {
+        return Ok(Replaced::Gone);
+    };
+    blobs::release(tx, &[current.content_hash]).await?;
+    akasha_jobs::enqueue(tx, &ExtractFile { file_id }).await?;
+    enqueue_thumbnail(tx, &file).await?;
+    Ok(Replaced::Updated(file))
 }
 
 /// Queue a thumbnail for image files (a no-op for other types).
 pub async fn enqueue_thumbnail(
-    conn: &mut sqlx::PgConnection,
+    conn: &mut PgConnection,
     file: &File,
 ) -> Result<(), akasha_jobs::QueueError> {
     if file.mime_type.starts_with("image/") {

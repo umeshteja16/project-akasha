@@ -1,0 +1,124 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO sources (owner_id, name, path, include_globs, exclude_globs, on_delete,\n                                import_tags)\n           VALUES ($1, $2, $3, $4, $5, $6, $7)\n           ON CONFLICT (owner_id, path) DO NOTHING\n           RETURNING *",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "path",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "include_globs",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 6,
+        "name": "exclude_globs",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 7,
+        "name": "on_delete",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "import_tags",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "enabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 10,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "last_error",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "scan_started_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "last_scan_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 14,
+        "name": "last_scan",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 15,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 16,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "TextArray",
+        "TextArray",
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "6a0273148b368a6a5118abbf3cb7a1212dd79e6dc48e33cb6d45467daec36d64"
+}

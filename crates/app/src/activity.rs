@@ -61,6 +61,12 @@ pub enum ActivityKind {
     FileDeleted,
     #[serde(rename = "file.opened")]
     FileOpened,
+    #[serde(rename = "source.added")]
+    SourceAdded,
+    #[serde(rename = "source.removed")]
+    SourceRemoved,
+    #[serde(rename = "source.synced")]
+    SourceSynced,
     #[serde(rename = "search.performed")]
     SearchPerformed,
     #[serde(rename = "chat.asked")]
@@ -106,6 +112,9 @@ impl ActivityKind {
         Self::FileTagged,
         Self::FileDeleted,
         Self::FileOpened,
+        Self::SourceAdded,
+        Self::SourceRemoved,
+        Self::SourceSynced,
         Self::SearchPerformed,
         Self::ChatAsked,
         Self::CollectionCreated,
@@ -133,6 +142,9 @@ impl ActivityKind {
             Self::FileTagged => "file.tagged",
             Self::FileDeleted => "file.deleted",
             Self::FileOpened => "file.opened",
+            Self::SourceAdded => "source.added",
+            Self::SourceRemoved => "source.removed",
+            Self::SourceSynced => "source.synced",
             Self::SearchPerformed => "search.performed",
             Self::ChatAsked => "chat.asked",
             Self::CollectionCreated => "collection.created",
@@ -162,6 +174,9 @@ impl ActivityKind {
             Self::FileTagged => C::Files,
             Self::FileDeleted => C::Files,
             Self::FileOpened => C::Files,
+            Self::SourceAdded => C::Files,
+            Self::SourceRemoved => C::Files,
+            Self::SourceSynced => C::Files,
             Self::SearchPerformed => C::Search,
             Self::ChatAsked => C::Chat,
             Self::CollectionCreated => C::Collections,

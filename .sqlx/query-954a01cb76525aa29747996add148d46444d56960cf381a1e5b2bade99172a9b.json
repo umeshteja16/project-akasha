@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT source_id,\n                  count(file_id) AS \"files!\",\n                  count(*) FILTER (WHERE skip_reason IS NOT NULL) AS \"skipped!\"\n           FROM source_files WHERE owner_id = $1 GROUP BY source_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "source_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "files!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "skipped!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "954a01cb76525aa29747996add148d46444d56960cf381a1e5b2bade99172a9b"
+}

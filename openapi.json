@@ -3203,6 +3203,402 @@
         ]
       }
     },
+    "/api/v1/sources": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Your watched folders, and the folders you may add.",
+        "operationId": "list_sources",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          },
+          {
+            "api_token": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Watch a folder: its files are imported now and kept in sync.",
+        "description": "The path must be inside one of `roots` after resolving `..` and symlinks (`403`\notherwise). Folders inside or around one you already watch are refused (`409`).",
+        "operationId": "create_source",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSource"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          },
+          {
+            "api_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/sources/{id}": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "One of your watched folders.",
+        "operationId": "get_source",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Source id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          },
+          {
+            "api_token": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Stop watching a folder. Its files stay in your library unless `delete_files=true`\n(files you also had before, or that another folder maps, always stay).",
+        "operationId": "delete_source",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Source id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "delete_files",
+            "in": "query",
+            "description": "Also delete the files this folder added to your library (default `false`:\nthey stay).",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceRemoved"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          },
+          {
+            "api_token": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Rename, change filters or deletion handling, pause or resume a watched folder.\nResuming or changing the globs scans it again.",
+        "operationId": "update_source",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Source id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSource"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          },
+          {
+            "api_token": []
+          }
+        ]
+      }
+    },
+    "/api/v1/sources/{id}/scan": {
+      "post": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Scan a watched folder now (`409` while it is paused).",
+        "operationId": "scan_source",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Source id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Scan queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          },
+          {
+            "api_token": []
+          }
+        ]
+      }
+    },
     "/api/v1/system/status": {
       "get": {
         "tags": [
@@ -3448,6 +3844,9 @@
           "file.tagged",
           "file.deleted",
           "file.opened",
+          "source.added",
+          "source.removed",
+          "source.synced",
           "search.performed",
           "chat.asked",
           "collection.created",
@@ -4189,6 +4588,64 @@
             "description": "Optional; otherwise the first question becomes the title."
           }
         }
+      },
+      "CreateSource": {
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "exclude_globs": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Globs to leave out (`Archive/**`). Hidden files and folders (`.obsidian/`,\n`.trash/`) are always left out."
+          },
+          "import_tags": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Default `true`."
+          },
+          "include_globs": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Globs on the path inside the folder (`**/*.md`); none = every supported file."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Default: the folder's name."
+          },
+          "on_delete": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SourceOnDelete",
+                "description": "Default `delete`."
+              }
+            ]
+          },
+          "path": {
+            "type": "string",
+            "description": "Absolute path of a folder inside one of `roots`."
+          }
+        },
+        "additionalProperties": false
       },
       "CreateTokenRequest": {
         "type": "object",
@@ -5105,6 +5562,45 @@
           }
         }
       },
+      "ScanCounts": {
+        "type": "object",
+        "description": "Counts from the last finished scan.",
+        "required": [
+          "files",
+          "imported",
+          "updated",
+          "removed",
+          "skipped"
+        ],
+        "properties": {
+          "files": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Matching files in the folder.",
+            "minimum": 0
+          },
+          "imported": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "removed": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "skipped": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "updated": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "Scores": {
         "type": "object",
         "description": "Why a chunk ranked where it did.",
@@ -5398,6 +5894,152 @@
             "description": "Up to two fragments joined by \" … \"; the chunk's start when no term matched."
           }
         }
+      },
+      "SourceList": {
+        "type": "object",
+        "required": [
+          "items",
+          "roots"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceResponse"
+            }
+          },
+          "roots": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Folders you may add sources under (empty: watched folders are off)."
+          }
+        }
+      },
+      "SourceOnDelete": {
+        "type": "string",
+        "description": "What happens to an imported file when it disappears from the folder.",
+        "enum": [
+          "delete",
+          "keep"
+        ]
+      },
+      "SourceRemoved": {
+        "type": "object",
+        "required": [
+          "deleted_files"
+        ],
+        "properties": {
+          "deleted_files": {
+            "type": "integer",
+            "description": "Files deleted along with the source.",
+            "minimum": 0
+          }
+        }
+      },
+      "SourceResponse": {
+        "type": "object",
+        "description": "A watched folder.",
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "path",
+          "include_globs",
+          "exclude_globs",
+          "on_delete",
+          "import_tags",
+          "enabled",
+          "status",
+          "last_scan",
+          "file_count",
+          "skipped_count",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "`false`: paused."
+          },
+          "exclude_globs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "file_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Files from this folder in your library."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "import_tags": {
+            "type": "boolean",
+            "description": "Markdown front-matter `tags:` become file tags."
+          },
+          "include_globs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "kind": {
+            "type": "string",
+            "description": "Always `folder` for now."
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_scan": {
+            "$ref": "#/components/schemas/ScanCounts"
+          },
+          "last_scan_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "name": {
+            "type": "string"
+          },
+          "on_delete": {
+            "$ref": "#/components/schemas/SourceOnDelete"
+          },
+          "path": {
+            "type": "string",
+            "description": "Absolute path on the server."
+          },
+          "skipped_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Files not imported (unsupported content, too large, quota)."
+          },
+          "status": {
+            "$ref": "#/components/schemas/SourceStatus"
+          }
+        }
+      },
+      "SourceStatus": {
+        "type": "string",
+        "description": "Sync state of a source.",
+        "enum": [
+          "pending",
+          "scanning",
+          "ok",
+          "error"
+        ]
       },
       "SystemStatus": {
         "type": "object",
@@ -5790,6 +6432,59 @@
             "description": "Keep a history of your searches (with the query text) in the activity\ntimeline. Turning it off stops recording; existing entries stay until\nyou clear them."
           }
         }
+      },
+      "UpdateSource": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "`false` pauses syncing, `true` resumes it (and scans)."
+          },
+          "exclude_globs": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "import_tags": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "include_globs": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "on_delete": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SourceOnDelete"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
       },
       "UploadForm": {
         "type": "object",

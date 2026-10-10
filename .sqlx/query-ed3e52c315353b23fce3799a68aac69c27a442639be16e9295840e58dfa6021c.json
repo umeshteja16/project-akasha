@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT source_id, rel_path FROM source_files\n           WHERE file_id = $1 AND NOT (source_id = $2 AND rel_path = $3)\n           ORDER BY (source_id = $2) DESC, rel_path LIMIT 1 FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "source_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "rel_path",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "ed3e52c315353b23fce3799a68aac69c27a442639be16e9295840e58dfa6021c"
+}

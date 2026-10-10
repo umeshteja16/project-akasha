@@ -10,6 +10,7 @@ import {
   FolderMinusIcon,
   FolderPenIcon,
   FolderPlusIcon,
+  FolderSyncIcon,
   FolderXIcon,
   KeyRoundIcon,
   LogInIcon,
@@ -159,6 +160,45 @@ const DESCRIBE: Record<ActivityKind, Describer> = {
       </>
     ),
   }),
+  "source.added": (item) => ({
+    icon: FolderSyncIcon,
+    text: (
+      <>
+        Started watching <span className={strong}>{item.subject ?? "a folder"}</span>
+      </>
+    ),
+  }),
+  "source.removed": (item, d) => {
+    const deleted = num(d.deleted_files) ?? 0;
+    return {
+      icon: FolderXIcon,
+      text: (
+        <>
+          Stopped watching <span className={strong}>{item.subject ?? "a folder"}</span>
+        </>
+      ),
+      meta: deleted ? `Deleted ${plural(deleted, "imported file")}` : undefined,
+    };
+  },
+  "source.synced": (item, d) => {
+    const parts = [
+      [num(d.imported) ?? 0, "added"],
+      [num(d.updated) ?? 0, "updated"],
+      [num(d.removed) ?? 0, "removed"],
+    ] as const;
+    return {
+      icon: FolderSyncIcon,
+      text: (
+        <>
+          Synced <span className={strong}>{item.subject ?? "a folder"}</span>
+        </>
+      ),
+      meta: parts
+        .filter(([n]) => n > 0)
+        .map(([n, what]) => `${plural(n, "file")} ${what}`)
+        .join(" · "),
+    };
+  },
   "search.performed": (item, d) => {
     const results = num(d.results);
     return {

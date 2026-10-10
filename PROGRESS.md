@@ -120,7 +120,7 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 - [x] Audio/video transcription (whisper.cpp via `whisper-rs`, pure-Rust decoding, timestamps in search/citations/MCP, transcript player; ADR 0017)
 - [x] Trusted reverse proxies (`AKASHA_TRUSTED_PROXIES`: client IP for rate limits, security log, sessions; `Secure` cookies via `X-Forwarded-Proto`)
 - [x] CPU-portable, multi-arch image: amd64 runs on any SSE4.2 CPU and switches to an AVX2 build at start-up; linux/arm64 (Raspberry Pi 4/5); release workflow to ghcr.io
-- [ ] Watched folders / connectors (Obsidian vault, Downloads)
+- [x] Watched folders (`AKASHA_WATCH_ROOTS`, Settings → Sources, scan job + `notify` watcher, renames, front-matter tags; ADR 0018). Other connectors (IMAP, WebDAV, cloud drives) deferred
 - [x] Collections, activity timeline, security audit log, sessions, open tracking (legacy parity; API + screens, ADR 0016)
 - [ ] OpenTelemetry export + Prometheus `/metrics`
 
@@ -512,6 +512,15 @@ See [`docs/adr/`](docs/adr). Summary:
   `Box<dyn FnMut>`, calls it as `F`): only ever pass it a `Box<dyn FnMut() -> bool>`,
   otherwise whisper aborts with "failed to encode" (-6). Only the Docker smoke test
   (`models check` with `tiny`) runs real Whisper in CI.
+- Watched folders (ADR 0018, `crates/app/src/sources/`, migration 0016): scans skip files
+  modified in the last 2 s, so tests set mtimes in the past (`File::set_modified`) and
+  must run jobs with a config that has `watch_roots` (`run_jobs_with(&t.config)`): the
+  job re-checks the folder against the roots and fails the source otherwise. The upload
+  receiver moved to `files/receive.rs` (stream-based, shared with imports);
+  `store::save_in`/`replace_in` work inside the caller's transaction. Deletions only
+  happen after a complete pass; an emptied folder is an error, not a mass delete. The e2e
+  server watches `$TMPDIR/akasha-e2e-watch` (vault written by `playwright.config.ts`) and
+  polls jobs every second. `notify` is CC0 (deny.toml exception).
 - CPU portability (Dockerfile, `crates/app/src/cpu.rs`): whisper-rs-sys 0.15 links ggml
   statically, so ggml's own runtime dispatch (`GGML_BACKEND_DL` + `GGML_CPU_ALL_VARIANTS`,
   shared libraries only) is unavailable. The amd64 image builds the binary twice instead:
@@ -533,6 +542,7 @@ See [`docs/adr/`](docs/adr). Summary:
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
 
+- 2026-10-10 · Claude (cloud) · Watched folders: migration 0016 (`sources`, `source_files`), `/api/v1/sources` CRUD + rescan, `scan_source`/`scan_all_sources` jobs (batched, resumable, rename detection, quota/unreadable retries, empty-folder guard), debounced `notify` watcher, O_NOFOLLOW + inode-checked opens, globs, Obsidian front-matter tags, `source.*` activity events; Settings → Sources UI; tests: db (5), unit (paths, filter, walk, front matter, debounce), HTTP (import, change, rename, delete, keep, symlink escape, roots, owner isolation, token scope, pause, remove), Vitest, e2e step with axe.
 - 2026-10-10 · Claude (cloud) · CPU portability: portable (SSE4.2) + AVX2 builds of the binary in the amd64 image with start-up dispatch (`cpu.rs`), arm64 image, CI docker matrix on native arm runners + no-AVX QEMU smoke test, `release.yml` multi-arch push to ghcr.io, README "Supported platforms". The Docker build cannot run here (no daemon); CI verifies it.
 - 2026-10-10 · Claude (cloud) · Step 6c transcription: new `crates/media` (Symphonia + `opus-decoder` decoding to 16 kHz mono with a streaming windowed-sinc resampler, windowed transcription with quiet-point cuts, cancellation, progress, Whisper model catalog with pinned SHA-256 and streamed download, whisper.cpp via `whisper-rs` 0.16, deterministic tone model), migration 0015 (`file_extractions.segments/duration_ms`, `file_chunks.start_ms/end_ms`, `jobs.progress`), `extract_file` transcribes audio/video (`AKASHA_TRANSCRIBE_*`, `AKASHA_WHISPER_MODEL`), times in search results, chat citations/prompt and MCP, transcription in system status and `models download/check`; UI: lazily loaded player + timestamped transcript (seek, active line, `?t=`), times on search results/citations/palette, "Transcribing N%" in the timeline. Docker installs cmake and builds portable whisper.cpp; CI smoke test runs Whisper `tiny`. Tests: media unit/integration (formats incl. MP4/WebM with video, resampling, windowing, cap, cancel), ingest transcript chunking, job progress, HTTP (upload WAV → timed chunks → search/chat), Vitest, e2e recording flow with axe. Also made the chat e2e move the mouse off a citation before asking again (hover popover flake). CI's Docker smoke test then caught a whisper-rs abort-callback bug (real Whisper aborted every run); fixed with a correctly typed callback.
 - 2026-10-10 · Claude (cloud) · Trusted reverse proxies: `AKASHA_TRUSTED_PROXIES`, one client-IP resolver (rightmost untrusted XFF hop / `Forwarded`, `X-Forwarded-Proto` → `Secure` cookies) used by the auth rate limiter, security log and sessions; tests for spoofing, chains and per-client limits; README Caddy/nginx notes.

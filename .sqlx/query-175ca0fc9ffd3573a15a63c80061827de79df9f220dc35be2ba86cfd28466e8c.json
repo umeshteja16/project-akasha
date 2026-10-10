@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO source_files (source_id, owner_id, rel_path, size_bytes, mtime,\n                                     content_hash, file_id, created_file, skip_reason)\n           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n           ON CONFLICT (source_id, rel_path) DO UPDATE SET\n               size_bytes = EXCLUDED.size_bytes, mtime = EXCLUDED.mtime,\n               content_hash = EXCLUDED.content_hash, file_id = EXCLUDED.file_id,\n               created_file = EXCLUDED.created_file, skip_reason = EXCLUDED.skip_reason,\n               synced_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Int8",
+        "Timestamptz",
+        "Text",
+        "Uuid",
+        "Bool",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "175ca0fc9ffd3573a15a63c80061827de79df9f220dc35be2ba86cfd28466e8c"
+}

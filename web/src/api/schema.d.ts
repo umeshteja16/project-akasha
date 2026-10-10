@@ -601,6 +601,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your watched folders, and the folders you may add. */
+        get: operations["list_sources"];
+        put?: never;
+        /**
+         * Watch a folder: its files are imported now and kept in sync.
+         * @description The path must be inside one of `roots` after resolving `..` and symlinks (`403`
+         *     otherwise). Folders inside or around one you already watch are refused (`409`).
+         */
+        post: operations["create_source"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One of your watched folders. */
+        get: operations["get_source"];
+        put?: never;
+        post?: never;
+        /**
+         * Stop watching a folder. Its files stay in your library unless `delete_files=true`
+         *     (files you also had before, or that another folder maps, always stay).
+         */
+        delete: operations["delete_source"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename, change filters or deletion handling, pause or resume a watched folder.
+         *     Resuming or changing the globs scans it again.
+         */
+        patch: operations["update_source"];
+        trace?: never;
+    };
+    "/api/v1/sources/{id}/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Scan a watched folder now (`409` while it is paused). */
+        post: operations["scan_source"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/status": {
         parameters: {
             query?: never;
@@ -725,7 +789,7 @@ export interface components {
          * @description What happened.
          * @enum {string}
          */
-        ActivityKind: "file.uploaded" | "file.renamed" | "file.tagged" | "file.deleted" | "file.opened" | "search.performed" | "chat.asked" | "collection.created" | "collection.updated" | "collection.deleted" | "collection.files_added" | "collection.files_removed" | "account.created" | "auth.signed_in" | "auth.sign_in_failed" | "auth.signed_out" | "auth.password_changed" | "auth.password_change_failed" | "account.delete_failed" | "session.revoked" | "token.created" | "token.revoked" | "rate.limited";
+        ActivityKind: "file.uploaded" | "file.renamed" | "file.tagged" | "file.deleted" | "file.opened" | "source.added" | "source.removed" | "source.synced" | "search.performed" | "chat.asked" | "collection.created" | "collection.updated" | "collection.deleted" | "collection.files_added" | "collection.files_removed" | "account.created" | "auth.signed_in" | "auth.sign_in_failed" | "auth.signed_out" | "auth.password_changed" | "auth.password_change_failed" | "account.delete_failed" | "session.revoked" | "token.created" | "token.revoked" | "rate.limited";
         ActivityPage: {
             /** @description Newest first. */
             items: components["schemas"]["ActivityItem"][];
@@ -1011,6 +1075,22 @@ export interface components {
             file_ids?: string[] | null;
             /** @description Optional; otherwise the first question becomes the title. */
             title?: string | null;
+        };
+        CreateSource: {
+            /**
+             * @description Globs to leave out (`Archive/**`). Hidden files and folders (`.obsidian/`,
+             *     `.trash/`) are always left out.
+             */
+            exclude_globs?: string[] | null;
+            /** @description Default `true`. */
+            import_tags?: boolean | null;
+            /** @description Globs on the path inside the folder (`**\/*.md`); none = every supported file. */
+            include_globs?: string[] | null;
+            /** @description Default: the folder's name. */
+            name?: string | null;
+            on_delete?: null | components["schemas"]["SourceOnDelete"];
+            /** @description Absolute path of a folder inside one of `roots`. */
+            path: string;
         };
         CreateTokenRequest: {
             /**
@@ -1355,6 +1435,22 @@ export interface components {
              */
             min_similarity?: number | null;
         };
+        /** @description Counts from the last finished scan. */
+        ScanCounts: {
+            /**
+             * Format: int64
+             * @description Matching files in the folder.
+             */
+            files: number;
+            /** Format: int64 */
+            imported: number;
+            /** Format: int64 */
+            removed: number;
+            /** Format: int64 */
+            skipped: number;
+            /** Format: int64 */
+            updated: number;
+        };
         /** @description Why a chunk ranked where it did. */
         Scores: {
             /**
@@ -1489,6 +1585,59 @@ export interface components {
             /** @description Up to two fragments joined by " … "; the chunk's start when no term matched. */
             text: string;
         };
+        SourceList: {
+            items: components["schemas"]["SourceResponse"][];
+            /** @description Folders you may add sources under (empty: watched folders are off). */
+            roots: string[];
+        };
+        /**
+         * @description What happens to an imported file when it disappears from the folder.
+         * @enum {string}
+         */
+        SourceOnDelete: "delete" | "keep";
+        SourceRemoved: {
+            /** @description Files deleted along with the source. */
+            deleted_files: number;
+        };
+        /** @description A watched folder. */
+        SourceResponse: {
+            /** Format: date-time */
+            created_at: string;
+            /** @description `false`: paused. */
+            enabled: boolean;
+            exclude_globs: string[];
+            /**
+             * Format: int64
+             * @description Files from this folder in your library.
+             */
+            file_count: number;
+            /** Format: uuid */
+            id: string;
+            /** @description Markdown front-matter `tags:` become file tags. */
+            import_tags: boolean;
+            include_globs: string[];
+            /** @description Always `folder` for now. */
+            kind: string;
+            last_error?: string | null;
+            last_scan: components["schemas"]["ScanCounts"];
+            /** Format: date-time */
+            last_scan_at?: string | null;
+            name: string;
+            on_delete: components["schemas"]["SourceOnDelete"];
+            /** @description Absolute path on the server. */
+            path: string;
+            /**
+             * Format: int64
+             * @description Files not imported (unsupported content, too large, quota).
+             */
+            skipped_count: number;
+            status: components["schemas"]["SourceStatus"];
+        };
+        /**
+         * @description Sync state of a source.
+         * @enum {string}
+         */
+        SourceStatus: "pending" | "scanning" | "ok" | "error";
         SystemStatus: {
             chat: components["schemas"]["ChatModelStatus"];
             embedding: components["schemas"]["EmbeddingStatus"];
@@ -1643,6 +1792,15 @@ export interface components {
              *     you clear them.
              */
             record_search_history?: boolean | null;
+        };
+        UpdateSource: {
+            /** @description `false` pauses syncing, `true` resumes it (and scans). */
+            enabled?: boolean | null;
+            exclude_globs?: string[] | null;
+            import_tags?: boolean | null;
+            include_globs?: string[] | null;
+            name?: string | null;
+            on_delete?: null | components["schemas"]["SourceOnDelete"];
         };
         /** @description `multipart/form-data` body of an upload. */
         UploadForm: {
@@ -3796,6 +3954,267 @@ export interface operations {
                 };
             };
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_sources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_source: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSource"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_source: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Source id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_source: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Also delete the files this folder added to your library (default `false`:
+                 *     they stay).
+                 */
+                delete_files?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description Source id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceRemoved"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    update_source: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Source id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSource"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    scan_source: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Source id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Scan queued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

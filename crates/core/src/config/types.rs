@@ -23,6 +23,26 @@ pub(super) fn string_list<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<String>
         .collect())
 }
 
+/// Like [`string_list`] but split on commas only (paths may contain spaces).
+pub(super) fn comma_list<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum List {
+        One(String),
+        Many(Vec<String>),
+    }
+    let items = match List::deserialize(d)? {
+        List::One(s) => s.split(',').map(str::to_owned).collect(),
+        List::Many(v) => v,
+    };
+    Ok(items
+        .iter()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+        .collect())
+}
+
 /// Blob storage backend.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]

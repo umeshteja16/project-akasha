@@ -295,6 +295,33 @@ pub async fn mark_pending(
     .await
 }
 
+/// New bytes for one of the owner's files (a watched file changed): the content
+/// hash, type and size change and it goes back to `pending` for extraction. The
+/// caller holds the new hash's lock and releases the old blob.
+pub async fn replace_content(
+    conn: &mut PgConnection,
+    owner_id: Uuid,
+    id: Uuid,
+    content_hash: &str,
+    mime_type: &str,
+    size_bytes: i64,
+) -> Result<Option<File>, sqlx::Error> {
+    sqlx::query_as!(
+        File,
+        r#"UPDATE files SET content_hash = $3, mime_type = $4, size_bytes = $5,
+               status = 'pending', error = NULL
+           WHERE owner_id = $1 AND id = $2
+           RETURNING *"#,
+        owner_id,
+        id,
+        content_hash,
+        mime_type,
+        size_bytes
+    )
+    .fetch_optional(conn)
+    .await
+}
+
 mod list;
 mod refs;
 pub use list::{ListFilter, ListKey, ListOrder, TagCount, list, tag_counts};

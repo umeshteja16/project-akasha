@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT DISTINCT sf.file_id AS \"file_id!\" FROM source_files sf\n           WHERE sf.owner_id = $1 AND sf.source_id = $2 AND sf.created_file\n             AND sf.file_id IS NOT NULL\n             AND NOT EXISTS (SELECT 1 FROM source_files o\n                             WHERE o.file_id = sf.file_id AND o.source_id <> sf.source_id)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "file_id!",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "9f923a75b4dbe60f4e5f05f41a8bf03fff8a09c9a4d9225d10c46c4fb7be3e86"
+}

@@ -43,6 +43,16 @@ pub struct Config {
     pub activity_retention_days: u32,
     /// Largest accepted upload, in MiB.
     pub max_upload_mb: u64,
+    /// Server directories users may import and keep in sync ("watched folders"),
+    /// comma-separated. `{user_id}` / `{email}` in a root give each user their own
+    /// subtree. Empty (default): the feature is off.
+    #[serde(deserialize_with = "types::comma_list")]
+    pub watch_roots: Vec<String>,
+    /// Rescan every watched folder this often, in minutes (0: only on changes seen by
+    /// the filesystem watcher and "Rescan now").
+    pub watch_scan_minutes: u64,
+    /// Watch folders for changes (inotify etc.) and import them within seconds.
+    pub watch_fs_events: bool,
     /// Where uploaded file contents are kept.
     pub storage_backend: StorageBackend,
     /// Root directory for the `local` storage backend.
@@ -182,6 +192,9 @@ impl Default for Config {
             session_ttl_days: 30,
             activity_retention_days: 365,
             max_upload_mb: 512,
+            watch_roots: Vec::new(),
+            watch_scan_minutes: 15,
+            watch_fs_events: true,
             storage_backend: StorageBackend::Local,
             storage_dir: "./storage".into(),
             storage_s3_bucket: None,
@@ -285,6 +298,16 @@ mod tests {
             assert_eq!(config.bind_addr, "127.0.0.1:2");
             assert_eq!(config.log_format, LogFormat::Json);
             assert_eq!(config.database_url, "postgres://x@y/z");
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn watch_roots_split_on_commas_only() {
+        figment::Jail::expect_with(|jail| {
+            jail.set_env("AKASHA_WATCH_ROOTS", "/srv/My Documents, /data/{user_id} ,");
+            let config = Config::figment().extract::<Config>()?;
+            assert_eq!(config.watch_roots, ["/srv/My Documents", "/data/{user_id}"]);
             Ok(())
         });
     }

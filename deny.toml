@@ -34,4 +34,6 @@ allow = [
 exceptions = [
   { allow = ["Unlicense"], crate = "whisper-rs" },
   { allow = ["Unlicense"], crate = "whisper-rs-sys" },
+  # Filesystem events for watched folders: public-domain dedication (CC0).
+  { allow = ["CC0-1.0"], crate = "notify" },
 ]

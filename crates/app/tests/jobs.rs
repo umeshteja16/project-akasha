@@ -197,6 +197,10 @@ async fn housekeeping_jobs_succeed(pool: PgPool) {
     for kind in [PruneSessions::KIND, PruneStaging::KIND] {
         assert_eq!(jobs_of(&pool, kind).await[0].1, "succeeded", "{kind}");
     }
-    let schedules = akasha::jobs::schedules().expect("schedules");
+    let mut config = akasha_core::Config::default();
+    let schedules = akasha::jobs::schedules(&config).expect("schedules");
     assert_eq!(schedules.len(), 5);
+    config.watch_roots = vec!["/srv".into()];
+    let schedules = akasha::jobs::schedules(&config).expect("schedules");
+    assert_eq!(schedules.len(), 6, "folder scans only with watch roots");
 }

@@ -1,11 +1,11 @@
-export type SettingsTab = "system" | "tokens" | "security";
+export type SettingsTab = "system" | "tokens" | "security" | "sources";
 
 export interface SettingsSearch {
-  /** `security`, `tokens` or `system` opens that tab; the account tab is the default. */
+  /** `security`, `sources`, `tokens` or `system` opens that tab; the account tab is the default. */
   tab?: SettingsTab;
 }
 
-const TABS: readonly SettingsTab[] = ["system", "tokens", "security"];
+const TABS: readonly SettingsTab[] = ["system", "tokens", "security", "sources"];
 
 export function validateSettingsSearch(search: Record<string, unknown>): SettingsSearch {
   const tab = TABS.find((t) => t === search.tab);

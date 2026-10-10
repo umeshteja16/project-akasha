@@ -25,7 +25,9 @@ use akasha_jobs::{QueueError, Registry, Schedule, Worker, WorkerConfig};
 use akasha_llm::ChatModel;
 use akasha_storage::Storage;
 
-use self::kinds::{PruneActivity, PruneJobs, PruneSessions, PruneStaging, SweepOrphanBlobs};
+use self::kinds::{
+    PruneActivity, PruneJobs, PruneSessions, PruneStaging, ScanAllSources, SweepOrphanBlobs,
+};
 use self::{ml::MlProvider, ocr::OcrProvider, transcribe::TranscriberProvider};
 use crate::state::AppState;
 
@@ -99,16 +101,23 @@ pub fn registry() -> Registry<JobContext> {
         .register(maintenance::prune_staging)
         .register(maintenance::prune_jobs)
         .register(maintenance::prune_activity)
+        .register(crate::sources::scan::scan_source)
+        .register(crate::sources::scan::scan_all)
 }
 
-pub fn schedules() -> Result<Vec<Schedule>, QueueError> {
-    Ok(vec![
+pub fn schedules(config: &Config) -> Result<Vec<Schedule>, QueueError> {
+    let mut schedules = vec![
         Schedule::new("prune-sessions", HOUR, &PruneSessions {})?,
         Schedule::new("prune-staging", HOUR, &PruneStaging {})?,
         Schedule::new("sweep-orphan-blobs", DAY, &SweepOrphanBlobs {})?,
         Schedule::new("prune-jobs", DAY, &PruneJobs {})?,
         Schedule::new("prune-activity", DAY, &PruneActivity {})?,
-    ])
+    ];
+    if !config.watch_roots.is_empty() && config.watch_scan_minutes > 0 {
+        let every = Duration::from_secs(config.watch_scan_minutes.saturating_mul(60));
+        schedules.push(Schedule::new("scan-sources", every, &ScanAllSources {})?);
+    }
+    Ok(schedules)
 }
 
 /// A worker configured from `config`, with every handler and schedule.
@@ -120,5 +129,5 @@ pub fn worker(ctx: JobContext, config: &Config) -> Result<Worker<JobContext>, Qu
         shutdown_grace: Duration::from_secs(config.worker_shutdown_grace_secs),
     };
     let db = ctx.db.clone();
-    Ok(Worker::new(db, ctx, registry(), tuning).with_schedules(schedules()?))
+    Ok(Worker::new(db, ctx, registry(), tuning).with_schedules(schedules(config)?))
 }

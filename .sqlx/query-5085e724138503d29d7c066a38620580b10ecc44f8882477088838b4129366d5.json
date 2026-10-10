@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE source_files SET created_file = true WHERE source_id = $1 AND rel_path = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5085e724138503d29d7c066a38620580b10ecc44f8882477088838b4129366d5"
+}

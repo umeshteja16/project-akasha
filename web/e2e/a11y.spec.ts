@@ -132,6 +132,22 @@ test("every main screen passes axe in light and dark", async ({ page }) => {
   await expect(page.getByText("hash-384")).toBeVisible();
   await inBothSchemes(page, "settings system");
 
+  // Sources: watch the vault under the server's watch root; its note is imported
+  // with its front-matter tag, and Obsidian's settings folder is left out.
+  await page.getByRole("tab", { name: "Sources" }).click();
+  await expect(page.getByText("No watched folders yet.")).toBeVisible();
+  await page.getByLabel("Folder on the server").press("End");
+  await page.getByLabel("Folder on the server").pressSequentially("vault");
+  await page.getByRole("button", { name: "Watch folder" }).click();
+  const folders = page.getByRole("list", { name: "Watched folders" });
+  await expect(folders.getByText("Up to date")).toBeVisible({ timeout: 20_000 });
+  await expect(folders.getByText(/^1 file · synced/)).toBeVisible();
+  await inBothSchemes(page, "settings sources");
+  await page.goto("/library?tag=wildlife");
+  await expect(main.getByRole("link", { name: "otters.md" })).toBeVisible();
+  await expect(main.getByRole("link", { name: "workspace.json" })).toHaveCount(0);
+  await page.goto("/settings?tab=system");
+
   // Access tokens: create one, copy it from the one-time dialog, use it over MCP.
   await page.getByRole("tab", { name: "Access tokens" }).click();
   await expect(page.getByText("No tokens yet.")).toBeVisible();

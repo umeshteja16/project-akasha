@@ -10,6 +10,7 @@ import { DangerSection } from "./danger-section";
 import { PasswordSection } from "./password-section";
 import { ProfileSection } from "./profile-section";
 import { SecurityPanel } from "./security-panel";
+import { SourcesPanel } from "./sources-panel";
 import { SystemPanel } from "./system-panel";
 import { TokensPanel } from "./tokens-panel";
 
@@ -17,6 +18,7 @@ const route = getRouteApi("/app/settings");
 
 const TITLES: Record<string, string> = {
   security: "Security · Settings",
+  sources: "Sources · Settings",
   tokens: "Access tokens · Settings",
   system: "System · Settings",
 };
@@ -34,14 +36,17 @@ export function SettingsPage() {
       <PageHeader
         eyebrow="Account"
         title="Settings"
-        description="Your profile and appearance, where you are signed in, access for AI assistants, and how this server is set up."
+        description="Your profile and appearance, where you are signed in, watched folders, access for AI assistants, and how this server is set up."
       />
       <Tabs
         value={tab}
         onValueChange={(value) =>
           void navigate({
             search:
-              value === "system" || value === "tokens" || value === "security"
+              value === "system" ||
+              value === "tokens" ||
+              value === "security" ||
+              value === "sources"
                 ? { tab: value }
                 : {},
             replace: true,
@@ -51,6 +56,7 @@ export function SettingsPage() {
         <TabsList aria-label="Settings sections">
           <TabsTrigger value="account">Account</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
+          <TabsTrigger value="sources">Sources</TabsTrigger>
           <TabsTrigger value="tokens">Access tokens</TabsTrigger>
           <TabsTrigger value="system">System</TabsTrigger>
         </TabsList>
@@ -68,6 +74,9 @@ export function SettingsPage() {
         </TabsContent>
         <TabsContent value="security" className="pt-0">
           <SecurityPanel me={me} />
+        </TabsContent>
+        <TabsContent value="sources" className="pt-0">
+          <SourcesPanel />
         </TabsContent>
         <TabsContent value="tokens" className="pt-0">
           <TokensPanel />

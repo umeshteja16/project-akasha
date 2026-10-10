@@ -15,6 +15,7 @@ pub mod files;
 pub mod scratch;
 pub mod search;
 pub mod sessions;
+pub mod sources;
 pub mod system;
 pub mod users;
 

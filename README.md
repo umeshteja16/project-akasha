@@ -203,6 +203,34 @@ reverse proxy with TLS), never plain HTTP across the internet. Tokens can't mana
 account or other tokens. The same tokens work for the REST API
 (`Authorization: Bearer …`; read-only tokens may only `GET`). Design: ADR 0015.
 
+## Watched folders (Obsidian vaults, Documents, Downloads)
+
+Akasha can import folders on the server and keep them in sync: new and changed files show
+up within seconds, renamed files keep their tags and collections, deleted files are
+removed (or kept, per folder). Markdown front-matter `tags:` become tags, and hidden
+folders such as `.obsidian/` and `.trash/` are skipped. Akasha never writes to the folders.
+
+The administrator decides which folders users may add:
+
+```sh
+AKASHA_WATCH_ROOTS=/watch                  # comma-separated; empty (default) = feature off
+AKASHA_WATCH_ROOTS=/data/users/{email}     # or one subtree per user ({user_id} works too)
+AKASHA_WATCH_SCAN_MINUTES=15               # full rescan interval (0 = only on file events)
+AKASHA_WATCH_FS_EVENTS=true                # inotify/FSEvents for near-instant pickup
+```
+
+With Docker, mount folders read-only under the root, e.g. in `compose.yaml`:
+`- ~/Documents/Vault:/watch/Vault:ro` and `AKASHA_WATCH_ROOTS=/watch`. Users then add
+`/watch/Vault` under **Settings → Sources** (or `POST /api/v1/sources`), where they can
+pause, rescan or remove a folder (optionally deleting the files it imported).
+
+Safety: paths are resolved (`..`, symlinks) and must stay inside a root; symlinks inside
+a folder are never followed; files go through the same type and size checks as uploads
+and count against the user's quota. A folder that suddenly lists as empty (unmounted
+volume) deletes nothing. Large trees are imported in batches; on Linux, raise
+`fs.inotify.max_user_watches` for very large ones (periodic scans still cover them).
+Design: ADR 0018.
+
 ## Deploying behind a reverse proxy (HTTPS)
 
 Run Akasha on a private address and put a TLS-terminating proxy in front. Tell Akasha

@@ -12,6 +12,7 @@ mod me;
 mod meta;
 pub(crate) mod search;
 mod sessions;
+mod sources;
 mod system;
 mod tokens;
 
@@ -52,6 +53,8 @@ use crate::{auth::session::COOKIE_NAME, error::ErrorBody, rate_limit, state::App
         chat::list_messages, chat::messages::post,
         system::status,
         tokens::list, tokens::create, tokens::revoke,
+        sources::list, sources::create, sources::get, sources::update, sources::scan,
+        sources::delete,
     ),
     components(schemas(
         ErrorBody, health::Health, files::types::FileCategory, files::types::FileSort,
@@ -166,6 +169,14 @@ pub fn router(state: &AppState) -> Router<AppState> {
             "/api/v1/collections/{id}/files/remove",
             post(collections::remove_files),
         )
+        .route("/api/v1/sources", get(sources::list).post(sources::create))
+        .route(
+            "/api/v1/sources/{id}",
+            get(sources::get)
+                .patch(sources::update)
+                .delete(sources::delete),
+        )
+        .route("/api/v1/sources/{id}/scan", post(sources::scan))
         .route("/api/v1/files/{id}/open", post(files::open))
         .route("/api/v1/files", get(files::list))
         .route("/api/v1/files/bulk-delete", post(files::bulk_delete))
