@@ -102,12 +102,22 @@ pub async fn record(conn: &mut PgConnection, ev: &NewEvent<'_>) -> Result<(), sq
 /// Record `ev` unless an event of the same kind about the same file (or, without
 /// a file, any of that kind) was recorded within `window_secs`. Keeps repeated
 /// opens and rate-limit hits from flooding the timeline. Returns whether it was
-/// recorded.
+/// recorded. Concurrent calls for the same owner and kind are serialised (an
+/// advisory lock), so a burst of them records one event, not several.
 pub async fn record_unless_recent(
     conn: &mut PgConnection,
     ev: &NewEvent<'_>,
     window_secs: f64,
 ) -> Result<bool, sqlx::Error> {
+    use sqlx::Connection;
+    let mut tx = conn.begin().await?;
+    sqlx::query!(
+        "SELECT pg_advisory_xact_lock(1434, hashtext($1::text || ':' || $2))",
+        ev.owner_id.to_string(),
+        ev.kind,
+    )
+    .execute(&mut *tx)
+    .await?;
     let done = sqlx::query!(
         r#"INSERT INTO activity_events
                (owner_id, kind, category, subject, file_id, collection_id, conversation_id,
@@ -132,8 +142,9 @@ pub async fn record_unless_recent(
         cut(ev.user_agent, USER_AGENT_MAX),
         window_secs,
     )
-    .execute(conn)
+    .execute(&mut *tx)
     .await?;
+    tx.commit().await?;
     Ok(done.rows_affected() > 0)
 }
 
