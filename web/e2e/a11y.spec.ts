@@ -64,6 +64,38 @@ test("every main screen passes axe in light and dark", async ({ page }) => {
   await expect(main.getByText(/^(Queued|Reading)$/)).toHaveCount(0, { timeout: 20_000 });
   await inBothSchemes(page, "library");
 
+  // Collections: the list, a collection with its files, the form dialog.
+  const files = (await (await page.request.get("/api/v1/files")).json()) as {
+    items: { id: string }[];
+  };
+  const made = await page.request.post("/api/v1/collections", {
+    data: {
+      name: "Space history",
+      description: "Missions and landings.",
+      color: "plum",
+      icon: "star",
+      file_ids: files.items.map((f) => f.id),
+    },
+  });
+  expect(made.status()).toBe(201);
+  const { id: collectionId } = (await made.json()) as { id: string };
+  await page.goto("/collections");
+  await expect(main.getByRole("link", { name: /Space history/ })).toBeVisible();
+  await inBothSchemes(page, "collections");
+  await page.goto(`/collections/${collectionId}`);
+  await expect(page.getByRole("heading", { level: 1, name: "Space history" })).toBeVisible();
+  await expect(main.getByRole("link", { name: "moon-landing.md" })).toBeVisible();
+  await inBothSchemes(page, "collection");
+  await page.getByRole("button", { name: "Add files" }).first().click();
+  await expect(page.getByRole("dialog", { name: /Add files to/ })).toBeVisible();
+  await inBothSchemes(page, "add files dialog");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("menuitem", { name: "Edit…" }).click();
+  await expect(page.getByRole("dialog", { name: "Edit collection" })).toBeVisible();
+  await inBothSchemes(page, "collection form");
+  await page.keyboard.press("Escape");
+
   await page.goto("/search?q=lunar+module+eagle");
   await expect(main.getByRole("link", { name: "moon-landing.md" })).toBeVisible();
   await inBothSchemes(page, "search");
@@ -87,8 +119,15 @@ test("every main screen passes axe in light and dark", async ({ page }) => {
   await expect(answer.getByRole("button", { name: /^Source 1/ })).toBeVisible({ timeout: 15_000 });
   await inBothSchemes(page, "conversation");
 
+  await page.goto("/activity");
+  await expect(main.locator("li", { hasText: "Created the collection" }).first()).toBeVisible();
+  await inBothSchemes(page, "activity");
+
   await page.goto("/settings");
   await inBothSchemes(page, "settings");
+  await page.getByRole("tab", { name: "Security" }).click();
+  await expect(page.getByText("This device")).toBeVisible();
+  await inBothSchemes(page, "settings security");
   await page.getByRole("tab", { name: "System" }).click();
   await expect(page.getByText("hash-384")).toBeVisible();
   await inBothSchemes(page, "settings system");

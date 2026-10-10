@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useUploader } from "@/features/upload/upload-context";
-import { NAV_ITEMS } from "./nav-items";
+import { ALL_NAV_ITEMS } from "./nav-items";
 
 /** True while the person is typing somewhere (shortcuts must not steal keys). */
 export function isTyping(target: EventTarget | null): boolean {
@@ -30,7 +30,7 @@ export function useGlobalShortcuts({ onHelp }: { onHelp: () => void }) {
 
       if (pendingG && Date.now() - pendingG < 1200) {
         pendingG = 0;
-        const item = NAV_ITEMS.find((i) => i.key === event.key);
+        const item = ALL_NAV_ITEMS.find((i) => i.key === event.key);
         if (item) {
           event.preventDefault();
           void navigate({ to: item.to });

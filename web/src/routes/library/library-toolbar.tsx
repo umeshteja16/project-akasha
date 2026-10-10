@@ -78,7 +78,7 @@ export function LibraryToolbar({
   };
 
   return (
-    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
       <fieldset className="-mx-4 flex min-w-0 gap-1.5 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] sm:mx-0 sm:px-0">
         <legend className="sr-only">File type</legend>
         {TYPES.map((type) => {

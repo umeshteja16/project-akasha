@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { type ThemePreference, useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { MORE_ITEMS } from "./nav-items";
 import { openShortcuts } from "./shortcuts-store";
 import { useSignOut } from "./use-sign-out";
 
@@ -66,6 +67,16 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
           <span className="block truncate text-xs text-fg-subtle">{me.email}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {compact
+          ? MORE_ITEMS.map((item) => (
+              <DropdownMenuItem key={item.to} asChild>
+                <Link to={item.to}>
+                  <item.icon />
+                  {item.label}
+                </Link>
+              </DropdownMenuItem>
+            ))
+          : null}
         <DropdownMenuItem asChild>
           <Link to="/settings">
             <Settings2Icon />

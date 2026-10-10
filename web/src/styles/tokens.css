@@ -44,6 +44,19 @@
   --danger-soft: #fbe7e4;
   --success: #2f6b2f;
   --warning: #8a5a00;
+  /* Collection swatches: muted tints for a collection's icon tile (never accents). */
+  --swatch-sage: #3e6a49;
+  --swatch-sage-soft: #e1eadd;
+  --swatch-sky: #2e5d84;
+  --swatch-sky-soft: #dfe8f0;
+  --swatch-ochre: #7d5a14;
+  --swatch-ochre-soft: #f2e7cf;
+  --swatch-clay: #974730;
+  --swatch-clay-soft: #f3e1d9;
+  --swatch-plum: #6c4876;
+  --swatch-plum-soft: #ebe1ee;
+  --swatch-slate: #4b535e;
+  --swatch-slate-soft: #e4e6e9;
   --overlay: rgb(31 29 26 / 0.38);
   --focus: #0d6b5e;
 
@@ -80,6 +93,18 @@
   --danger-soft: #3a1c18;
   --success: #8fcf8a;
   --warning: #e7b75a;
+  --swatch-sage: #9cc7a4;
+  --swatch-sage-soft: #1f2b22;
+  --swatch-sky: #94bde0;
+  --swatch-sky-soft: #1c2733;
+  --swatch-ochre: #dcb46a;
+  --swatch-ochre-soft: #2e2716;
+  --swatch-clay: #e59f86;
+  --swatch-clay-soft: #33211b;
+  --swatch-plum: #c4a4cf;
+  --swatch-plum-soft: #2a2130;
+  --swatch-slate: #aeb6c0;
+  --swatch-slate-soft: #24272b;
   --overlay: rgb(0 0 0 / 0.6);
   --focus: #72d0bc;
 
@@ -117,6 +142,18 @@
     --danger-soft: #3a1c18;
     --success: #8fcf8a;
     --warning: #e7b75a;
+    --swatch-sage: #9cc7a4;
+    --swatch-sage-soft: #1f2b22;
+    --swatch-sky: #94bde0;
+    --swatch-sky-soft: #1c2733;
+    --swatch-ochre: #dcb46a;
+    --swatch-ochre-soft: #2e2716;
+    --swatch-clay: #e59f86;
+    --swatch-clay-soft: #33211b;
+    --swatch-plum: #c4a4cf;
+    --swatch-plum-soft: #2a2130;
+    --swatch-slate: #aeb6c0;
+    --swatch-slate-soft: #24272b;
     --overlay: rgb(0 0 0 / 0.6);
     --focus: #72d0bc;
     color-scheme: dark;

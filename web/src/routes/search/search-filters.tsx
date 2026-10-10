@@ -36,6 +36,7 @@ import {
   type SearchParams,
   updateParams,
 } from "@/features/search/search-params";
+import { CollectionFilter } from "./collection-filter";
 
 const TYPES: ReadonlyArray<FileCategory | "all"> = [
   "all",
@@ -94,7 +95,7 @@ export function SearchFilters({ params, onChange }: SearchFiltersProps) {
 
   return (
     <div className="grid gap-3">
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex min-w-0 flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <fieldset className="-mx-4 flex min-w-0 gap-1.5 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] sm:mx-0 sm:px-0">
           <legend className="sr-only">File type</legend>
           {TYPES.map((type) => (
@@ -109,6 +110,10 @@ export function SearchFilters({ params, onChange }: SearchFiltersProps) {
         </fieldset>
 
         <div className="flex flex-wrap items-center gap-1.5">
+          <CollectionFilter
+            value={params.collection}
+            onChange={(collection) => set({ collection })}
+          />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Chip pressed={selectedTags.length > 0}>

@@ -1,4 +1,5 @@
 import { MessageSquareQuoteIcon, Trash2Icon, XIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 
 interface SelectionBarProps {
@@ -9,6 +10,8 @@ interface SelectionBarProps {
   onDelete: () => void;
   /** Start a chat that answers only from the selected files. */
   onAsk: () => void;
+  /** More bulk actions (e.g. add to or remove from a collection), before "Ask". */
+  actions?: ReactNode;
 }
 
 /** Sticky bar with bulk actions while files are selected. */
@@ -19,6 +22,7 @@ export function SelectionBar({
   onClear,
   onDelete,
   onAsk,
+  actions,
 }: SelectionBarProps) {
   return (
     <section
@@ -36,14 +40,15 @@ export function SelectionBar({
           </Button>
         ) : null}
       </p>
+      {actions}
       <Button variant="secondary" size="sm" onClick={onAsk} disabled={count > 100}>
         <MessageSquareQuoteIcon />
         <span className="hidden sm:inline">Ask about {count === 1 ? "this" : "these"}</span>
         <span className="sm:hidden">Ask</span>
       </Button>
-      <Button variant="danger" size="sm" onClick={onDelete}>
+      <Button variant="danger" size="sm" onClick={onDelete} aria-label="Delete">
         <Trash2Icon />
-        Delete
+        <span className="hidden sm:inline">Delete</span>
       </Button>
     </section>
   );

@@ -4,7 +4,8 @@ import { Wordmark } from "@/components/common/wordmark";
 import { Kbd } from "@/components/ui/kbd";
 import { isApple } from "@/lib/utils";
 import { useCommandPalette } from "./command-palette";
-import { NAV_ITEMS } from "./nav-items";
+import { MORE_ITEMS, NAV_ITEMS } from "./nav-items";
+import { ActiveMarker, navLink, SidebarCollections } from "./sidebar-collections";
 import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./user-menu";
 
@@ -35,25 +36,39 @@ export function Sidebar() {
           </button>
         </div>
 
-        <nav aria-label="Main" className="mt-6 grid gap-0.5 px-3">
+        <nav
+          aria-label="Main"
+          className="mt-6 flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pb-3"
+        >
           <p className="eyebrow px-3 pb-2">Memory</p>
-          {NAV_ITEMS.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              className="group relative flex h-9 items-center gap-3 rounded-md px-3 text-sm text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg data-[status=active]:bg-surface data-[status=active]:font-medium data-[status=active]:text-fg data-[status=active]:shadow-xs"
-            >
-              <span
-                aria-hidden
-                className="absolute top-2 bottom-2 left-0 w-0.5 rounded-full bg-accent opacity-0 transition-opacity group-data-[status=active]:opacity-100"
-              />
-              <item.icon className="size-4 text-fg-subtle group-data-[status=active]:text-accent-text" />
-              {item.label}
-            </Link>
-          ))}
+          <div className="grid gap-0.5">
+            {[...NAV_ITEMS.filter((i) => i.to !== "/settings"), ...MORE_ITEMS].map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={navLink}
+                // A collection's own link is marked on its page, not "Collections" too.
+                activeOptions={{ exact: item.to === "/collections" }}
+              >
+                <ActiveMarker />
+                <item.icon className="size-4 text-fg-subtle group-data-[status=active]:text-accent-text" />
+                {item.label}
+              </Link>
+            ))}
+          </div>
+          <SidebarCollections />
+          <div className="mt-auto grid gap-0.5 pt-4">
+            {NAV_ITEMS.filter((i) => i.to === "/settings").map((item) => (
+              <Link key={item.to} to={item.to} className={navLink}>
+                <ActiveMarker />
+                <item.icon className="size-4 text-fg-subtle group-data-[status=active]:text-accent-text" />
+                {item.label}
+              </Link>
+            ))}
+          </div>
         </nav>
 
-        <div className="mt-auto border-t border-border p-3">
+        <div className="border-t border-border p-3">
           <UserMenu />
         </div>
       </aside>

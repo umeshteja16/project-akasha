@@ -16,6 +16,7 @@ import { AppShell } from "@/components/shell/app-shell";
 import { validateFileSearch } from "@/features/files/passage";
 import { validateSearchParams } from "@/features/search/search-params";
 import { safeRedirect } from "@/lib/session";
+import { validateActivitySearch } from "@/routes/activity/activity-search";
 import { AuthLayout } from "@/routes/auth/auth-layout";
 import { validateChatSearch } from "@/routes/chat/chat-search";
 import { ErrorPage } from "@/routes/error-page";
@@ -133,6 +134,31 @@ const conversationRoute = createRoute({
   ),
 });
 
+const collectionsRoute = createRoute({
+  getParentRoute: () => appLayout,
+  path: "/collections",
+  component: lazyRouteComponent(
+    () => import("@/routes/collections/collections-page"),
+    "CollectionsPage",
+  ),
+});
+
+const collectionRoute = createRoute({
+  getParentRoute: () => appLayout,
+  path: "/collections/$collectionId",
+  component: lazyRouteComponent(
+    () => import("@/routes/collections/collection-page"),
+    "CollectionPage",
+  ),
+});
+
+const activityRoute = createRoute({
+  getParentRoute: () => appLayout,
+  path: "/activity",
+  validateSearch: validateActivitySearch,
+  component: lazyRouteComponent(() => import("@/routes/activity/activity-page"), "ActivityPage"),
+});
+
 const settingsRoute = createRoute({
   getParentRoute: () => appLayout,
   path: "/settings",
@@ -154,6 +180,9 @@ const routeTree = rootRoute.addChildren([
     fileRoute,
     searchRoute,
     chatRoute.addChildren([chatIndexRoute, conversationRoute]),
+    collectionsRoute,
+    collectionRoute,
+    activityRoute,
     settingsRoute,
     designRoute,
   ]),

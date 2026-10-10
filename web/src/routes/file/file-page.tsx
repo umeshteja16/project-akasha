@@ -41,10 +41,12 @@ import {
 } from "@/features/files/mutations";
 import { parsePassage } from "@/features/files/passage";
 import { StatusBadge } from "@/features/files/status-badge";
+import { useMarkOpened } from "@/features/files/use-mark-opened";
 import { formatBytes, formatDateTime, formatRelative } from "@/lib/format";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { cn } from "@/lib/utils";
 import { ExtractionViewer } from "./extraction-viewer";
+import { FileCollections } from "./file-collections";
 import { FilePreview } from "./file-preview";
 import { ProcessingTimeline } from "./processing-timeline";
 import { RenameDialog } from "./rename-dialog";
@@ -103,6 +105,7 @@ function FileView({ file }: { file: FileDetail }) {
   }, [at]);
   const kind = kindOf(file.mime_type);
   const category = categoryOf(file.mime_type);
+  useMarkOpened(file.id);
 
   // After asking for a new summary, look again a few times while the job runs.
   useEffect(() => {
@@ -275,6 +278,9 @@ function FileView({ file }: { file: FileDetail }) {
           </Section>
           <Section title="Tags">
             <TagsEditor file={file} />
+          </Section>
+          <Section title="Collections">
+            <FileCollections file={file} />
           </Section>
           <Section title="Processing">
             <ProcessingTimeline file={file} chatModel={chatModel} />

@@ -28,7 +28,18 @@ export async function register(page: Page, email: string, name: string) {
   await page.getByLabel("Name").fill(name);
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page).toHaveURL(/\/library$/);
+  // Credential endpoints allow a burst of 10 per IP, then one per 6 s, and the whole
+  // suite shares 127.0.0.1: when rate-limited, wait for a token and submit again.
+  for (let attempt = 0; ; attempt++) {
+    await page.getByRole("button", { name: "Create account" }).click();
+    try {
+      await page.waitForURL(/\/library$/, { timeout: 5_000 });
+      break;
+    } catch (error) {
+      const limited = await page.getByText(/too many/i).isVisible();
+      if (!limited || attempt >= 3) throw error;
+      await page.waitForTimeout(6_500);
+    }
+  }
   await expect(page.getByRole("heading", { level: 1, name: "Library" })).toBeVisible();
 }

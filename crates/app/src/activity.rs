@@ -48,57 +48,145 @@ impl ActivityCategory {
     }
 }
 
-macro_rules! kinds {
-    ($($variant:ident = $name:literal, $category:ident;)*) => {
-        /// What happened.
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
-        pub enum ActivityKind {
-            $(#[serde(rename = $name)] $variant,)*
-        }
-
-        impl ActivityKind {
-            pub const ALL: &'static [Self] = &[$(Self::$variant,)*];
-
-            pub fn as_str(self) -> &'static str {
-                match self { $(Self::$variant => $name,)* }
-            }
-
-            pub fn category(self) -> ActivityCategory {
-                match self { $(Self::$variant => ActivityCategory::$category,)* }
-            }
-
-            /// The kind stored as `name`, if this build knows it.
-            pub fn parse(name: &str) -> Option<Self> {
-                match name { $($name => Some(Self::$variant),)* _ => None }
-            }
-        }
-    };
+/// What happened.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub enum ActivityKind {
+    #[serde(rename = "file.uploaded")]
+    FileUploaded,
+    #[serde(rename = "file.renamed")]
+    FileRenamed,
+    #[serde(rename = "file.tagged")]
+    FileTagged,
+    #[serde(rename = "file.deleted")]
+    FileDeleted,
+    #[serde(rename = "file.opened")]
+    FileOpened,
+    #[serde(rename = "search.performed")]
+    SearchPerformed,
+    #[serde(rename = "chat.asked")]
+    ChatAsked,
+    #[serde(rename = "collection.created")]
+    CollectionCreated,
+    #[serde(rename = "collection.updated")]
+    CollectionUpdated,
+    #[serde(rename = "collection.deleted")]
+    CollectionDeleted,
+    #[serde(rename = "collection.files_added")]
+    CollectionFilesAdded,
+    #[serde(rename = "collection.files_removed")]
+    CollectionFilesRemoved,
+    #[serde(rename = "account.created")]
+    AccountCreated,
+    #[serde(rename = "auth.signed_in")]
+    SignedIn,
+    #[serde(rename = "auth.sign_in_failed")]
+    SignInFailed,
+    #[serde(rename = "auth.signed_out")]
+    SignedOut,
+    #[serde(rename = "auth.password_changed")]
+    PasswordChanged,
+    #[serde(rename = "auth.password_change_failed")]
+    PasswordChangeFailed,
+    #[serde(rename = "account.delete_failed")]
+    AccountDeleteFailed,
+    #[serde(rename = "session.revoked")]
+    SessionRevoked,
+    #[serde(rename = "token.created")]
+    TokenCreated,
+    #[serde(rename = "token.revoked")]
+    TokenRevoked,
+    #[serde(rename = "rate.limited")]
+    RateLimited,
 }
 
-kinds! {
-    FileUploaded = "file.uploaded", Files;
-    FileRenamed = "file.renamed", Files;
-    FileTagged = "file.tagged", Files;
-    FileDeleted = "file.deleted", Files;
-    FileOpened = "file.opened", Files;
-    SearchPerformed = "search.performed", Search;
-    ChatAsked = "chat.asked", Chat;
-    CollectionCreated = "collection.created", Collections;
-    CollectionUpdated = "collection.updated", Collections;
-    CollectionDeleted = "collection.deleted", Collections;
-    CollectionFilesAdded = "collection.files_added", Collections;
-    CollectionFilesRemoved = "collection.files_removed", Collections;
-    AccountCreated = "account.created", Security;
-    SignedIn = "auth.signed_in", Security;
-    SignInFailed = "auth.sign_in_failed", Security;
-    SignedOut = "auth.signed_out", Security;
-    PasswordChanged = "auth.password_changed", Security;
-    PasswordChangeFailed = "auth.password_change_failed", Security;
-    AccountDeleteFailed = "account.delete_failed", Security;
-    SessionRevoked = "session.revoked", Security;
-    TokenCreated = "token.created", Security;
-    TokenRevoked = "token.revoked", Security;
-    RateLimited = "rate.limited", Security;
+impl ActivityKind {
+    pub const ALL: &'static [Self] = &[
+        Self::FileUploaded,
+        Self::FileRenamed,
+        Self::FileTagged,
+        Self::FileDeleted,
+        Self::FileOpened,
+        Self::SearchPerformed,
+        Self::ChatAsked,
+        Self::CollectionCreated,
+        Self::CollectionUpdated,
+        Self::CollectionDeleted,
+        Self::CollectionFilesAdded,
+        Self::CollectionFilesRemoved,
+        Self::AccountCreated,
+        Self::SignedIn,
+        Self::SignInFailed,
+        Self::SignedOut,
+        Self::PasswordChanged,
+        Self::PasswordChangeFailed,
+        Self::AccountDeleteFailed,
+        Self::SessionRevoked,
+        Self::TokenCreated,
+        Self::TokenRevoked,
+        Self::RateLimited,
+    ];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::FileUploaded => "file.uploaded",
+            Self::FileRenamed => "file.renamed",
+            Self::FileTagged => "file.tagged",
+            Self::FileDeleted => "file.deleted",
+            Self::FileOpened => "file.opened",
+            Self::SearchPerformed => "search.performed",
+            Self::ChatAsked => "chat.asked",
+            Self::CollectionCreated => "collection.created",
+            Self::CollectionUpdated => "collection.updated",
+            Self::CollectionDeleted => "collection.deleted",
+            Self::CollectionFilesAdded => "collection.files_added",
+            Self::CollectionFilesRemoved => "collection.files_removed",
+            Self::AccountCreated => "account.created",
+            Self::SignedIn => "auth.signed_in",
+            Self::SignInFailed => "auth.sign_in_failed",
+            Self::SignedOut => "auth.signed_out",
+            Self::PasswordChanged => "auth.password_changed",
+            Self::PasswordChangeFailed => "auth.password_change_failed",
+            Self::AccountDeleteFailed => "account.delete_failed",
+            Self::SessionRevoked => "session.revoked",
+            Self::TokenCreated => "token.created",
+            Self::TokenRevoked => "token.revoked",
+            Self::RateLimited => "rate.limited",
+        }
+    }
+
+    pub fn category(self) -> ActivityCategory {
+        use ActivityCategory as C;
+        match self {
+            Self::FileUploaded => C::Files,
+            Self::FileRenamed => C::Files,
+            Self::FileTagged => C::Files,
+            Self::FileDeleted => C::Files,
+            Self::FileOpened => C::Files,
+            Self::SearchPerformed => C::Search,
+            Self::ChatAsked => C::Chat,
+            Self::CollectionCreated => C::Collections,
+            Self::CollectionUpdated => C::Collections,
+            Self::CollectionDeleted => C::Collections,
+            Self::CollectionFilesAdded => C::Collections,
+            Self::CollectionFilesRemoved => C::Collections,
+            Self::AccountCreated => C::Security,
+            Self::SignedIn => C::Security,
+            Self::SignInFailed => C::Security,
+            Self::SignedOut => C::Security,
+            Self::PasswordChanged => C::Security,
+            Self::PasswordChangeFailed => C::Security,
+            Self::AccountDeleteFailed => C::Security,
+            Self::SessionRevoked => C::Security,
+            Self::TokenCreated => C::Security,
+            Self::TokenRevoked => C::Security,
+            Self::RateLimited => C::Security,
+        }
+    }
+
+    /// The kind stored as `name`, if this build knows it.
+    pub fn parse(name: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|k| k.as_str() == name)
+    }
 }
 
 /// Who did it and how they were signed in.

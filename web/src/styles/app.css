@@ -41,6 +41,18 @@
   --color-warning: var(--warning);
   --color-overlay: var(--overlay);
   --color-focus: var(--focus);
+  --color-swatch-sage: var(--swatch-sage);
+  --color-swatch-sage-soft: var(--swatch-sage-soft);
+  --color-swatch-sky: var(--swatch-sky);
+  --color-swatch-sky-soft: var(--swatch-sky-soft);
+  --color-swatch-ochre: var(--swatch-ochre);
+  --color-swatch-ochre-soft: var(--swatch-ochre-soft);
+  --color-swatch-clay: var(--swatch-clay);
+  --color-swatch-clay-soft: var(--swatch-clay-soft);
+  --color-swatch-plum: var(--swatch-plum);
+  --color-swatch-plum-soft: var(--swatch-plum-soft);
+  --color-swatch-slate: var(--swatch-slate);
+  --color-swatch-slate-soft: var(--swatch-slate-soft);
 
   --shadow-*: initial;
   --shadow-xs: var(--elev-1);

@@ -18,6 +18,8 @@ export interface FileFilters {
   category?: FileCategory;
   tag?: string;
   pinned?: boolean;
+  /** Only files in this collection (a collection page). */
+  collection?: string;
 }
 
 export const fileKeys = {
@@ -69,6 +71,7 @@ export const filesQuery = (
               ...(filters.category ? { category: filters.category } : {}),
               ...(filters.tag ? { tag: filters.tag } : {}),
               ...(filters.pinned ? { pinned: true } : {}),
+              ...(filters.collection ? { collection_id: filters.collection } : {}),
               ...(pageParam ? { cursor: pageParam } : {}),
             },
           },

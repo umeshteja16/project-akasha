@@ -8,7 +8,7 @@ import { toast } from "@/components/ui/toast";
 import { ChatTopBar } from "@/features/chat/chat-top-bar";
 import { Composer } from "@/features/chat/composer";
 import { useCreateConversation } from "@/features/chat/mutations";
-import { parseFileScope, ScopeBar } from "@/features/chat/scope";
+import { CollectionScopeBar, parseFileScope, ScopeBar } from "@/features/chat/scope";
 import { useAsk } from "@/features/chat/session-context";
 import { useDocumentTitle } from "@/lib/use-document-title";
 
@@ -25,7 +25,7 @@ export function ChatHome() {
   useDocumentTitle("New conversation");
   const api = useApi();
   const navigate = route.useNavigate();
-  const { files } = route.useSearch();
+  const { files, collection } = route.useSearch();
   const fileIds = parseFileScope(files);
   const chatModel = useQuery(metaQuery(api)).data?.chat_model;
   const create = useCreateConversation();
@@ -33,7 +33,7 @@ export function ChatHome() {
 
   const send = (question: string) => {
     create.mutate(
-      { fileIds },
+      { fileIds, collectionId: collection },
       {
         onSuccess: (conversation) => {
           // The scope is stored with the conversation from here on.
@@ -100,7 +100,12 @@ export function ChatHome() {
           onSend={send}
           disabled={create.isPending}
           top={
-            fileIds.length ? (
+            collection ? (
+              <CollectionScopeBar
+                collectionId={collection}
+                onClear={() => void navigate({ search: {}, replace: true })}
+              />
+            ) : fileIds.length ? (
               <ScopeBar
                 fileIds={fileIds}
                 onClear={() => void navigate({ search: {}, replace: true })}

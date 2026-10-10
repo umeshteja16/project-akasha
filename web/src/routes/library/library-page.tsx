@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
-import { SearchIcon, UploadIcon } from "lucide-react";
+import { FolderPlusIcon, SearchIcon, UploadIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiError } from "@/api/client";
 import { useApi } from "@/api/context";
@@ -12,12 +12,13 @@ import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
 import { toast } from "@/components/ui/toast";
 import { Tooltip } from "@/components/ui/tooltip";
+import { AddToCollectionMenu } from "@/features/collections/add-to-collection-menu";
 import { ConfirmDeleteDialog } from "@/features/files/confirm-delete-dialog";
 import { useReindex, useTogglePin } from "@/features/files/mutations";
 import { useUploader } from "@/features/upload/upload-context";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { FileCollection } from "./file-collection";
-import { LibraryEmpty, LibraryLoading, NoMatches } from "./library-empty";
+import { LibraryEmpty, LibraryLoading, NoMatches, NothingOpened } from "./library-empty";
 import { hasFilters, toFilters } from "./library-search";
 import { LibraryToolbar } from "./library-toolbar";
 import { SelectionBar } from "./selection-bar";
@@ -109,7 +110,7 @@ export function LibraryPage() {
           Couldn't load your library.{" "}
           {isApiError(query.error) ? query.error.message : "Try again in a moment."}
         </p>
-      ) : files.length === 0 && !filtered ? (
+      ) : files.length === 0 && !filtered && prefs.sort !== "opened" ? (
         <LibraryEmpty onUpload={pick} name={firstName(me?.display_name)} />
       ) : (
         <>
@@ -136,9 +137,20 @@ export function LibraryPage() {
                   search: { files: [...selected].slice(0, 100).join(",") },
                 })
               }
+              actions={
+                <AddToCollectionMenu fileIds={[...selected].slice(0, 100)}>
+                  <Button variant="secondary" size="sm" disabled={selected.size > 100}>
+                    <FolderPlusIcon />
+                    <span className="hidden sm:inline">Add to collection</span>
+                    <span className="sm:hidden">Collect</span>
+                  </Button>
+                </AddToCollectionMenu>
+              }
             />
           ) : null}
-          {files.length === 0 ? (
+          {files.length === 0 && prefs.sort === "opened" && !filtered ? (
+            <NothingOpened onShowAll={() => setPrefs({ sort: "newest" })} />
+          ) : files.length === 0 ? (
             <NoMatches
               onClear={() => void navigate({ to: "/library", search: {}, replace: true })}
             />

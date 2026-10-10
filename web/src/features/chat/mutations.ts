@@ -18,10 +18,19 @@ export function useCreateConversation() {
   const api = useApi();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ fileIds = [] }: { fileIds?: string[] } = {}) =>
+    mutationFn: ({
+      fileIds = [],
+      collectionId,
+    }: {
+      fileIds?: string[];
+      collectionId?: string;
+    } = {}) =>
       unwrap(
         api.POST("/api/v1/conversations", {
-          body: fileIds.length ? { file_ids: fileIds } : {},
+          body: {
+            ...(fileIds.length ? { file_ids: fileIds } : {}),
+            ...(collectionId ? { collection_id: collectionId } : {}),
+          },
         }),
       ),
     onSuccess: (created) => {
@@ -98,5 +107,24 @@ export function useSetConversationScope() {
     onSuccess: (updated) => {
       queryClient.setQueryData(chatKeys.conversation(updated.id), updated);
     },
+  });
+}
+
+/** Stop answering from a collection (the whole library, or the file scope, again). */
+export function useClearConversationCollection() {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      unwrap(
+        api.PATCH("/api/v1/conversations/{id}", {
+          params: { path: { id } },
+          body: { collection_id: null },
+        }),
+      ),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(chatKeys.conversation(updated.id), updated);
+    },
+    onError: () => toast({ title: "Couldn't change what this chat answers from", tone: "danger" }),
   });
 }

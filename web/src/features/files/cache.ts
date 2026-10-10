@@ -16,8 +16,14 @@ function mapLists(queryClient: QueryClient, map: (items: FileItem[]) => FileItem
 /** Show a just-uploaded file at the top of unfiltered newest-first lists right away. */
 export function addUploadedFile(queryClient: QueryClient, file: FileItem) {
   for (const [key, data] of queryClient.getQueriesData<ListData>({ queryKey: fileKeys.lists() })) {
-    const params = key[2] as { sort?: string; category?: string; tag?: string; pinned?: boolean };
-    const unfiltered = !params?.category && !params?.tag && !params?.pinned;
+    const params = key[2] as {
+      sort?: string;
+      category?: string;
+      tag?: string;
+      pinned?: boolean;
+      collection?: string;
+    };
+    const unfiltered = !params?.category && !params?.tag && !params?.pinned && !params?.collection;
     if (!data || !unfiltered || params?.sort !== "newest") continue;
     const [first, ...rest] = data.pages;
     if (!first || first.items.some((f) => f.id === file.id)) continue;

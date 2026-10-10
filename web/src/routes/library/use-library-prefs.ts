@@ -10,7 +10,7 @@ export interface LibraryPrefs {
 
 const KEY = "akasha-library";
 const DEFAULTS: LibraryPrefs = { view: "grid", sort: "newest" };
-const SORTS: readonly FileSort[] = ["newest", "oldest", "name", "size"];
+const SORTS: readonly FileSort[] = ["newest", "oldest", "name", "size", "opened"];
 
 export function readPrefs(): LibraryPrefs {
   try {

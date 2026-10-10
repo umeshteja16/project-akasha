@@ -9,23 +9,24 @@ import { AppearanceSection } from "./appearance-section";
 import { DangerSection } from "./danger-section";
 import { PasswordSection } from "./password-section";
 import { ProfileSection } from "./profile-section";
+import { SecurityPanel } from "./security-panel";
 import { SystemPanel } from "./system-panel";
 import { TokensPanel } from "./tokens-panel";
 
 const route = getRouteApi("/app/settings");
+
+const TITLES: Record<string, string> = {
+  security: "Security · Settings",
+  tokens: "Access tokens · Settings",
+  system: "System · Settings",
+};
 
 export function SettingsPage() {
   const api = useApi();
   const { data: me } = useQuery(meQuery(api));
   const meta = useQuery(metaQuery(api));
   const { tab = "account" } = route.useSearch();
-  useDocumentTitle(
-    tab === "system"
-      ? "System · Settings"
-      : tab === "tokens"
-        ? "Access tokens · Settings"
-        : "Settings",
-  );
+  useDocumentTitle(TITLES[tab] ?? "Settings");
   const navigate = route.useNavigate();
   if (!me) return null;
   return (
@@ -33,19 +34,23 @@ export function SettingsPage() {
       <PageHeader
         eyebrow="Account"
         title="Settings"
-        description="Your profile, appearance and security, access for AI assistants, and how this server is set up."
+        description="Your profile and appearance, where you are signed in, access for AI assistants, and how this server is set up."
       />
       <Tabs
         value={tab}
         onValueChange={(value) =>
           void navigate({
-            search: value === "system" || value === "tokens" ? { tab: value } : {},
+            search:
+              value === "system" || value === "tokens" || value === "security"
+                ? { tab: value }
+                : {},
             replace: true,
           })
         }
       >
         <TabsList aria-label="Settings sections">
           <TabsTrigger value="account">Account</TabsTrigger>
+          <TabsTrigger value="security">Security</TabsTrigger>
           <TabsTrigger value="tokens">Access tokens</TabsTrigger>
           <TabsTrigger value="system">System</TabsTrigger>
         </TabsList>
@@ -60,6 +65,9 @@ export function SettingsPage() {
               Akasha server {meta.data.version}
             </p>
           ) : null}
+        </TabsContent>
+        <TabsContent value="security" className="pt-0">
+          <SecurityPanel me={me} />
         </TabsContent>
         <TabsContent value="tokens" className="pt-0">
           <TokensPanel />

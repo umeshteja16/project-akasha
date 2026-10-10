@@ -26,7 +26,7 @@ import { useUploader } from "@/features/upload/upload-context";
 import { useTheme } from "@/lib/theme";
 import { useDebouncedValue } from "@/lib/use-debounced";
 import { isApple } from "@/lib/utils";
-import { NAV_ITEMS } from "./nav-items";
+import { ALL_NAV_ITEMS } from "./nav-items";
 import { openShortcuts } from "./shortcuts-store";
 import { useSignOut } from "./use-sign-out";
 
@@ -158,7 +158,7 @@ export function CommandPalette({
               </Command.Group>
             ) : null}
             <Command.Group heading="Go to" className={groupClass}>
-              {NAV_ITEMS.map((item) => (
+              {ALL_NAV_ITEMS.map((item) => (
                 <Command.Item
                   key={item.to}
                   value={`go ${item.label}`}

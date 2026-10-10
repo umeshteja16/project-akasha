@@ -16,6 +16,8 @@ export interface SearchParams {
   /** Comma-separated, lowercase tags; results carry all of them. */
   tags?: string;
   pinned?: true;
+  /** Only files in this collection (its id). */
+  collection?: string;
   /** 1-based; `1` is left out. */
   page?: number;
 }
@@ -23,6 +25,7 @@ export interface SearchParams {
 export const MAX_QUERY = 500;
 const CATEGORIES: readonly string[] = ["pdf", "image", "text", "audio", "video"];
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isDay(value: unknown): value is string {
   return typeof value === "string" && DAY.test(value) && !Number.isNaN(Date.parse(value));
@@ -58,6 +61,9 @@ export function validateSearchParams(search: Record<string, unknown>): SearchPar
         : [];
   if (tags.length) out.tags = tags.join(",");
   if (search.pinned === true || search.pinned === "true") out.pinned = true;
+  if (typeof search.collection === "string" && UUID.test(search.collection)) {
+    out.collection = search.collection.toLowerCase();
+  }
   const page = typeof search.page === "string" ? Number(search.page) : search.page;
   if (typeof page === "number" && Number.isInteger(page) && page > 1 && page <= 20) {
     out.page = page;
@@ -77,7 +83,7 @@ export function updateParams(current: SearchParams, changes: Partial<SearchParam
 
 /** The filters in effect (everything but the query, mode and page). */
 export function activeFilters(p: SearchParams): number {
-  return [p.type, p.from || p.to, p.tags, p.pinned].filter(Boolean).length;
+  return [p.type, p.from || p.to, p.tags, p.pinned, p.collection].filter(Boolean).length;
 }
 
 export function clearFilters(p: SearchParams): SearchParams {
@@ -87,6 +93,7 @@ export function clearFilters(p: SearchParams): SearchParams {
     to: undefined,
     tags: undefined,
     pinned: undefined,
+    collection: undefined,
   });
 }
 
@@ -101,6 +108,7 @@ export function toApiQuery(p: SearchParams & { q: string }, limit: number) {
     ...(p.to ? { to: p.to } : {}),
     ...(p.tags ? { tags: p.tags } : {}),
     ...(p.pinned ? { pinned: true } : {}),
+    ...(p.collection ? { collection_id: p.collection } : {}),
     ...(p.page ? { page: p.page } : {}),
   };
 }

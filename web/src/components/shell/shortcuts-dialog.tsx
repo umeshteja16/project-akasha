@@ -28,6 +28,8 @@ const GROUPS: ReadonlyArray<{ title: string; items: ReadonlyArray<[string[][], s
       [[["G"], ["L"]], "Library"],
       [[["G"], ["S"]], "Search"],
       [[["G"], ["C"]], "Chat"],
+      [[["G"], ["O"]], "Collections"],
+      [[["G"], ["A"]], "Activity"],
       [[["G"], [","]], "Settings"],
     ],
   },

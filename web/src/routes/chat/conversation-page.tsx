@@ -32,8 +32,8 @@ import {
   DeleteConversationDialog,
   RenameConversationDialog,
 } from "@/features/chat/conversation-dialogs";
-import { useSetConversationScope } from "@/features/chat/mutations";
-import { parseFileScope, ScopeBar } from "@/features/chat/scope";
+import { useClearConversationCollection, useSetConversationScope } from "@/features/chat/mutations";
+import { CollectionScopeBar, parseFileScope, ScopeBar } from "@/features/chat/scope";
 import { useAsk, useChatSessions, useLiveTurn } from "@/features/chat/session-context";
 import { useDocumentTitle } from "@/lib/use-document-title";
 
@@ -93,6 +93,7 @@ function ConversationView({ id }: { id: string }) {
         : "Chat",
   );
   const setScope = useSetConversationScope();
+  const clearCollection = useClearConversationCollection();
   // The scope is stored with the conversation; `?files=` (an older link) sets it.
   const fileIds = conversation.data?.file_ids ?? [];
   const linked = parseFileScope(files).join(",");
@@ -263,7 +264,12 @@ function ConversationView({ id }: { id: string }) {
           draft={draft}
           placeholder={history.length || turn ? "Ask a follow-up…" : "Ask about your files…"}
           top={
-            fileIds.length ? (
+            conversation.data?.collection_id ? (
+              <CollectionScopeBar
+                collectionId={conversation.data.collection_id}
+                onClear={() => clearCollection.mutate(id)}
+              />
+            ) : fileIds.length ? (
               <ScopeBar fileIds={fileIds} onClear={() => setScope.mutate({ id, fileIds: [] })} />
             ) : null
           }

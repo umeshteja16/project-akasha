@@ -1,4 +1,10 @@
-import { FilterXIcon, MessageSquareQuoteIcon, SearchIcon, UploadCloudIcon } from "lucide-react";
+import {
+  FilterXIcon,
+  HistoryIcon,
+  MessageSquareQuoteIcon,
+  SearchIcon,
+  UploadCloudIcon,
+} from "lucide-react";
 import { EmptyState } from "@/components/common/empty-state";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
@@ -97,6 +103,23 @@ export function LibraryEmpty({ onUpload, name }: { onUpload: () => void; name?: 
         </p>
       </section>
     </div>
+  );
+}
+
+/** "Recently opened" with nothing opened yet. */
+export function NothingOpened({ onShowAll }: { onShowAll: () => void }) {
+  return (
+    <EmptyState
+      icon={HistoryIcon}
+      title="Nothing opened yet"
+      actions={
+        <Button variant="secondary" onClick={onShowAll}>
+          Show newest first
+        </Button>
+      }
+    >
+      <p>Files you open appear here, most recent first.</p>
+    </EmptyState>
   );
 }
 

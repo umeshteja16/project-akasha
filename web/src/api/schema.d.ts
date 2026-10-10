@@ -725,7 +725,7 @@ export interface components {
          * @description What happened.
          * @enum {string}
          */
-        ActivityKind: "FileUploaded" | "FileRenamed" | "FileTagged" | "FileDeleted" | "FileOpened" | "SearchPerformed" | "ChatAsked" | "CollectionCreated" | "CollectionUpdated" | "CollectionDeleted" | "CollectionFilesAdded" | "CollectionFilesRemoved" | "AccountCreated" | "SignedIn" | "SignInFailed" | "SignedOut" | "PasswordChanged" | "PasswordChangeFailed" | "AccountDeleteFailed" | "SessionRevoked" | "TokenCreated" | "TokenRevoked" | "RateLimited";
+        ActivityKind: "file.uploaded" | "file.renamed" | "file.tagged" | "file.deleted" | "file.opened" | "search.performed" | "chat.asked" | "collection.created" | "collection.updated" | "collection.deleted" | "collection.files_added" | "collection.files_removed" | "account.created" | "auth.signed_in" | "auth.sign_in_failed" | "auth.signed_out" | "auth.password_changed" | "auth.password_change_failed" | "account.delete_failed" | "session.revoked" | "token.created" | "token.revoked" | "rate.limited";
         ActivityPage: {
             /** @description Newest first. */
             items: components["schemas"]["ActivityItem"][];

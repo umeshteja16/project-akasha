@@ -78,6 +78,12 @@ the semantic names (`bg-surface`, `text-fg-muted`, `border-border`, ...), never 
 | `accent-soft` / `accent-text` | `#ddeee9` / `#0a5c51` | `#17352f` / `#72d0bc` | selected states, links |
 | `highlight` / `mark` | `#f2b84b` / `#fbe7b5` | `#e7a93a` / `#4a3a14` | wordmark dot / search hits |
 | `danger` (+`-fg`, `-soft`) | `#b42318` | `#f28b7e` | destructive actions, errors |
+| `swatch-{sage,sky,ochre,clay,plum,slate}` (+`-soft`) | muted inks on pale tints | light inks on deep tints | collection marks only |
+
+**Collection swatches** tint a collection's icon tile (`CollectionMark`) and its sidebar
+dot; they are never used for actions, text blocks or states, so the one-accent rule holds.
+Every ink is ≥ 5:1 on its soft tile and on `surface` in both themes (checked with the
+contrast script). Collections store the swatch *name*, never a colour.
 
 ### Contrast (WCAG 2.2, verified)
 
@@ -158,8 +164,12 @@ anywhere + `<Toaster/>`).
 `src/components/common/highlighted.tsx` renders search highlight offsets as `<mark>` (text
 nodes only, never HTML).
 `src/components/common/`: `wordmark`, `page-header`, `empty-state`, `avatar`.
-`src/components/shell/`: sidebar, mobile header/tab bar, user menu, theme toggle,
-command palette, upload drop zone.
+`src/components/shell/`: sidebar (with the collections list), mobile header/tab bar,
+user menu (Collections and Activity on phones), theme toggle, command palette, upload drop zone.
+`src/features/collections/`: `CollectionMark` (swatch + icon), the create/edit dialog and
+"Add to collection" menu (checkboxes for one file, plain items for a selection).
+`src/features/activity/describe.tsx`: one icon + sentence per activity kind; security
+failures use the `danger` tone. The timeline groups by day with a hairline spine.
 
 Rules: compose from these before writing new styles; add a variant rather than a
 one-off class soup; keep components under ~300 lines.
