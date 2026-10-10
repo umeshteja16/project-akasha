@@ -1,0 +1,48 @@
+name: Portability (no AVX)
+
+# The portable x86-64 build on a CPU without AVX (QEMU's Nehalem model enforces the
+# CPUID feature bits): the dispatcher must keep the SSE4.2 build and Whisper must run.
+# The AVX2 build on the same emulated CPU is expected to crash, which shows the
+# emulation really rejects AVX. Emulated inference takes 30+ minutes, so this runs
+# weekly, on release tags and on demand instead of on every push.
+on:
+  schedule:
+    - cron: "17 3 * * 0"
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  no-avx:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      MODELS: -v akasha-models:/var/lib/akasha/models -e AKASHA_EMBED_MODEL=all-minilm-l6-v2 -e AKASHA_RERANK_MODEL=none -e AKASHA_WHISPER_MODEL=tiny
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: akasha:ci
+          # Reuse ci.yml's layer cache (read only).
+          cache-from: type=gha,scope=docker-amd64
+      - name: Download models natively
+        run: docker run --rm $MODELS akasha:ci models check
+      - name: Portable build on an emulated CPU without AVX
+        run: |
+          sudo apt-get update && sudo apt-get install -y qemu-user-static
+          QEMU="-v /usr/bin/qemu-x86_64-static:/qemu:ro --entrypoint /qemu"
+          timeout 90m docker run --rm $MODELS $QEMU akasha:ci -cpu Nehalem \
+            /usr/local/bin/akasha models check | tee check.txt
+          grep -q "cpu build baseline" check.txt
+          if timeout 10m docker run --rm $MODELS $QEMU akasha:ci -cpu Nehalem \
+            /usr/local/bin/akasha-avx2 models check; then
+            echo "::warning::the AVX2 build ran on an emulated CPU without AVX"
+          fi

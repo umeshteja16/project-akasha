@@ -152,24 +152,4 @@ jobs:
         run: |
           docker run --rm $MODELS akasha:ci models check | tee check.txt
           if [ "${{ matrix.arch }}" = amd64 ]; then grep -q "cpu build avx2" check.txt; fi
-      # The portable x86-64 build on a CPU without AVX (QEMU's Nehalem model enforces
-      # the CPUID feature bits): the dispatcher must keep the SSE4.2 build and Whisper
-      # must run. The AVX2 build on the same emulated CPU is expected to crash, which
-      # shows the emulation really rejects AVX.
-      - name: Smoke test without AVX (QEMU Nehalem)
-        if: matrix.arch == 'amd64'
-        # Informational until its run time under emulation is known: the first run
-        # (ab42c84) was still going after hours without a time limit.
-        continue-on-error: true
-        timeout-minutes: 30
-        run: |
-          sudo apt-get update && sudo apt-get install -y qemu-user-static
-          QEMU="-v /usr/bin/qemu-x86_64-static:/qemu:ro --entrypoint /qemu"
-          # Emulated inference is slow: bound it, and keep the output for the log.
-          timeout 20m docker run --rm $MODELS $QEMU akasha:ci -cpu Nehalem \
-            /usr/local/bin/akasha models check | tee check.txt
-          grep -q "cpu build baseline" check.txt
-          if timeout 5m docker run --rm $MODELS $QEMU akasha:ci -cpu Nehalem \
-            /usr/local/bin/akasha-avx2 models check; then
-            echo "::warning::the AVX2 build ran on an emulated CPU without AVX"
-          fi
+      # The no-AVX check under QEMU is slow (30+ min): it runs in portability.yml.

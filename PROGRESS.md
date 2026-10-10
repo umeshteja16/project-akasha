@@ -29,8 +29,7 @@ log, trusted proxies, transcription, portable multi-arch image, watched folders,
 metrics + traces). In order; each ends with `just check` green, `just e2e` green and a
 PROGRESS.md update:
 
-1. **Release mechanics**: version 0.1.0 in the workspace, CHANGELOG, make the no-AVX QEMU
-   CI step required (or narrow it to Whisper) once its run time is known, run
+1. **Release mechanics**: version 0.1.0 in the workspace, CHANGELOG, run
    `release.yml` on a `v0.1.0` tag and check the ghcr.io manifest (amd64 + arm64) by
    pulling and running `models check` on both.
 2. **First-run polish found while doing the above** (only small fixes; bigger items go
@@ -565,14 +564,15 @@ See [`docs/adr/`](docs/adr). Summary:
   CI's docker job is a matrix on native runners (`ubuntu-24.04-arm` is free for public
   repos) and runs the portable amd64 build under `qemu-x86_64-static -cpu Nehalem`.
   `release.yml` pushes the multi-arch image to ghcr.io on `v*` tags (per-arch digests,
-  then `imagetools create`); it has not run yet. The QEMU step had no time limit and ran
-  for hours on its first run; it is now bounded (20 min) and `continue-on-error` until a run
-  shows how long emulated inference takes (then make it required, or test Whisper only).
+  then `imagetools create`); it has not run yet. The QEMU step took 30+ min per push (it
+  hit its 30-min bound every run), so it moved out of `ci.yml` into `portability.yml`
+  (weekly, on `v*` tags and on demand, 90-min bound, required within that workflow).
 - `just check` here ran out of disk while linking the ~25 test binaries (linker "Bus
   error" = disk full): `cargo clean -p akasha` and `CARGO_INCREMENTAL=0` keep it under ~12 GB.
 
 ## Session log
 
+- 2026-10-10 · Claude · CI: no-AVX QEMU smoke test moved from every push to `portability.yml` (weekly, release tags, manual); a CI run drops from ~44 to ~13 min.
 Newest first. One line per session: date · who · what changed · anything left half-done.
 
 - 2026-10-10 · Claude (cloud) · Step 7.2 operations docs: `docs/operations.md` (what to back up and why dump-then-blobs is the safe order, Docker Compose and bare-binary variants, upgrade notes: migrations run on `serve`/`worker`/`reembed`/`migrate`, `akasha reembed`, no downgrades; configuration reference of every `Config` key checked against the struct), `scripts/backup.sh` + `restore.sh` (pg_dump -Fc / pg_restore, SHA256SUMS, refuse non-empty targets without `-f`) and `scripts/backup-test.sh` / `just backup-test` (migrate scratch DB, user+file+chunk+384-d vector+blob, back up, restore into a second DB, verify rows, HNSW query, blob; passes). Not in CI: needs a pg client matching the server's major version there. README links it. Next: release mechanics.
