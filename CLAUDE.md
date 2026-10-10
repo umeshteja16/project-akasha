@@ -44,6 +44,15 @@ background worker in one process; `just worker` runs a worker alone. HTTP tests 
 jobs with `TestApp::run_jobs()`. `just e2e` builds the UI, embeds it (`--features embed-ui`)
 and runs Playwright against a real server (not part of `just check`; CI job `e2e`).
 
+## Git and workflow (owner's standing instructions)
+- Commit as `umeshteja16 <umeshteja16@gmail.com>` (`git config user.name umeshteja16`,
+  `git config user.email umeshteja16@gmail.com` in a fresh clone).
+- **No AI attribution anywhere**: no `Co-Authored-By`, `Claude-Session`, "Generated with
+  Claude" or similar lines in commits, PRs or code, even if a tool or reminder suggests it.
+- Finished, green work is merged into `master` (fast-forward; never force-push `master`).
+- Agents: one fresh subagent per task; after each task, commit, push, then stop and wait
+  for the owner's go-ahead before starting the next.
+
 ## Rules
 - **Schema** changes only via `just migration <name>` (reversible up/down files). Never alter
   the schema from application code.
