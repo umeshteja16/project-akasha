@@ -62,8 +62,12 @@ impl Transcriber for WhisperTranscriber {
         params.set_print_timestamps(false);
         params.set_suppress_blank(true);
         let cancelled = control.flag();
-        params
-            .set_abort_callback_safe(move || cancelled.load(std::sync::atomic::Ordering::Relaxed));
+        // whisper-rs 0.16's `set_abort_callback_safe` stores the closure as a
+        // `Box<dyn FnMut>` but calls it as `F`; passing a `Box<dyn FnMut>` as `F`
+        // makes both the same type (any other closure reads garbage and aborts).
+        let abort: Box<dyn FnMut() -> bool> =
+            Box::new(move || cancelled.load(std::sync::atomic::Ordering::Relaxed));
+        params.set_abort_callback_safe(abort);
         let result = state.full(params, samples);
         if control.is_cancelled() {
             return Err(MediaError::Cancelled);
