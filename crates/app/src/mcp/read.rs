@@ -71,6 +71,9 @@ struct Passage {
     file_id: Uuid,
     file_name: String,
     page: Option<i32>,
+    /// Audio and video: when the passage is said (`m:ss`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    at: Option<String>,
     chunk_id: i64,
     char_start: i32,
     char_end: i32,
@@ -110,6 +113,7 @@ pub async fn search(state: &AppState, caller: Caller, a: SearchArgs) -> ToolResu
             file_id: hit.file.id,
             file_name: hit.file.name,
             page: hit.chunk.page,
+            at: hit.chunk.start_ms.map(crate::chat::citations::timestamp),
             chunk_id: hit.chunk.chunk_id,
             char_start: hit.chunk.char_start,
             char_end: hit.chunk.char_end,

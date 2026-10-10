@@ -132,6 +132,7 @@ fn passages(sources: &[Source]) -> Vec<serde_json::Value> {
                 "file_id": c.file_id,
                 "file_name": c.file_name,
                 "page": c.page,
+                "at": c.start_ms.map(crate::chat::citations::timestamp),
                 "chunk_id": c.chunk_id,
                 "char_start": c.char_start,
                 "char_end": c.char_end,

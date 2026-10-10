@@ -10,10 +10,12 @@ mod enrich;
 mod extract;
 pub mod kinds;
 mod maintenance;
+mod media;
 pub mod ml;
 pub mod ocr;
 pub mod thumbnail;
 mod title;
+pub mod transcribe;
 
 use std::{sync::Arc, time::Duration};
 
@@ -24,7 +26,7 @@ use akasha_llm::ChatModel;
 use akasha_storage::Storage;
 
 use self::kinds::{PruneActivity, PruneJobs, PruneSessions, PruneStaging, SweepOrphanBlobs};
-use self::{ml::MlProvider, ocr::OcrProvider};
+use self::{ml::MlProvider, ocr::OcrProvider, transcribe::TranscriberProvider};
 use crate::state::AppState;
 
 const HOUR: Duration = Duration::from_secs(60 * 60);
@@ -37,6 +39,8 @@ pub struct JobContext {
     pub storage: Storage,
     /// The OCR engine, loaded on first use (shared by all handlers of a worker).
     pub ocr: Arc<OcrProvider>,
+    /// The speech model for audio and video, loaded on first use.
+    pub transcriber: Arc<TranscriberProvider>,
     /// Embedding model and reranker, loaded on first use (shared with the API).
     pub ml: Arc<MlProvider>,
     /// The language model for summaries, tags and titles; `None`: those jobs
@@ -52,6 +56,7 @@ impl JobContext {
             db,
             storage,
             ocr: Arc::new(OcrProvider::from_config(config)),
+            transcriber: Arc::new(TranscriberProvider::from_config(config)),
             ml: Arc::new(MlProvider::from_config(config)),
             llm: None,
             config: Arc::new(config.clone()),

@@ -232,15 +232,22 @@ async fn corrupt_pdf_fails_with_a_clear_message(pool: PgPool) {
 
 #[sqlx::test(migrator = "akasha_db::MIGRATOR")]
 async fn media_is_ready_without_text_and_images_note_disabled_ocr(pool: PgPool) {
-    let app = TestApp::new(pool.clone());
+    let config = Config {
+        transcribe_enabled: false,
+        ..test_config()
+    };
+    let app = TestApp::with_config(pool.clone(), config.clone());
     let ada = app.user("ada@example.com").await;
     let mut mp3 = b"ID3\x03\x00\x00\x00\x00\x00\x0a".to_vec();
     mp3.extend_from_slice(&[0u8; 64]);
     let audio = id(&app.upload(&ada, "song.mp3", &mp3).await.json());
     let image = id(&app.upload(&ada, "scan.png", OCR_PNG).await.json());
-    app.run_jobs().await;
+    app.run_jobs_with(&config).await;
 
-    for (fid, note) in [(&audio, "not transcribed"), (&image, "OCR is disabled")] {
+    for (fid, note) in [
+        (&audio, "transcription is turned off"),
+        (&image, "OCR is disabled"),
+    ] {
         assert_eq!(file(&app, &ada, fid).await["status"], "ready");
         let e = app
             .send(

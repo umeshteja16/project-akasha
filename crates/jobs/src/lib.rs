@@ -37,7 +37,7 @@ use serde::{Serialize, de::DeserializeOwned};
 
 pub use attempt::{Attempt, current_attempt};
 pub use backoff::backoff;
-pub use queue::{JobInfo, enqueue, enqueue_delayed};
+pub use queue::{JobInfo, enqueue, enqueue_delayed, report_progress};
 pub use registry::Registry;
 pub use schedule::Schedule;
 pub use worker::{Worker, WorkerConfig};

@@ -95,11 +95,15 @@ async fn upload_is_extracted_embedded_and_ready(pool: PgPool) {
 
 #[sqlx::test(migrator = "akasha_db::MIGRATOR")]
 async fn files_without_text_skip_embedding(pool: PgPool) {
-    let app = TestApp::new(pool.clone());
+    let config = akasha_core::Config {
+        transcribe_enabled: false,
+        ..test_config()
+    };
+    let app = TestApp::with_config(pool.clone(), config.clone());
     let ada = app.user("ada@example.com").await;
     let mp3 = [b"ID3".as_slice(), &[3, 0, 0, 0, 0, 0, 0], &[0u8; 64]].concat();
     let fid = id(&app.upload(&ada, "song.mp3", &mp3).await.json());
-    assert_eq!(app.run_jobs().await, 1, "no embed job");
+    assert_eq!(app.run_jobs_with(&config).await, 1, "no embed job");
     let detail = file(&app, &ada, &fid).await;
     assert_eq!(detail["status"], "ready");
     assert_eq!(detail["processing"]["stage"], "extract");

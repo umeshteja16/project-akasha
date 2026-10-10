@@ -65,7 +65,11 @@ pub fn answer_request(
     let mut prompt = String::from("Sources:\n");
     for s in sources {
         let c = &s.citation;
-        let page = c.page.map(|p| format!(", page {p}")).unwrap_or_default();
+        let page = match (c.page, c.start_ms) {
+            (Some(p), _) => format!(", page {p}"),
+            (None, Some(ms)) => format!(", at {}", super::citations::timestamp(ms)),
+            _ => String::new(),
+        };
         prompt.push_str(&format!(
             "\n[{}] {}{page}\n{}\n",
             c.n,

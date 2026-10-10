@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT c.id, c.file_id, c.chunk_index, c.page, c.char_start, c.char_end, c.text,\n                  ts_headline('english', translate(c.text, E'', ''), q.tsq,\n                      E'StartSel=, StopSel=, MaxWords=35, MinWords=15, '\n                      'MaxFragments=2, FragmentDelimiter=\" … \"') AS \"headline!\",\n                  f.original_name AS file_name, f.mime_type, f.size_bytes, f.status,\n                  f.tags, f.auto_tags, f.summary, f.is_pinned, f.created_at\n           FROM file_chunks c\n           JOIN files f ON f.id = c.file_id AND f.owner_id = $1\n           CROSS JOIN websearch_to_tsquery('english', $3) AS q(tsq)\n           WHERE c.owner_id = $1 AND c.id = ANY($2)",
+  "query": "SELECT c.id, c.file_id, c.chunk_index, c.page, c.start_ms, c.end_ms,\n                  c.char_start, c.char_end, c.text,\n                  ts_headline('english', translate(c.text, E'', ''), q.tsq,\n                      E'StartSel=, StopSel=, MaxWords=35, MinWords=15, '\n                      'MaxFragments=2, FragmentDelimiter=\" … \"') AS \"headline!\",\n                  f.original_name AS file_name, f.mime_type, f.size_bytes, f.status,\n                  f.tags, f.auto_tags, f.summary, f.is_pinned, f.created_at\n           FROM file_chunks c\n           JOIN files f ON f.id = c.file_id AND f.owner_id = $1\n           CROSS JOIN websearch_to_tsquery('english', $3) AS q(tsq)\n           WHERE c.owner_id = $1 AND c.id = ANY($2)",
   "describe": {
     "columns": [
       {
@@ -25,66 +25,76 @@
       },
       {
         "ordinal": 4,
-        "name": "char_start",
+        "name": "start_ms",
         "type_info": "Int4"
       },
       {
         "ordinal": 5,
-        "name": "char_end",
+        "name": "end_ms",
         "type_info": "Int4"
       },
       {
         "ordinal": 6,
+        "name": "char_start",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "char_end",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
         "name": "text",
         "type_info": "Text"
       },
       {
-        "ordinal": 7,
+        "ordinal": 9,
         "name": "headline!",
         "type_info": "Text"
       },
       {
-        "ordinal": 8,
+        "ordinal": 10,
         "name": "file_name",
         "type_info": "Text"
       },
       {
-        "ordinal": 9,
+        "ordinal": 11,
         "name": "mime_type",
         "type_info": "Text"
       },
       {
-        "ordinal": 10,
+        "ordinal": 12,
         "name": "size_bytes",
         "type_info": "Int8"
       },
       {
-        "ordinal": 11,
+        "ordinal": 13,
         "name": "status",
         "type_info": "Text"
       },
       {
-        "ordinal": 12,
+        "ordinal": 14,
         "name": "tags",
         "type_info": "TextArray"
       },
       {
-        "ordinal": 13,
+        "ordinal": 15,
         "name": "auto_tags",
         "type_info": "TextArray"
       },
       {
-        "ordinal": 14,
+        "ordinal": 16,
         "name": "summary",
         "type_info": "Text"
       },
       {
-        "ordinal": 15,
+        "ordinal": 17,
         "name": "is_pinned",
         "type_info": "Bool"
       },
       {
-        "ordinal": 16,
+        "ordinal": 18,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
@@ -101,6 +111,8 @@
       false,
       false,
       true,
+      true,
+      true,
       false,
       false,
       false,
@@ -116,5 +128,5 @@
       false
     ]
   },
-  "hash": "a80edf9b347838b3ea5be0fd4397cbc02d104f5be4812859c63c3c68b38f8d3b"
+  "hash": "698200d008d8e074405dbc16d836d2bad4b35ba74ef6fbbb3aa70d0a011629e8"
 }

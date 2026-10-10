@@ -117,6 +117,8 @@ pub struct SystemStatus {
     pub onnx_runtime: ModelStatus,
     /// Text recognition for images and scanned PDFs.
     pub ocr: ModelStatus,
+    /// Speech recognition for audio and video (Whisper).
+    pub transcription: ModelStatus,
     pub relevance: RelevanceStatus,
     pub worker: WorkerStatus,
 }
@@ -182,6 +184,7 @@ pub async fn status(
         chat: chat_status(&state),
         onnx_runtime: onnx_status(config, needs_onnx, onnx_loaded),
         ocr: ocr_status(config),
+        transcription: transcription_status(config),
         relevance: RelevanceStatus {
             min_similarity: config
                 .search_min_similarity
@@ -282,6 +285,40 @@ fn runtime_library(configured: &str) -> PathBuf {
 #[cfg(not(feature = "onnx"))]
 fn runtime_library(configured: &str) -> PathBuf {
     PathBuf::from(configured)
+}
+
+fn transcription_status(config: &Config) -> ModelStatus {
+    use akasha_media::models::{self, ModelChoice};
+    let name = Some(format!("whisper {}", config.whisper_model.trim()));
+    let (status, detail) = if !config.transcribe_enabled {
+        (ComponentStatus::Disabled, None)
+    } else {
+        match models::find(&config.whisper_model) {
+            Err(e) => (ComponentStatus::Unavailable, Some(e.to_string())),
+            Ok(ModelChoice::Fake) => (ComponentStatus::Ready, None),
+            Ok(ModelChoice::Whisper(_)) if !akasha_media::WHISPER_AVAILABLE => (
+                ComponentStatus::Unavailable,
+                Some("this build has no Whisper support".to_owned()),
+            ),
+            Ok(ModelChoice::Whisper(m)) => {
+                if models::path(Path::new(&config.models_dir), m).is_file() {
+                    (ComponentStatus::Ready, None)
+                } else if !config.ml_models_url.trim().is_empty() {
+                    (ComponentStatus::DownloadsOnFirstUse, None)
+                } else {
+                    (
+                        ComponentStatus::Unavailable,
+                        Some("the Whisper model file is missing and downloads are off".to_owned()),
+                    )
+                }
+            }
+        }
+    };
+    ModelStatus {
+        name,
+        status,
+        detail,
+    }
 }
 
 fn ocr_status(config: &Config) -> ModelStatus {

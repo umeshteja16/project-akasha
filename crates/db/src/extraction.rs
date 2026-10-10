@@ -71,12 +71,19 @@ pub struct NewExtraction<'a> {
     pub char_count: i32,
     pub text: &'a str,
     pub pages: JsonValue,
+    /// Transcript lines with times (`[]` for non-media).
+    pub segments: JsonValue,
+    /// Length of the transcribed audio (media only).
+    pub duration_ms: Option<i32>,
     pub notes: &'a [String],
 }
 
 pub struct NewChunk<'a> {
     pub chunk_index: i32,
     pub page: Option<i32>,
+    /// Transcript chunks: when their speech starts and ends.
+    pub start_ms: Option<i32>,
+    pub end_ms: Option<i32>,
     pub char_start: i32,
     pub char_end: i32,
     pub text: &'a str,
@@ -110,9 +117,13 @@ pub async fn replace(
         let start: Vec<i32> = batch.iter().map(|c| c.char_start).collect();
         let end: Vec<i32> = batch.iter().map(|c| c.char_end).collect();
         let text: Vec<&str> = batch.iter().map(|c| c.text).collect();
+        let start_ms: Vec<Option<i32>> = batch.iter().map(|c| c.start_ms).collect();
+        let end_ms: Vec<Option<i32>> = batch.iter().map(|c| c.end_ms).collect();
         sqlx::query!(
-            r#"INSERT INTO file_chunks (file_id, owner_id, chunk_index, page, char_start, char_end, text)
-               SELECT $1, $2, * FROM UNNEST($3::int4[], $4::int4[], $5::int4[], $6::int4[], $7::text[])"#,
+            r#"INSERT INTO file_chunks
+                   (file_id, owner_id, chunk_index, page, char_start, char_end, text, start_ms, end_ms)
+               SELECT $1, $2, * FROM UNNEST($3::int4[], $4::int4[], $5::int4[], $6::int4[],
+                                            $7::text[], $8::int4[], $9::int4[])"#,
             file_id,
             owner_id,
             &index,
@@ -120,6 +131,8 @@ pub async fn replace(
             &start,
             &end,
             &text as &[&str],
+            &start_ms as &[Option<i32>],
+            &end_ms as &[Option<i32>],
         )
         .execute(&mut *conn)
         .await?;
@@ -127,8 +140,9 @@ pub async fn replace(
 
     sqlx::query!(
         r#"INSERT INTO file_extractions
-               (file_id, extractor, extractor_version, page_count, char_count, text, pages, notes)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+               (file_id, extractor, extractor_version, page_count, char_count, text, pages,
+                notes, segments, duration_ms)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
            ON CONFLICT (file_id) DO UPDATE SET
                extractor = EXCLUDED.extractor,
                extractor_version = EXCLUDED.extractor_version,
@@ -137,6 +151,8 @@ pub async fn replace(
                text = EXCLUDED.text,
                pages = EXCLUDED.pages,
                notes = EXCLUDED.notes,
+               segments = EXCLUDED.segments,
+               duration_ms = EXCLUDED.duration_ms,
                created_at = now()"#,
         file_id,
         extraction.extractor,
@@ -146,6 +162,8 @@ pub async fn replace(
         extraction.text,
         extraction.pages,
         extraction.notes,
+        extraction.segments,
+        extraction.duration_ms,
     )
     .execute(&mut *conn)
     .await?;
@@ -161,6 +179,8 @@ pub struct Extraction {
     pub char_count: i32,
     pub chunk_count: i64,
     pub pages: JsonValue,
+    pub segments: JsonValue,
+    pub duration_ms: Option<i32>,
     pub notes: Vec<String>,
     /// Characters `offset..offset + limit` of the text.
     pub text: String,
@@ -180,7 +200,7 @@ pub async fn get(
     sqlx::query_as!(
         Extraction,
         r#"SELECT e.extractor, e.extractor_version, e.page_count, e.char_count, e.pages,
-                  e.notes, e.created_at,
+                  e.segments, e.duration_ms, e.notes, e.created_at,
                   substr(e.text, $3 + 1, $4) AS "text!",
                   (SELECT count(*) FROM file_chunks c WHERE c.file_id = e.file_id) AS "chunk_count!"
            FROM file_extractions e

@@ -3751,6 +3751,14 @@
             "type": "integer",
             "format": "int32"
           },
+          "end_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Audio and video: when the passage's speech ends (milliseconds)."
+          },
           "loosely_related": {
             "type": "boolean",
             "description": "Found by meaning alone and below the relevance floor (only returned with\n`include_weak`)."
@@ -3768,6 +3776,14 @@
           },
           "snippet": {
             "$ref": "#/components/schemas/Snippet"
+          },
+          "start_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Audio and video: when the passage's speech starts (milliseconds from the\nstart of the recording); `null` for other formats."
           }
         }
       },
@@ -3819,6 +3835,14 @@
             "type": "integer",
             "format": "int64"
           },
+          "end_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Audio and video: when the passage's speech ends (milliseconds)."
+          },
           "file_id": {
             "type": "string",
             "format": "uuid"
@@ -3843,6 +3867,14 @@
           "quote": {
             "type": "string",
             "description": "The start of the passage."
+          },
+          "start_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Audio and video: when the passage's speech starts (milliseconds); `null`\nfor other formats."
           }
         }
       },
@@ -4307,6 +4339,7 @@
           "char_count",
           "chunk_count",
           "pages",
+          "segments",
           "notes",
           "offset",
           "text",
@@ -4327,9 +4360,17 @@
             "type": "string",
             "format": "date-time"
           },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Length of the transcribed audio in milliseconds (audio and video only)."
+          },
           "extractor": {
             "type": "string",
-            "description": "`text`, `markdown`, `csv`, `json`, `pdf`, `ocr`, or `none` when nothing could be\nextracted (e.g. audio and video, which are not transcribed yet)."
+            "description": "`text`, `markdown`, `csv`, `json`, `pdf`, `ocr`, `transcript` (audio and video),\nor `none` when nothing could be extracted (e.g. transcription turned off)."
           },
           "extractor_version": {
             "type": "string"
@@ -4372,6 +4413,13 @@
               "$ref": "#/components/schemas/PageSpan"
             },
             "description": "Page spans, in order (PDFs only)."
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TimedSpan"
+            },
+            "description": "Transcript lines with their times, in order (audio and video only; all of\nthem, whatever the text window)."
           },
           "text": {
             "type": "string",
@@ -4986,6 +5034,14 @@
             "format": "date-time",
             "description": "When it will next be tried (`queued` or `failed` only)."
           },
+          "progress": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float",
+            "description": "How far a running step is (0–1), when it reports it (transcription does)."
+          },
           "stage": {
             "$ref": "#/components/schemas/ProcessingStage"
           },
@@ -5353,6 +5409,7 @@
           "chat",
           "onnx_runtime",
           "ocr",
+          "transcription",
           "relevance",
           "worker"
         ],
@@ -5380,6 +5437,10 @@
           "strict_offline": {
             "type": "boolean",
             "description": "Cloud language models are refused (`AKASHA_STRICT_OFFLINE`)."
+          },
+          "transcription": {
+            "$ref": "#/components/schemas/ModelStatus",
+            "description": "Speech recognition for audio and video (Whisper)."
           },
           "version": {
             "type": "string"
@@ -5425,6 +5486,38 @@
             "type": "integer",
             "format": "int64",
             "description": "Files with it as one of your own tags."
+          }
+        }
+      },
+      "TimedSpan": {
+        "type": "object",
+        "description": "A transcript line: when it was said (milliseconds from the start) and its span\nin the full text (`char_start..char_end`, in characters).",
+        "required": [
+          "start_ms",
+          "end_ms",
+          "char_start",
+          "char_end"
+        ],
+        "properties": {
+          "char_end": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "char_start": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "end_ms": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "start_ms": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           }
         }
       },

@@ -79,6 +79,19 @@ pub struct Config {
     /// Base URL OCR models are downloaded from. Empty: never download (offline
     /// installs put the files into `models_dir` themselves).
     pub ocr_models_url: String,
+    /// Transcribe audio and the sound of videos (whisper.cpp). Off: recordings are
+    /// stored and playable, with no text.
+    pub transcribe_enabled: bool,
+    /// Speech model: `tiny`, `base`, `small`, `medium` or `large-v3-turbo` (all
+    /// multilingual), downloaded into `models_dir` on first use; `fake` is a test model.
+    pub whisper_model: String,
+    /// CPU threads per transcription; 0 uses the cores (at most 8). Only one
+    /// recording is transcribed at a time per worker process.
+    pub transcribe_threads: u32,
+    /// Only the first this many minutes of a recording are transcribed.
+    pub transcribe_max_minutes: u32,
+    /// Spoken language as an ISO 639-1 code (`en`, `de`, ...); empty detects it.
+    pub transcribe_language: String,
     /// Embedding model for semantic search (see `akasha_ml::catalog`). Changing it
     /// later needs `akasha reembed`.
     pub embed_model: String,
@@ -185,6 +198,11 @@ impl Default for Config {
             ocr_enabled: true,
             models_dir: "./models".into(),
             ocr_models_url: "https://ocrs-models.s3-accelerate.amazonaws.com".into(),
+            transcribe_enabled: true,
+            whisper_model: "base".into(),
+            transcribe_threads: 0,
+            transcribe_max_minutes: 120,
+            transcribe_language: String::new(),
             embed_model: "multilingual-e5-small".into(),
             rerank_model: "jina-reranker-v1-turbo-en".into(),
             ml_models_url: "https://huggingface.co".into(),

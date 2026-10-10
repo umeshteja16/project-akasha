@@ -10,9 +10,12 @@ name = "akasha"
 path = "src/main.rs"
 
 [features]
-default = ["onnx"]
+default = ["onnx", "whisper"]
 # Real embedding/rerank models through ONNX Runtime (loaded at run time).
 onnx = ["akasha-ml/onnx"]
+# Real speech-to-text with whisper.cpp (compiled from source: needs cmake and a C++
+# compiler). Without it, only the test transcriber (`AKASHA_WHISPER_MODEL=fake`) works.
+whisper = ["akasha-media/whisper"]
 # Embed the built web UI from web/dist (run `pnpm build` in web/ first). Without it
 # the server is API-only and the UI is served by Vite in development.
 embed-ui = ["dep:rust-embed"]
@@ -23,6 +26,7 @@ akasha-db.workspace = true
 akasha-ingest.workspace = true
 akasha-jobs.workspace = true
 akasha-llm.workspace = true
+akasha-media.workspace = true
 akasha-ml.workspace = true
 akasha-search.workspace = true
 akasha-storage.workspace = true
@@ -47,6 +51,7 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 sqlx.workspace = true
+tempfile.workspace = true
 time.workspace = true
 tokio.workspace = true
 tower-http.workspace = true
@@ -59,7 +64,6 @@ uuid.workspace = true
 [dev-dependencies]
 http-body-util.workspace = true
 image.workspace = true
-tempfile.workspace = true
 tower.workspace = true
 
 [lints]

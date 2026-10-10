@@ -18,6 +18,7 @@ fn finish(extractor: &'static str, text: &str, max_chars: usize) -> Extraction {
         extractor,
         text,
         pages: Vec::new(),
+        segments: Vec::new(),
         notes,
     }
 }

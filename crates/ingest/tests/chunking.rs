@@ -112,3 +112,46 @@ fn chunking_is_deterministic() {
         chunk(&e, &ChunkOptions::default())
     );
 }
+
+#[test]
+fn transcript_chunks_carry_the_time_of_their_speech() {
+    use akasha_ingest::{TimedText, transcript};
+    let lines: Vec<String> = (0..120)
+        .map(|i| format!("At second {i} the speaker says something about topic {i}."))
+        .collect();
+    let segments: Vec<TimedText<'_>> = lines
+        .iter()
+        .enumerate()
+        .map(|(i, text)| TimedText {
+            start_ms: i as u32 * 1000,
+            end_ms: i as u32 * 1000 + 900,
+            text,
+        })
+        .collect();
+    let e = transcript(&segments, 1_000_000, Vec::new());
+    let options = ChunkOptions {
+        max_chars: 1000,
+        overlap_chars: 100,
+    };
+    let chunks = chunk(&e, &options);
+    assert!(chunks.len() > 4);
+    let mut previous = 0;
+    for c in &chunks {
+        let (start, end) = (c.start_ms.expect("start"), c.end_ms.expect("end"));
+        assert!(start <= end && start >= previous, "{c:?}");
+        previous = start;
+        // The first line the chunk touches says which second it is.
+        let second = start / 1000;
+        assert!(
+            lines[second as usize].contains(c.text.lines().next().expect("line"))
+                || c.text.contains(&format!("second {second} ")),
+            "{start} vs {:?}",
+            c.text
+        );
+        assert_eq!(c.page, None);
+    }
+    assert_eq!(chunks[0].start_ms, Some(0));
+    assert_eq!(chunks.last().and_then(|c| c.end_ms), Some(119_900));
+    // Other formats have no times.
+    assert!(chunk(&plain("just text"), &options)[0].start_ms.is_none());
+}

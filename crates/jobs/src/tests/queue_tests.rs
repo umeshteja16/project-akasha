@@ -195,3 +195,38 @@ async fn prune_removes_old_finished_jobs(pool: PgPool) {
     );
     assert!(queue::get(&pool, id).await.expect("get").is_none());
 }
+
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn running_jobs_report_progress(pool: PgPool) {
+    let id = put(&pool, &Echo { n: 7 }).await.expect("id");
+    // Outside a worker: nothing to report to.
+    queue::report_progress(&pool, 0.5).await;
+    assert_eq!(status(&pool, id).await.progress, None);
+
+    let claimed = queue::claim(&pool, "w", &[Echo::KIND.into()], 1)
+        .await
+        .expect("claim");
+    let attempt = crate::Attempt {
+        job_id: id,
+        number: claimed[0].attempts,
+        max: claimed[0].max_attempts,
+    };
+    attempt
+        .scope(async {
+            queue::report_progress(&pool, 0.25).await;
+            queue::report_progress(&pool, 7.0).await; // clamped
+        })
+        .await;
+    assert_eq!(status(&pool, id).await.progress, Some(1.0));
+
+    // A new attempt starts from scratch.
+    sqlx::query("UPDATE jobs SET status = 'failed', run_at = now(), locked_at = NULL, locked_by = NULL WHERE id = $1")
+        .bind(id)
+        .execute(&pool)
+        .await
+        .expect("fail");
+    queue::claim(&pool, "w", &[Echo::KIND.into()], 1)
+        .await
+        .expect("claim");
+    assert_eq!(status(&pool, id).await.progress, None);
+}

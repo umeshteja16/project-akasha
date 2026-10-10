@@ -19,6 +19,7 @@ use akasha_ingest::{
     Chunk, ChunkOptions, EXTRACTOR_VERSION, Extraction, IngestError, Kind, Ocr, Options,
 };
 use akasha_jobs::{JobError, current_attempt};
+use akasha_media::MediaError;
 use akasha_storage::{ContentHash, StorageError};
 use bytes::Bytes;
 use uuid::Uuid;
@@ -76,6 +77,20 @@ impl From<IngestError> for Failure {
     }
 }
 
+impl From<MediaError> for Failure {
+    fn from(err: MediaError) -> Self {
+        if err.is_permanent() {
+            return Self::permanent(err.to_string());
+        }
+        Self {
+            permanent: false,
+            user_message: "speech recognition is unavailable right now; try reindexing later"
+                .into(),
+            detail: err.to_string(),
+        }
+    }
+}
+
 pub async fn extract_file(ctx: JobContext, job: ExtractFile) -> Result<(), JobError> {
     let id = job.file_id;
     match run(&ctx, id).await {
@@ -104,6 +119,15 @@ async fn run(ctx: &JobContext, id: Uuid) -> Result<(), Failure> {
         return Ok(());
     }
     let kind = Kind::of(&target.mime_type);
+    if kind == Kind::Media
+        && let Some(model) = ctx.transcriber.get().await?
+    {
+        let hash = parse_hash(&target.content_hash)?;
+        let done = super::media::transcribe(ctx, model, &hash, &target.mime_type).await?;
+        let chunks = akasha_ingest::chunk(&done.extraction, &super::media::TRANSCRIPT_CHUNKS);
+        let duration = i32::try_from(done.duration_ms).ok();
+        return store(ctx, id, &done.extraction, &chunks, duration).await;
+    }
     let bytes = if matches!(kind, Kind::Media | Kind::Unsupported) {
         // Nothing to extract; do not read (possibly huge) media into memory.
         Bytes::new()
@@ -128,13 +152,16 @@ async fn run(ctx: &JobContext, id: Uuid) -> Result<(), Failure> {
             }
         }
     }
-    store(ctx, id, &result, &chunks).await
+    store(ctx, id, &result, &chunks, None).await
+}
+
+fn parse_hash(hash: &str) -> Result<ContentHash, Failure> {
+    hash.parse()
+        .map_err(|_| Failure::permanent("the file record is invalid"))
 }
 
 async fn read_blob(ctx: &JobContext, hash: &str) -> Result<Bytes, Failure> {
-    let hash: ContentHash = hash
-        .parse()
-        .map_err(|_| Failure::permanent("the file record is invalid"))?;
+    let hash = parse_hash(hash)?;
     match ctx.storage.get_bytes(&hash).await {
         Ok(bytes) => Ok(bytes),
         Err(StorageError::NotFound) => Err(Failure::permanent("the file's contents are missing")),
@@ -174,8 +201,10 @@ async fn store(
     id: Uuid,
     result: &Extraction,
     chunks: &[Chunk],
+    duration_ms: Option<i32>,
 ) -> Result<(), Failure> {
     let pages = serde_json::to_value(&result.pages).map_err(Failure::retry)?;
+    let segments = serde_json::to_value(&result.segments).map_err(Failure::retry)?;
     let paged = result.extractor == "pdf";
     let new = NewExtraction {
         extractor: result.extractor,
@@ -188,6 +217,8 @@ async fn store(
         char_count: to_i32(result.char_count())?,
         text: &result.text,
         pages,
+        segments,
+        duration_ms,
         notes: &result.notes,
     };
     let rows = chunks
@@ -196,6 +227,8 @@ async fn store(
             Ok(NewChunk {
                 chunk_index: to_i32(c.index as usize)?,
                 page: c.page.map(|p| to_i32(p as usize)).transpose()?,
+                start_ms: c.start_ms.map(|t| to_i32(t as usize)).transpose()?,
+                end_ms: c.end_ms.map(|t| to_i32(t as usize)).transpose()?,
                 char_start: to_i32(c.char_start)?,
                 char_end: to_i32(c.char_end)?,
                 text: &c.text,

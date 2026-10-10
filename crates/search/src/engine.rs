@@ -38,6 +38,8 @@ impl Ranked {
             chunk_id: self.row.id,
             chunk_index: self.row.chunk_index,
             page: self.row.page,
+            start_ms: self.row.start_ms,
+            end_ms: self.row.end_ms,
             char_start: self.row.char_start,
             char_end: self.row.char_end,
             snippet: snippet::parse(&self.row.headline),

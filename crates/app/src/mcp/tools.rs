@@ -154,8 +154,9 @@ pub fn list(can_write: bool) -> Vec<Tool> {
             "search",
             "Search the library",
             "Search the user's personal library (their uploaded PDFs, notes, documents and \
-             OCR'd images) by keywords and meaning. Returns the best matching passages with \
-             file name, file_id, page, character offsets and the passage text. Use it first \
+             OCR'd images, transcribed audio and video) by keywords and meaning. Returns the \
+             best matching passages with file name, file_id, page (or `at`, the time in a \
+             recording), character offsets and the passage text. Use it first \
              to find information; then read_file for more context around a passage.",
         )
         .annotate(read_only("Search the library")),

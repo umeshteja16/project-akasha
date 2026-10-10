@@ -186,6 +186,7 @@ impl<C: Clone + Send + Sync + 'static> Worker<C> {
         let span =
             tracing::info_span!("job", kind = %job.kind, id = %job.id, attempt = job.attempts);
         let attempt = Attempt {
+            job_id: job.id,
             number: job.attempts,
             max: job.max_attempts,
         };

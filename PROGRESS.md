@@ -17,9 +17,9 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 
 | | |
 |---|---|
-| **Current step** | Step 6: Beyond parity (6a MCP + API tokens, 6b collections + activity + audit log done) |
+| **Current step** | Step 6: Beyond parity (6a MCP + API tokens, 6b collections + activity + audit log, 6c trusted proxies + audio/video transcription done) |
 | **Last updated** | 2026-10-10 |
-| **`just check`** | passing (301 Rust tests + 5 ignored OCR/real-model tests, 99 web tests, bundle budget 174/180 kB); `just e2e` 10 Playwright tests (incl. axe on every screen, tokens + `/mcp`, collections + sessions) |
+| **`just check`** | passing (332 Rust tests + 6 ignored OCR/real-model/Whisper tests, 104 web tests, bundle budget 174/180 kB); `just e2e` 11 Playwright tests (incl. axe on every screen, tokens + `/mcp`, collections + sessions, recordings) |
 | **Old code** | `legacy/` (read-only reference; deleted in step 7) |
 
 ## Next up
@@ -29,12 +29,17 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 
 Done in step 6 so far: **MCP server + personal API tokens** (6a, ADR 0015);
 **collections, activity timeline, security log, sessions and open tracking** with their
-screens (6b, ADR 0016).
+screens (6b, ADR 0016); **trusted reverse proxies** and **audio/video transcription**
+(whisper.cpp, timestamps in search and citations, transcript player; 6c, ADR 0017).
 
 1. **Observability**: Prometheus `/metrics` (search latency, job queue depth, model load
-   state from `system::status`), OpenTelemetry export behind a feature.
+   state from `system::status`, transcription progress), OpenTelemetry export behind a feature.
 2. **Watched folders / connectors** (Obsidian vault, Downloads) via the job queue.
-3. **Audio/video transcription** (`whisper-rs`), into the existing extract pipeline.
+
+Transcription follow-ups: run a real Whisper model on real speech (only the fake model ran
+here: Hugging Face is blocked in cloud sessions; CI's Docker smoke test runs `tiny` on a
+tone) and measure speed per model; consider word-level timestamps for finer seeking,
+speaker turns, and an optional ffmpeg fallback for AC-3/AVI/WMA.
 
 Open follow-ups:
 - Tune the unmeasured relevance floors (e5-small 0.80, bge 0.55, nomic/bge-m3 0.45, ONNX
@@ -112,7 +117,8 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 
 ### Step 6: Beyond parity
 - [x] MCP server (`rmcp`, Streamable HTTP at `/mcp` + `akasha mcp` stdio bridge) and personal API tokens (scopes, expiry, revocation, Settings → Access tokens)
-- [ ] Audio/video transcription (`whisper-rs`)
+- [x] Audio/video transcription (whisper.cpp via `whisper-rs`, pure-Rust decoding, timestamps in search/citations/MCP, transcript player; ADR 0017)
+- [x] Trusted reverse proxies (`AKASHA_TRUSTED_PROXIES`: client IP for rate limits, security log, sessions; `Secure` cookies via `X-Forwarded-Proto`)
 - [ ] Watched folders / connectors (Obsidian vault, Downloads)
 - [x] Collections, activity timeline, security audit log, sessions, open tracking (legacy parity; API + screens, ADR 0016)
 - [ ] OpenTelemetry export + Prometheus `/metrics`
@@ -145,7 +151,9 @@ See [`docs/adr/`](docs/adr). Summary:
 0012 LLM providers (`crates/llm`) and grounded chat ·
 0013 Model-written file summaries, suggested tags and conversation titles ·
 0014 Relevance floor for results found by meaning alone ·
-0015 MCP server (stateless Streamable HTTP, stdio bridge) and personal API tokens.
+0015 MCP server (stateless Streamable HTTP, stdio bridge) and personal API tokens ·
+0016 Collections, activity timeline and security audit log ·
+0017 Audio/video transcription (whisper.cpp, Symphonia + pure-Rust Opus, timestamps).
 
 ## Known issues and gotchas
 
@@ -485,6 +493,20 @@ See [`docs/adr/`](docs/adr). Summary:
   and resubmits when the per-IP credential limit answers 429.
 - `ActivityKind` is written out by hand (not a macro): utoipa ignores `serde(rename)` on
   macro-generated variants, which put Rust names into the OpenAPI enum.
+- Transcription (ADR 0017, `crates/media`, migration 0015): tests use
+  `AKASHA_WHISPER_MODEL=fake` (`support::test_config()`, e2e server too): every second of
+  a sine wave becomes "tone N hertz", so generated WAVs give deterministic, timed text.
+  `TestApp::run_jobs()` builds its worker from `test_config()`, not the app's config:
+  tests that change transcription settings must call `run_jobs_with(&config)`. A media
+  upload now runs extract (+ embed + enrich when there is speech); undecodable media ends
+  `failed` (permanent), a missing model is retryable (file stays `processing`).
+  Real model: `cargo test -p akasha-media --release --test whisper -- --ignored` (needs
+  Hugging Face). whisper.cpp builds with cmake (~2 min, ~250 MB in `target/`); the build
+  script turns any `GGML_*`/`WHISPER_*`/`CMAKE_*` environment variable into a cmake define,
+  so do not export such variables for unrelated reasons. `opus-decoder` has debug overflow
+  checks off (root `Cargo.toml`). `jobs.progress` + `akasha_jobs::report_progress` are
+  generic (any long job may report); `Attempt` now carries `job_id`. Citations stored in
+  messages gained optional `start_ms/end_ms` (`serde(default)` for old rows).
 - `just check` here ran out of disk while linking the ~25 test binaries (linker "Bus
   error" = disk full): `cargo clean -p akasha` and `CARGO_INCREMENTAL=0` keep it under ~12 GB.
 
@@ -492,6 +514,7 @@ See [`docs/adr/`](docs/adr). Summary:
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
 
+- 2026-10-10 · Claude (cloud) · Step 6c transcription: new `crates/media` (Symphonia + `opus-decoder` decoding to 16 kHz mono with a streaming windowed-sinc resampler, windowed transcription with quiet-point cuts, cancellation, progress, Whisper model catalog with pinned SHA-256 and streamed download, whisper.cpp via `whisper-rs` 0.16, deterministic tone model), migration 0015 (`file_extractions.segments/duration_ms`, `file_chunks.start_ms/end_ms`, `jobs.progress`), `extract_file` transcribes audio/video (`AKASHA_TRANSCRIBE_*`, `AKASHA_WHISPER_MODEL`), times in search results, chat citations/prompt and MCP, transcription in system status and `models download/check`; UI: lazily loaded player + timestamped transcript (seek, active line, `?t=`), times on search results/citations/palette, "Transcribing N%" in the timeline. Docker installs cmake and builds portable whisper.cpp; CI smoke test runs Whisper `tiny`. Tests: media unit/integration (formats incl. MP4/WebM with video, resampling, windowing, cap, cancel), ingest transcript chunking, job progress, HTTP (upload WAV → timed chunks → search/chat), Vitest, e2e recording flow with axe. Also made the chat e2e move the mouse off a citation before asking again (hover popover flake).
 - 2026-10-10 · Claude (cloud) · Trusted reverse proxies: `AKASHA_TRUSTED_PROXIES`, one client-IP resolver (rightmost untrusted XFF hop / `Forwarded`, `X-Forwarded-Proto` → `Secure` cookies) used by the auth rate limiter, security log and sessions; tests for spoofing, chains and per-client limits; README Caddy/nginx notes.
 - 2026-10-10 · Claude (cloud) · Step 6b screens: Collections in the sidebar (+ phone account menu, palette, `g o`/`g a`), collections list and collection page (header with swatch mark, add-files picker, remove from collection, edit/delete, search in it, ask), "Add to collection" in library multi-select and on file pages (membership checkboxes), collection search chip and chat collection scope bar, `/activity` timeline (day groups, filters, links, clear history), Settings → Security (sessions with sign-out, sign out others, recent sign-ins, search-history toggle), "Recently opened" sort, open tracking; fixed a mobile overflow in the library/search filter rows. Vitest 99, e2e 10 (collections → search within → activity → revoke a session; axe over the new screens). Screenshots `p6-*` in the scratchpad.
 - 2026-10-10 · Claude (cloud) · Step 6b API: migrations 0013 (collections, collection_files, conversation collection scope, open tracking) and 0014 (activity_events, search-history preference, session IP); collections CRUD + add/remove files, `collection_id` on files/search/chat, MCP `collection` filters + `list_collections`; activity recording for files/search/chat/collections/tokens/sign-ins/password/sessions/rate limits, `GET/DELETE /activity`, `/me/sessions` list/revoke/revoke-others, `POST /files/{id}/open`, `sort=opened`, daily `prune_activity` (`AKASHA_ACTIVITY_RETENTION_DAYS`), ADR 0016. Tests: db (collections/activity/sessions) and HTTP (collections, activity, sessions) incl. owner isolation, scopes, retention. Screens follow in the next commit.

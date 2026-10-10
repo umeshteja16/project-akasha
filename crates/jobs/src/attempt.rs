@@ -10,6 +10,8 @@ tokio::task_local! {
 /// The attempt the current job is on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Attempt {
+    /// The job being run.
+    pub job_id: uuid::Uuid,
     /// 1-based, including this one.
     pub number: i32,
     pub max: i32,

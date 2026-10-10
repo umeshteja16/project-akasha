@@ -18,6 +18,8 @@ crates/jobs   Postgres job queue + worker runtime (domain-agnostic, ADR 0007)
 crates/ingest text extraction (text/Markdown/PDF/OCR) + chunking; pure, blocking (ADR 0008)
 crates/ml     embeddings + reranking (fastembed on runtime-loaded ONNX Runtime, ADR 0009);
               blocking traits, model catalog, downloader, deterministic fakes for tests
+crates/media  audio decoding (Symphonia, pure-Rust Opus, resampling) + transcription
+              (whisper.cpp via whisper-rs, feature `whisper`; `fake` tone model for tests; ADR 0017)
 crates/search hybrid retrieval (FTS + pgvector, RRF, rerank, snippets, similar files;
               ADR 0010); SQL in crates/db/src/search*, HTTP in app routes/search
 crates/llm    chat model providers (Ollama, Claude, Gemini, OpenAI-compatible, fake; ADR 0012)
@@ -69,7 +71,7 @@ and runs Playwright against a real server (not part of `just check`; CI job `e2e
 - **Tests**: DB tests use `#[sqlx::test]` (fresh database per test). HTTP tests drive the router
   with `tower::ServiceExt::oneshot` (see `crates/app/tests/http.rs`). Tests never download
   models or call LLM providers: `support::test_config()` uses the `hash-384` embedder,
-  `overlap` reranker and the `fake` chat model (provider HTTP is tested against local mocks).
+  `overlap` reranker, the `fake` Whisper model and the `fake` chat model (provider HTTP is tested against local mocks).
 - **Small files**: split a file once it passes ~300 lines.
 - **Frontend**: TS strict, no `any`, server state via TanStack Query, generated API types only.
   Call the API through `unwrap(api.GET(..))` (`src/api/client.ts`; throws `ApiError`). Style

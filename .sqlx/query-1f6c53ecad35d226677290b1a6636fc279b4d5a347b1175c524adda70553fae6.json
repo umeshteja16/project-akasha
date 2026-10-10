@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE jobs SET progress = $2 WHERE id = $1 AND status = 'running' AND attempts = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Float4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1f6c53ecad35d226677290b1a6636fc279b4d5a347b1175c524adda70553fae6"
+}

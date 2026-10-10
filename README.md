@@ -48,8 +48,24 @@ and set `AKASHA_ORT_DYLIB_PATH`. Models are downloaded into `AKASHA_MODELS_DIR` 
 | `AKASHA_RERANK_MODEL` | `jina-reranker-v1-turbo-en` | also `bge-reranker-base`, `bge-reranker-v2-m3`, `none` |
 | `AKASHA_ML_MODELS_URL` | `https://huggingface.co` | any Hugging Face mirror; empty = never download |
 
+**Audio and video** are transcribed on the server with whisper.cpp (ADR 0017): MP3, WAV,
+M4A/AAC, FLAC, Ogg (Vorbis/Opus), MP4/MOV (AAC) and WebM (Opus/Vorbis); the file page shows
+the transcript next to the player, and search results and chat citations point at the time
+("1:05"). The speech model is downloaded on first use like the others.
+
+| Setting | Default | Notes |
+|---|---|---|
+| `AKASHA_TRANSCRIBE_ENABLED` | `true` | off: recordings are stored and playable, without text |
+| `AKASHA_WHISPER_MODEL` | `base` (142 MB) | `tiny`, `small` (466 MB, better), `medium`, `large-v3-turbo` (best, needs a fast CPU) |
+| `AKASHA_TRANSCRIBE_THREADS` | `0` | CPU threads per transcription (0 = cores, max 8); one recording at a time |
+| `AKASHA_TRANSCRIBE_MAX_MINUTES` | `120` | only the start of longer recordings is transcribed |
+| `AKASHA_TRANSCRIBE_LANGUAGE` | empty | ISO 639-1 code (`en`, `de`, ...); empty detects it |
+
+Native builds need cmake and a C++ compiler for whisper.cpp (`cargo build
+--no-default-features --features onnx` leaves it out).
+
 **Air-gapped hosts:** on a connected machine with the same settings run
-`akasha models download` (OCR, embedding and rerank models), copy the models directory to the
+`akasha models download` (OCR, embedding, rerank and Whisper models), copy the models directory to the
 target, set `AKASHA_ML_MODELS_URL=` and `AKASHA_OCR_MODELS_URL=` (empty), and verify with
 `akasha models check`. With Docker:
 `docker run --rm -v akasha_models:/var/lib/akasha/models <image> models download`.

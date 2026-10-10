@@ -19,6 +19,13 @@ pub struct Citation {
     pub file_name: String,
     /// 1-based PDF page; `null` for formats without pages.
     pub page: Option<i32>,
+    /// Audio and video: when the passage's speech starts (milliseconds); `null`
+    /// for other formats.
+    #[serde(default)]
+    pub start_ms: Option<i32>,
+    /// Audio and video: when the passage's speech ends (milliseconds).
+    #[serde(default)]
+    pub end_ms: Option<i32>,
     /// `[char_start, char_end)` of the passage in the file's extracted text (characters).
     pub char_start: i32,
     pub char_end: i32,
@@ -43,12 +50,25 @@ impl Source {
                 file_id: hit.file.id,
                 file_name: hit.file.name.clone(),
                 page: hit.chunk.page,
+                start_ms: hit.chunk.start_ms,
+                end_ms: hit.chunk.end_ms,
                 char_start: hit.chunk.char_start,
                 char_end: hit.chunk.char_end,
                 quote,
             },
             text: hit.text.clone(),
         }
+    }
+}
+
+/// `ms` as a clock time: `4:05`, or `1:02:03` past an hour.
+pub fn timestamp(ms: i32) -> String {
+    let total = ms.max(0) / 1000;
+    let (h, m, s) = (total / 3600, total / 60 % 60, total % 60);
+    if h > 0 {
+        format!("{h}:{m:02}:{s:02}")
+    } else {
+        format!("{m}:{s:02}")
     }
 }
 
@@ -114,12 +134,22 @@ mod tests {
                 file_id: Uuid::nil(),
                 file_name: format!("f{n}.txt"),
                 page: None,
+                start_ms: None,
+                end_ms: None,
                 char_start: 0,
                 char_end: 5,
                 quote: "q".into(),
             },
             text: "t".into(),
         }
+    }
+
+    #[test]
+    fn timestamps_read_like_clocks() {
+        assert_eq!(timestamp(0), "0:00");
+        assert_eq!(timestamp(65_400), "1:05");
+        assert_eq!(timestamp(3_723_000), "1:02:03");
+        assert_eq!(timestamp(-5), "0:00");
     }
 
     #[test]

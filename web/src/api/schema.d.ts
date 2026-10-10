@@ -838,6 +838,11 @@ export interface components {
             /** Format: int32 */
             chunk_index: number;
             /**
+             * Format: int32
+             * @description Audio and video: when the passage's speech ends (milliseconds).
+             */
+            end_ms?: number | null;
+            /**
              * @description Found by meaning alone and below the relevance floor (only returned with
              *     `include_weak`).
              */
@@ -849,6 +854,12 @@ export interface components {
             page?: number | null;
             scores: components["schemas"]["Scores"];
             snippet: components["schemas"]["Snippet"];
+            /**
+             * Format: int32
+             * @description Audio and video: when the passage's speech starts (milliseconds from the
+             *     start of the recording); `null` for other formats.
+             */
+            start_ms?: number | null;
         };
         ChunkResults: components["schemas"]["SearchMeta"] & {
             /** @description Best first. */
@@ -868,6 +879,11 @@ export interface components {
             char_start: number;
             /** Format: int64 */
             chunk_id: number;
+            /**
+             * Format: int32
+             * @description Audio and video: when the passage's speech ends (milliseconds).
+             */
+            end_ms?: number | null;
             /** Format: uuid */
             file_id: string;
             file_name: string;
@@ -883,6 +899,12 @@ export interface components {
             page?: number | null;
             /** @description The start of the passage. */
             quote: string;
+            /**
+             * Format: int32
+             * @description Audio and video: when the passage's speech starts (milliseconds); `null`
+             *     for other formats.
+             */
+            start_ms?: number | null;
         };
         /**
          * @description A collection's colour, from the UI's muted palette (never a raw colour).
@@ -1048,8 +1070,13 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             /**
-             * @description `text`, `markdown`, `csv`, `json`, `pdf`, `ocr`, or `none` when nothing could be
-             *     extracted (e.g. audio and video, which are not transcribed yet).
+             * Format: int32
+             * @description Length of the transcribed audio in milliseconds (audio and video only).
+             */
+            duration_ms?: number | null;
+            /**
+             * @description `text`, `markdown`, `csv`, `json`, `pdf`, `ocr`, `transcript` (audio and video),
+             *     or `none` when nothing could be extracted (e.g. transcription turned off).
              */
             extractor: string;
             extractor_version: string;
@@ -1074,6 +1101,11 @@ export interface components {
             page_count?: number | null;
             /** @description Page spans, in order (PDFs only). */
             pages: components["schemas"]["PageSpan"][];
+            /**
+             * @description Transcript lines with their times, in order (audio and video only; all of
+             *     them, whatever the text window).
+             */
+            segments: components["schemas"]["TimedSpan"][];
             /** @description The requested window of the text. */
             text: string;
         };
@@ -1290,6 +1322,11 @@ export interface components {
              * @description When it will next be tried (`queued` or `failed` only).
              */
             next_attempt_at?: string | null;
+            /**
+             * Format: float
+             * @description How far a running step is (0–1), when it reports it (transcription does).
+             */
+            progress?: number | null;
             stage: components["schemas"]["ProcessingStage"];
             state: components["schemas"]["JobState"];
             /** Format: date-time */
@@ -1463,6 +1500,8 @@ export interface components {
             reranker: components["schemas"]["ModelStatus"];
             /** @description Cloud language models are refused (`AKASHA_STRICT_OFFLINE`). */
             strict_offline: boolean;
+            /** @description Speech recognition for audio and video (Whisper). */
+            transcription: components["schemas"]["ModelStatus"];
             version: string;
             worker: components["schemas"]["WorkerStatus"];
         };
@@ -1483,6 +1522,20 @@ export interface components {
              * @description Files with it as one of your own tags.
              */
             user_files: number;
+        };
+        /**
+         * @description A transcript line: when it was said (milliseconds from the start) and its span
+         *     in the full text (`char_start..char_end`, in characters).
+         */
+        TimedSpan: {
+            /** Format: int64 */
+            char_end: number;
+            /** Format: int64 */
+            char_start: number;
+            /** Format: int32 */
+            end_ms: number;
+            /** Format: int32 */
+            start_ms: number;
         };
         /** @description Milliseconds spent per stage (stages that did not run are 0). */
         Timings: {

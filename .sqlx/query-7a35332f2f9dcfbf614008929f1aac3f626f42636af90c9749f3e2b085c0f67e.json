@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, kind, status, attempts, max_attempts, run_at, last_error,\n                  created_at, updated_at\n           FROM jobs WHERE kind = $1 AND dedupe_key = $2\n           ORDER BY created_at DESC LIMIT 1",
+  "query": "SELECT id, kind, status, attempts, max_attempts, run_at, last_error,\n                  progress, created_at, updated_at\n           FROM jobs WHERE kind = $1 AND dedupe_key = $2\n           ORDER BY created_at DESC LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -40,11 +40,16 @@
       },
       {
         "ordinal": 7,
+        "name": "progress",
+        "type_info": "Float4"
+      },
+      {
+        "ordinal": 8,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -63,9 +68,10 @@
       false,
       false,
       true,
+      true,
       false,
       false
     ]
   },
-  "hash": "2084cac6c8347c494707ab274816b703c16a5c1a103105161802c788f8bc5904"
+  "hash": "7a35332f2f9dcfbf614008929f1aac3f626f42636af90c9749f3e2b085c0f67e"
 }

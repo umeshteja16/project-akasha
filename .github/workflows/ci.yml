@@ -134,9 +134,10 @@ jobs:
           tags: akasha:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      # The image must really run inference: loads ONNX Runtime from the image and a
-      # small model (~90 MB) from Hugging Face.
-      - name: Smoke test (ONNX Runtime + embedding model)
+      # The image must really run inference: loads ONNX Runtime from the image and
+      # small models from Hugging Face (MiniLM ~90 MB, Whisper tiny ~75 MB, which also
+      # proves the portable whisper.cpp build runs on this CPU).
+      - name: Smoke test (ONNX Runtime + embedding model + Whisper)
         run: |
           docker run --rm -e AKASHA_EMBED_MODEL=all-minilm-l6-v2 -e AKASHA_RERANK_MODEL=none \
-            akasha:ci models check
+            -e AKASHA_WHISPER_MODEL=tiny akasha:ci models check

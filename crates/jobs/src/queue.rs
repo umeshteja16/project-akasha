@@ -32,6 +32,8 @@ pub struct JobInfo {
     pub max_attempts: i32,
     pub run_at: DateTime<Utc>,
     pub last_error: Option<String>,
+    /// How far a running job is (0–1), if its handler reports it ([`report_progress`]).
+    pub progress: Option<f32>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -97,7 +99,8 @@ pub async fn claim(
                FOR UPDATE SKIP LOCKED
            )
            UPDATE jobs j
-           SET status = 'running', attempts = j.attempts + 1, locked_at = now(), locked_by = $1
+           SET status = 'running', attempts = j.attempts + 1, locked_at = now(), locked_by = $1,
+               progress = NULL
            FROM next WHERE j.id = next.id
            RETURNING j.id, j.kind, j.payload, j.attempts, j.max_attempts"#,
         worker,
@@ -229,6 +232,31 @@ pub async fn prune_finished(
     Ok(pruned.rows_affected())
 }
 
+/// Record how far the running job of this task is (`fraction` in 0–1), for status
+/// displays. Best-effort: a no-op outside a worker, and errors are only logged.
+/// Cheap, but meant for occasional calls (every few seconds at most).
+pub async fn report_progress(pool: &PgPool, fraction: f32) {
+    let Some(attempt) = crate::current_attempt() else {
+        return;
+    };
+    let fraction = if fraction.is_finite() {
+        fraction.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let result = sqlx::query!(
+        "UPDATE jobs SET progress = $2 WHERE id = $1 AND status = 'running' AND attempts = $3",
+        attempt.job_id,
+        fraction,
+        attempt.number,
+    )
+    .execute(pool)
+    .await;
+    if let Err(err) = result {
+        tracing::debug!(%err, "could not record job progress");
+    }
+}
+
 /// The most recent job of `kind` with `dedupe_key`.
 pub async fn latest_by_key(
     pool: &PgPool,
@@ -238,7 +266,7 @@ pub async fn latest_by_key(
     sqlx::query_as!(
         JobInfo,
         r#"SELECT id, kind, status, attempts, max_attempts, run_at, last_error,
-                  created_at, updated_at
+                  progress, created_at, updated_at
            FROM jobs WHERE kind = $1 AND dedupe_key = $2
            ORDER BY created_at DESC LIMIT 1"#,
         kind,
@@ -252,7 +280,7 @@ pub async fn get(pool: &PgPool, id: Uuid) -> Result<Option<JobInfo>, sqlx::Error
     sqlx::query_as!(
         JobInfo,
         r#"SELECT id, kind, status, attempts, max_attempts, run_at, last_error,
-                  created_at, updated_at
+                  progress, created_at, updated_at
            FROM jobs WHERE id = $1"#,
         id,
     )

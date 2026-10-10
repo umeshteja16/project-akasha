@@ -13,13 +13,26 @@ COPY web/ ./
 RUN pnpm build
 
 FROM rust:1.97-bookworm AS build
+ARG TARGETARCH
+# whisper.cpp (speech to text, ADR 0017) is compiled from source with cmake.
+RUN apt-get update && apt-get install -y --no-install-recommends cmake \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 # Compile SQL macros against the checked-in .sqlx cache; no database at build time.
 ENV SQLX_OFFLINE=true
+# Use the bindings shipped with whisper-rs-sys (no libclang needed).
+ENV WHISPER_DONT_GENERATE_BINDINGS=1
 COPY . .
 COPY --from=web /web/dist web/dist
+# Portable CPU code: not tuned to the build machine (GGML_NATIVE=OFF). On x86-64 it
+# assumes AVX2/FMA/F16C (Haswell, 2013, and newer); rebuild with GGML_AVX2=OFF etc.
+# for older CPUs.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/target \
+    set -eu; export GGML_NATIVE=OFF; \
+    if [ "${TARGETARCH:-amd64}" = "amd64" ]; then \
+      export GGML_AVX=ON GGML_AVX2=ON GGML_FMA=ON GGML_F16C=ON; \
+    fi; \
     cargo build --release -p akasha --features embed-ui && cp target/release/akasha /akasha \
     && mkdir -p /empty-dir
 
@@ -45,7 +58,7 @@ COPY --from=build /akasha /usr/local/bin/akasha
 COPY --from=onnxruntime /libonnxruntime.so /usr/local/lib/libonnxruntime.so
 # Uploaded file contents (local storage backend). Mount a volume here.
 COPY --from=build --chown=nonroot:nonroot /empty-dir /var/lib/akasha/storage
-# ML models (OCR, embedding, rerank; downloaded on first use or with
+# ML models (OCR, embedding, rerank, Whisper; downloaded on first use or with
 # `akasha models download`). Mount a volume to keep them.
 COPY --from=build --chown=nonroot:nonroot /empty-dir /var/lib/akasha/models
 ENV AKASHA_BIND_ADDR=0.0.0.0:8080 AKASHA_LOG_FORMAT=json AKASHA_STORAGE_DIR=/var/lib/akasha/storage \

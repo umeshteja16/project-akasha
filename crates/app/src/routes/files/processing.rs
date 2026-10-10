@@ -76,6 +76,8 @@ pub struct ProcessingJob {
     /// Attempts started so far.
     pub attempts: i32,
     pub max_attempts: i32,
+    /// How far a running step is (0–1), when it reports it (transcription does).
+    pub progress: Option<f32>,
     /// When it will next be tried (`queued` or `failed` only).
     pub next_attempt_at: Option<DateTime<Utc>>,
     pub updated_at: DateTime<Utc>,
@@ -94,6 +96,7 @@ impl From<JobInfo> for ProcessingJob {
             state,
             attempts: job.attempts,
             max_attempts: job.max_attempts,
+            progress: job.progress.filter(|_| state == JobState::Running),
             next_attempt_at: matches!(state, JobState::Queued | JobState::Failed)
                 .then_some(job.run_at),
             updated_at: job.updated_at,

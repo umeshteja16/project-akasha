@@ -50,6 +50,8 @@ export default defineConfig({
           AKASHA_RERANK_MODEL: "overlap",
           AKASHA_ML_MODELS_URL: "",
           AKASHA_OCR_ENABLED: "false",
+          // Deterministic "tone" transcriber: real decoding, no speech model.
+          AKASHA_WHISPER_MODEL: "fake",
           AKASHA_LLM_PROVIDER: "fake",
         },
       },

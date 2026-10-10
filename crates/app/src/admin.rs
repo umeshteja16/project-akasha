@@ -95,6 +95,12 @@ pub async fn run_models_download(config: Config) -> anyhow::Result<()> {
     let dir = options.models_dir.clone();
     let ocr_url = config.ocr_models_url.clone();
     let ocr = config.ocr_enabled;
+    let whisper = if config.transcribe_enabled {
+        Some(akasha_media::models::find(&config.whisper_model)?)
+    } else {
+        None
+    };
+    let hf = config.ml_models_url.clone();
     tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
         if ocr {
             for model in [ocr_models::DETECTION, ocr_models::RECOGNITION] {
@@ -113,6 +119,16 @@ pub async fn run_models_download(config: Config) -> anyhow::Result<()> {
             }
             None => println!("rerank: disabled, skipped"),
         }
+        match whisper {
+            Some(akasha_media::models::ModelChoice::Whisper(model)) => {
+                akasha_media::models::ensure(&dir, &hf, model)?;
+                println!("transcription: whisper {} ok", model.name);
+            }
+            Some(akasha_media::models::ModelChoice::Fake) => {
+                println!("transcription: test model, nothing to download");
+            }
+            None => println!("transcription: disabled, skipped"),
+        }
         Ok(())
     })
     .await
@@ -121,9 +137,9 @@ pub async fn run_models_download(config: Config) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// `akasha models check`: load the configured embedding model and reranker
-/// (downloading them if needed) and run one inference each, to verify an install
-/// (model files, ONNX Runtime library) before serving.
+/// `akasha models check`: load the configured embedding model, reranker and
+/// speech model (downloading them if needed) and run one inference each, to verify
+/// an install (model files, ONNX Runtime library, whisper.cpp build) before serving.
 pub async fn run_models_check(config: Config) -> anyhow::Result<()> {
     let ml = crate::jobs::ml::MlProvider::from_config(&config);
     let started = std::time::Instant::now();
@@ -152,6 +168,28 @@ pub async fn run_models_check(config: Config) -> anyhow::Result<()> {
             );
         }
         None => println!("rerank: disabled"),
+    }
+    let started = std::time::Instant::now();
+    let transcriber = crate::jobs::transcribe::TranscriberProvider::from_config(&config);
+    match transcriber.get().await? {
+        Some(model) => {
+            // Two seconds of a quiet tone: proves the model loads and runs here.
+            let samples: Vec<f32> = (0..akasha_media::SAMPLE_RATE * 2)
+                .map(|i| (i as f32 * 440.0 * std::f32::consts::TAU / 16_000.0).sin() * 0.1)
+                .collect();
+            let segments = tokio::task::spawn_blocking(move || {
+                model.transcribe(&samples, &akasha_media::Control::default())
+            })
+            .await
+            .context("transcription task")??;
+            println!(
+                "transcription: {} ok ({} segments, {:?})",
+                config.whisper_model,
+                segments.len(),
+                started.elapsed()
+            );
+        }
+        None => println!("transcription: disabled"),
     }
     Ok(())
 }

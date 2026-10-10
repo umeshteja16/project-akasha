@@ -21,6 +21,7 @@ mod ocr;
 mod pdf;
 mod text;
 pub mod thumbnail;
+mod transcript;
 
 use serde::{Deserialize, Serialize};
 
@@ -28,6 +29,7 @@ pub use chunk::{Chunk, ChunkOptions, chunk};
 pub use error::IngestError;
 pub use normalize::normalize;
 pub use ocr::Ocr;
+pub use transcript::{TimedText, time_span, transcript};
 
 /// Bumped with this crate; stored with each extraction so stale ones can be found.
 pub const EXTRACTOR_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -44,7 +46,7 @@ pub enum Kind {
     Json,
     Pdf,
     Image,
-    /// Audio and video: transcription is not implemented yet.
+    /// Audio and video: transcribed by the app (`akasha-media`), not here.
     Media,
     Unsupported,
 }
@@ -96,17 +98,29 @@ pub struct Page {
     pub source: PageSource,
 }
 
+/// One transcript line's time (milliseconds from the start of the recording)
+/// and its span in [`Extraction::text`] (`char_start..char_end`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TimedSpan {
+    pub start_ms: u32,
+    pub end_ms: u32,
+    pub char_start: usize,
+    pub char_end: usize,
+}
+
 /// The text of a file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Extraction {
-    /// Which extractor produced it: `text`, `markdown`, `csv`, `json`, `pdf`, `ocr`
-    /// or `none` (nothing extractable, e.g. audio).
+    /// Which extractor produced it: `text`, `markdown`, `csv`, `json`, `pdf`, `ocr`,
+    /// `transcript` (audio/video) or `none` (nothing extractable).
     pub extractor: &'static str,
     /// Normalised text (NFC, `\n` line ends, collapsed blank runs). PDF pages are
     /// joined with a blank line.
     pub text: String,
     /// Page spans, in order; empty for formats without pages.
     pub pages: Vec<Page>,
+    /// Transcript lines with their times, in order; empty for everything else.
+    pub segments: Vec<TimedSpan>,
     /// Human-readable remarks (OCR disabled, truncated, not supported yet, ...).
     pub notes: Vec<String>,
 }
@@ -125,11 +139,13 @@ impl Extraction {
             .count()
     }
 
-    fn empty(extractor: &'static str, note: impl Into<String>) -> Self {
+    /// No text, with a remark explaining why.
+    pub fn empty(extractor: &'static str, note: impl Into<String>) -> Self {
         Self {
             extractor,
             text: String::new(),
             pages: Vec::new(),
+            segments: Vec::new(),
             notes: vec![note.into()],
         }
     }
@@ -172,7 +188,7 @@ pub fn extract(bytes: &[u8], mime: &str, options: &Options<'_>) -> Result<Extrac
         },
         Kind::Media => Ok(Extraction::empty(
             "none",
-            "audio and video are not transcribed yet; the file is stored and downloadable",
+            "transcription is turned off, so this recording has no text; it is stored and playable",
         )),
         Kind::Unsupported => Ok(Extraction::empty(
             "none",
@@ -272,7 +288,7 @@ mod tests {
     fn media_and_disabled_ocr_are_empty_with_a_note() {
         let e = extract(b"\0\0", "audio/mpeg", &Options::default()).expect("media");
         assert_eq!((e.extractor, e.text.as_str()), ("none", ""));
-        assert!(e.notes[0].contains("not transcribed"));
+        assert!(e.notes[0].contains("transcription is turned off"));
         let e = extract(b"\x89PNG", "image/png", &Options::default()).expect("image");
         assert!(e.notes[0].contains("OCR is disabled"));
     }

@@ -18,6 +18,8 @@ pub struct ChunkRow {
     pub file_id: Uuid,
     pub chunk_index: i32,
     pub page: Option<i32>,
+    pub start_ms: Option<i32>,
+    pub end_ms: Option<i32>,
     pub char_start: i32,
     pub char_end: i32,
     pub text: String,
@@ -45,7 +47,8 @@ pub async fn chunks(
 ) -> Result<Vec<ChunkRow>, sqlx::Error> {
     sqlx::query_as!(
         ChunkRow,
-        r#"SELECT c.id, c.file_id, c.chunk_index, c.page, c.char_start, c.char_end, c.text,
+        r#"SELECT c.id, c.file_id, c.chunk_index, c.page, c.start_ms, c.end_ms,
+                  c.char_start, c.char_end, c.text,
                   ts_headline('english', translate(c.text, E'', ''), q.tsq,
                       E'StartSel=, StopSel=, MaxWords=35, MinWords=15, '
                       'MaxFragments=2, FragmentDelimiter=" … "') AS "headline!",

@@ -119,6 +119,11 @@ pub struct ChunkMatch {
     pub chunk_index: i32,
     /// 1-based PDF page; `null` for formats without pages.
     pub page: Option<i32>,
+    /// Audio and video: when the passage's speech starts (milliseconds from the
+    /// start of the recording); `null` for other formats.
+    pub start_ms: Option<i32>,
+    /// Audio and video: when the passage's speech ends (milliseconds).
+    pub end_ms: Option<i32>,
     /// `[char_start, char_end)` of the chunk in the file's extracted text (characters).
     pub char_start: i32,
     pub char_end: i32,

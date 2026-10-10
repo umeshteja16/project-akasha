@@ -29,6 +29,9 @@ pub const PDF: &[u8] = b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\ne
 pub fn test_config() -> Config {
     Config {
         ocr_enabled: false,
+        // Deterministic "tone" transcriber: real decoding, no speech model.
+        transcribe_enabled: true,
+        whisper_model: akasha_media::FAKE_MODEL.into(),
         // Deterministic built-in models: no downloads, no ONNX Runtime.
         embed_model: akasha_ml::catalog::HASH_EMBED_MODEL.into(),
         rerank_model: akasha_ml::catalog::OVERLAP_RERANK_MODEL.into(),

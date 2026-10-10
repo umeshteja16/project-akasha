@@ -65,6 +65,7 @@ pub(crate) fn extract(bytes: &[u8], options: &Options<'_>) -> Result<Extraction,
         extractor: "pdf",
         text,
         pages,
+        segments: Vec::new(),
         notes,
     })
 }

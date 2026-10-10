@@ -1,0 +1,30 @@
+[package]
+name = "akasha-media"
+description = "Audio decoding (pure Rust) and speech-to-text transcription (whisper.cpp) for Akasha."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[features]
+default = ["whisper"]
+# Real transcription with whisper.cpp (compiled from source: needs cmake and a C++
+# compiler). Without it only the deterministic test transcriber exists.
+whisper = ["dep:whisper-rs"]
+
+[dependencies]
+hex.workspace = true
+opus-decoder.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+sha2.workspace = true
+symphonia.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+whisper-rs = { workspace = true, optional = true }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

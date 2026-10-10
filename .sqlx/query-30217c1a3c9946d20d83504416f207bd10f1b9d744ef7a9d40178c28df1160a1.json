@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO file_chunks\n                   (file_id, owner_id, chunk_index, page, char_start, char_end, text, start_ms, end_ms)\n               SELECT $1, $2, * FROM UNNEST($3::int4[], $4::int4[], $5::int4[], $6::int4[],\n                                            $7::text[], $8::int4[], $9::int4[])",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int4Array",
+        "Int4Array",
+        "Int4Array",
+        "Int4Array",
+        "TextArray",
+        "Int4Array",
+        "Int4Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "30217c1a3c9946d20d83504416f207bd10f1b9d744ef7a9d40178c28df1160a1"
+}

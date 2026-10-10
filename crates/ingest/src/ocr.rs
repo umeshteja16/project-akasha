@@ -95,6 +95,7 @@ pub(crate) fn image(bytes: &[u8], ocr: &Ocr, max_chars: usize) -> Result<Extract
         extractor: "ocr",
         text,
         pages: Vec::new(),
+        segments: Vec::new(),
         notes,
     })
 }

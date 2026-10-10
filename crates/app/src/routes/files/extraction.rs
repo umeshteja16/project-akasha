@@ -52,11 +52,21 @@ pub struct PageSpan {
     pub source: PageSource,
 }
 
+/// A transcript line: when it was said (milliseconds from the start) and its span
+/// in the full text (`char_start..char_end`, in characters).
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct TimedSpan {
+    pub start_ms: u32,
+    pub end_ms: u32,
+    pub char_start: u64,
+    pub char_end: u64,
+}
+
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ExtractionResponse {
     pub file_id: Uuid,
-    /// `text`, `markdown`, `csv`, `json`, `pdf`, `ocr`, or `none` when nothing could be
-    /// extracted (e.g. audio and video, which are not transcribed yet).
+    /// `text`, `markdown`, `csv`, `json`, `pdf`, `ocr`, `transcript` (audio and video),
+    /// or `none` when nothing could be extracted (e.g. transcription turned off).
     pub extractor: String,
     pub extractor_version: String,
     /// Pages in the document; `null` for formats without pages.
@@ -67,6 +77,11 @@ pub struct ExtractionResponse {
     pub chunk_count: i64,
     /// Page spans, in order (PDFs only).
     pub pages: Vec<PageSpan>,
+    /// Transcript lines with their times, in order (audio and video only; all of
+    /// them, whatever the text window).
+    pub segments: Vec<TimedSpan>,
+    /// Length of the transcribed audio in milliseconds (audio and video only).
+    pub duration_ms: Option<i32>,
     /// Remarks such as "OCR is disabled" or "truncated".
     pub notes: Vec<String>,
     /// Character offset of `text` in the whole text.
@@ -114,6 +129,10 @@ pub async fn get(
         tracing::error!(%err, file_id = %id, "stored page spans are malformed");
         Error::internal("stored extraction is malformed")
     })?;
+    let segments: Vec<TimedSpan> = serde_json::from_value(found.segments).map_err(|err| {
+        tracing::error!(%err, file_id = %id, "stored transcript segments are malformed");
+        Error::internal("stored extraction is malformed")
+    })?;
     let end = offset.saturating_add(limit);
     Ok(Json(ExtractionResponse {
         file_id: id,
@@ -123,6 +142,8 @@ pub async fn get(
         char_count: found.char_count,
         chunk_count: found.chunk_count,
         pages,
+        segments,
+        duration_ms: found.duration_ms,
         notes: found.notes,
         offset,
         text: found.text,

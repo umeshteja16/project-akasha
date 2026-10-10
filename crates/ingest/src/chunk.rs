@@ -34,6 +34,9 @@ pub struct Chunk {
     pub index: u32,
     /// The PDF page it comes from; `None` for formats without pages.
     pub page: Option<u32>,
+    /// For transcripts: when the chunk's speech starts and ends (milliseconds).
+    pub start_ms: Option<u32>,
+    pub end_ms: Option<u32>,
     /// `text == extraction.text.chars().skip(char_start).take(char_end - char_start)`.
     pub char_start: usize,
     pub char_end: usize,
@@ -70,11 +73,15 @@ pub fn chunk(extraction: &Extraction, options: &ChunkOptions) -> Vec<Chunk> {
         let to = cursor.byte_at(end);
         for piece in splitter.chunk_char_indices(&text[from..to]) {
             let char_start = start + piece.char_offset;
+            let char_end = char_start + piece.chunk.chars().count();
+            let times = crate::time_span(&extraction.segments, char_start, char_end);
             chunks.push(Chunk {
                 index: u32::try_from(chunks.len()).unwrap_or(u32::MAX),
                 page,
+                start_ms: times.map(|t| t.0),
+                end_ms: times.map(|t| t.1),
                 char_start,
-                char_end: char_start + piece.chunk.chars().count(),
+                char_end,
                 text: piece.chunk.to_owned(),
             });
         }
