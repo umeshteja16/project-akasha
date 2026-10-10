@@ -127,7 +127,7 @@ private-network or single-label (Docker service) addresses. Requests are retried
 connection errors, 429 and 5xx before output starts; `AKASHA_LLM_READ_TIMEOUT_SECS` bounds
 silence while streaming. Chat is limited per user (`AKASHA_CHAT_RATE_PER_MINUTE`, default 20);
 the refusal threshold is `AKASHA_CHAT_MIN_RERANK_SCORE` (default per reranker; `akasha eval`
-prints a calibration report for it). See `.env.example` for every setting.
+prints a calibration report for it). See [`docs/operations.md`](docs/operations.md) for every setting.
 
 Search hides results that only vector similarity found and that score below a per-model
 **relevance floor** (ADR 0014), so off-topic queries return nothing instead of every file;
@@ -309,6 +309,13 @@ server {
 ```
 
 Traefik sets the same headers by default; list its address (or network) as trusted.
+
+## Operations
+
+[`docs/operations.md`](docs/operations.md) covers **backup and restore** (`scripts/backup.sh`,
+`scripts/restore.sh`, Docker Compose and bare-binary variants), **upgrade notes** (migrations
+on start, `akasha reembed`, no downgrades) and the **configuration reference** with every
+setting and its default. The feature sections above only show the settings relevant to them.
 
 ## Development
 

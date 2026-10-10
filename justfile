@@ -66,6 +66,10 @@ migration name:
 sqlx-prepare:
     cargo sqlx prepare --workspace -- --all-targets
 
+# Round-trip test of scripts/backup.sh and restore.sh against scratch databases.
+backup-test:
+    ./scripts/backup-test.sh
+
 # Format everything.
 fmt:
     cargo fmt --all

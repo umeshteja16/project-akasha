@@ -29,15 +29,11 @@ log, trusted proxies, transcription, portable multi-arch image, watched folders,
 metrics + traces). In order; each ends with `just check` green, `just e2e` green and a
 PROGRESS.md update:
 
-1. **Operations docs**: backup and restore (Postgres dump + storage dir/S3 bucket +
-   models volume; a tested restore script), upgrade notes (migrations run on start,
-   `akasha reembed` when changing models), configuration reference generated from
-   `Config` or kept in one README table.
-2. **Release mechanics**: version 0.1.0 in the workspace, CHANGELOG, make the no-AVX QEMU
+1. **Release mechanics**: version 0.1.0 in the workspace, CHANGELOG, make the no-AVX QEMU
    CI step required (or narrow it to Whisper) once its run time is known, run
    `release.yml` on a `v0.1.0` tag and check the ghcr.io manifest (amd64 + arm64) by
    pulling and running `models check` on both.
-3. **First-run polish found while doing the above** (only small fixes; bigger items go
+2. **First-run polish found while doing the above** (only small fixes; bigger items go
    to the follow-ups below).
 
 Transcription follow-ups: run a real Whisper model on real speech (only the fake model ran
@@ -136,7 +132,8 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 
 ### Step 7: Release v0.1
 - [x] Feature parity with `legacy/` confirmed (see "Parity result" below); `legacy/` deleted
-- [ ] Backup/restore docs, upgrade notes, tagged release with Docker image
+- [x] Operations docs: backup/restore (`scripts/backup.sh`, `restore.sh`, `just backup-test`), upgrade notes, configuration reference in `docs/operations.md`
+- [ ] Tagged release with Docker image (release mechanics)
 
 ### Step 8: Desktop (after server is stable)
 - [ ] Tauri 2 app reusing the crates; storage backend decision (embedded Postgres vs SQLite) in an ADR
@@ -578,6 +575,7 @@ See [`docs/adr/`](docs/adr). Summary:
 
 Newest first. One line per session: date · who · what changed · anything left half-done.
 
+- 2026-10-10 · Claude (cloud) · Step 7.2 operations docs: `docs/operations.md` (what to back up and why dump-then-blobs is the safe order, Docker Compose and bare-binary variants, upgrade notes: migrations run on `serve`/`worker`/`reembed`/`migrate`, `akasha reembed`, no downgrades; configuration reference of every `Config` key checked against the struct), `scripts/backup.sh` + `restore.sh` (pg_dump -Fc / pg_restore, SHA256SUMS, refuse non-empty targets without `-f`) and `scripts/backup-test.sh` / `just backup-test` (migrate scratch DB, user+file+chunk+384-d vector+blob, back up, restore into a second DB, verify rows, HNSW query, blob; passes). Not in CI: needs a pg client matching the server's major version there. README links it. Next: release mechanics.
 - 2026-10-10 · Claude (cloud) · Step 7.1 parity audit: all legacy inventory items covered or deliberately dropped; added Library → New note (legacy "capture"); storage-quota UI and URL capture deferred to follow-ups. Deleted `legacy/` and its leftovers (.dockerignore, README, CLAUDE.md layout, comments). Next: operations docs.
 - 2026-10-10 · Claude (cloud) · Observability: Prometheus metrics (HTTP by route, jobs outcome/duration/wait/depth, ingest stages, search stages, LLM calls/tokens, model readiness, build info) on a separate listener or token-protected `/metrics`, OTLP/HTTP trace export (feature `otel`) with request-id and `traceparent`, `deploy/grafana/akasha.json`, compose `--profile monitoring`, ADR 0019, README "Monitoring". CI: no-AVX QEMU step bounded and informational. Step 6 complete; Next up is Step 7.
 - 2026-10-10 · Claude (cloud) · Watched folders: migration 0016 (`sources`, `source_files`), `/api/v1/sources` CRUD + rescan, `scan_source`/`scan_all_sources` jobs (batched, resumable, rename detection, quota/unreadable retries, empty-folder guard), debounced `notify` watcher, O_NOFOLLOW + inode-checked opens, globs, Obsidian front-matter tags, `source.*` activity events; Settings → Sources UI; tests: db (5), unit (paths, filter, walk, front matter, debounce), HTTP (import, change, rename, delete, keep, symlink escape, roots, owner isolation, token scope, pause, remove), Vitest, e2e step with axe.
