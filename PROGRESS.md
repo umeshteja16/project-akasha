@@ -534,7 +534,9 @@ See [`docs/adr/`](docs/adr). Summary:
   CI's docker job is a matrix on native runners (`ubuntu-24.04-arm` is free for public
   repos) and runs the portable amd64 build under `qemu-x86_64-static -cpu Nehalem`.
   `release.yml` pushes the multi-arch image to ghcr.io on `v*` tags (per-arch digests,
-  then `imagetools create`); it has not run yet.
+  then `imagetools create`); it has not run yet. The QEMU step had no time limit and ran
+  for hours on its first run; it is now bounded (20 min) and `continue-on-error` until a run
+  shows how long emulated inference takes (then make it required, or test Whisper only).
 - `just check` here ran out of disk while linking the ~25 test binaries (linker "Bus
   error" = disk full): `cargo clean -p akasha` and `CARGO_INCREMENTAL=0` keep it under ~12 GB.
 
