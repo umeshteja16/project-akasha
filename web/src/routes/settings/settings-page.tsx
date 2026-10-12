@@ -11,6 +11,7 @@ import { PasswordSection } from "./password-section";
 import { ProfileSection } from "./profile-section";
 import { SecurityPanel } from "./security-panel";
 import { SourcesPanel } from "./sources-panel";
+import { StorageSection } from "./storage-section";
 import { SystemPanel } from "./system-panel";
 import { TokensPanel } from "./tokens-panel";
 
@@ -64,6 +65,7 @@ export function SettingsPage() {
           {/* Keyed by user so the form resets if the account changes. */}
           <ProfileSection key={me.id} me={me} />
           <AppearanceSection />
+          <StorageSection key={`storage-${me.id}`} me={me} />
           <PasswordSection />
           <DangerSection email={me.email} />
           {meta.data ? (

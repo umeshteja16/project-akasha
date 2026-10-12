@@ -3,6 +3,7 @@
 import type { InfiniteData, QueryClient } from "@tanstack/react-query";
 import type { Schemas } from "@/api/client";
 import { type FileDetail, type FileItem, fileKeys } from "@/api/files";
+import { keys } from "@/api/queries";
 
 type FileList = Schemas["FileList"];
 type ListData = InfiniteData<FileList, string | null>;
@@ -34,6 +35,8 @@ export function addUploadedFile(queryClient: QueryClient, file: FileItem) {
   }
   void queryClient.invalidateQueries({ queryKey: fileKeys.lists() });
   void queryClient.invalidateQueries({ queryKey: fileKeys.tags });
+  // Settings shows storage usage, which this upload changed.
+  void queryClient.invalidateQueries({ queryKey: keys.me });
 }
 
 /** Replace a file everywhere it is cached (after an update). */
@@ -49,4 +52,5 @@ export function removeFiles(queryClient: QueryClient, ids: readonly string[]) {
   const gone = new Set(ids);
   mapLists(queryClient, (items) => items.filter((f) => !gone.has(f.id)));
   for (const id of ids) queryClient.removeQueries({ queryKey: fileKeys.detail(id) });
+  void queryClient.invalidateQueries({ queryKey: keys.me });
 }

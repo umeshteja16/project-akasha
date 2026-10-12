@@ -15,9 +15,32 @@ use crate::{
     state::AppState,
 };
 use akasha_core::Error;
-use akasha_db::{sessions, users};
+use akasha_db::{files, sessions, users};
 
 const DISPLAY_NAME_MAX: usize = 100;
+
+/// What the account's files take up, and the limit the owner set for themselves.
+#[derive(Serialize, ToSchema)]
+pub struct StorageResponse {
+    /// Bytes held by this account's files. Re-uploading bytes the account already
+    /// has costs nothing, so they are counted once.
+    pub used_bytes: i64,
+    /// The limit the owner set for themselves; `null` means no limit.
+    pub quota_bytes: Option<i64>,
+    /// How much of the limit is left, never below zero; `null` with no limit. Zero
+    /// means uploads are refused until something is deleted or the limit is raised.
+    pub remaining_bytes: Option<i64>,
+}
+
+impl From<files::Usage> for StorageResponse {
+    fn from(usage: files::Usage) -> Self {
+        Self {
+            used_bytes: usage.used,
+            quota_bytes: usage.quota,
+            remaining_bytes: usage.remaining(),
+        }
+    }
+}
 
 #[derive(Serialize, ToSchema)]
 pub struct UserResponse {
@@ -27,16 +50,18 @@ pub struct UserResponse {
     pub created_at: DateTime<Utc>,
     /// Searches (with their query) appear in the activity timeline.
     pub record_search_history: bool,
+    pub storage: StorageResponse,
 }
 
-impl From<users::User> for UserResponse {
-    fn from(user: users::User) -> Self {
+impl UserResponse {
+    pub fn new(user: users::User, usage: files::Usage) -> Self {
         Self {
             id: user.id,
             email: user.email,
             display_name: user.display_name,
             created_at: user.created_at,
             record_search_history: user.record_search_history,
+            storage: usage.into(),
         }
     }
 }
@@ -51,6 +76,12 @@ pub struct UpdateMeRequest {
     /// timeline. Turning it off stops recording; existing entries stay until
     /// you clear them.
     pub record_search_history: Option<bool>,
+    /// Your own storage limit in bytes; `null` removes it, absent keeps it. A limit
+    /// below what you already store is allowed: nothing is deleted, but uploads are
+    /// refused until you free space or raise it again.
+    #[serde(default, deserialize_with = "crate::extract::double_option")]
+    #[schema(value_type = Option<i64>, minimum = 0)]
+    pub storage_quota_bytes: Option<Option<i64>>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -75,7 +106,7 @@ pub async fn get_me(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<UserResponse>, ApiError> {
-    Ok(Json(load(&state, auth.user_id).await?.into()))
+    Ok(Json(response(&state, auth.user_id).await?))
 }
 
 /// Update profile fields.
@@ -93,8 +124,20 @@ pub async fn update_me(
     auth: SessionUser,
     Json(req): Json<UpdateMeRequest>,
 ) -> Result<Json<UserResponse>, ApiError> {
-    if req.display_name.is_none() && req.record_search_history.is_none() {
+    if req.display_name.is_none()
+        && req.record_search_history.is_none()
+        && req.storage_quota_bytes.is_none()
+    {
         return Err(Error::bad_request("nothing to update").into());
+    }
+    if let Some(raw) = req.storage_quota_bytes {
+        let quota = match raw {
+            Some(bytes) if bytes < 0 => {
+                return Err(Error::bad_request("storage limit cannot be negative").into());
+            }
+            other => other,
+        };
+        files::set_quota(&state.db, auth.user_id, quota).await?;
     }
     if let Some(on) = req.record_search_history {
         akasha_db::activity::set_search_history(&state.db, auth.user_id, on).await?;
@@ -103,7 +146,7 @@ pub async fn update_me(
         let display_name = normalize_display_name(raw.as_deref())?;
         users::update_display_name(&state.db, auth.user_id, display_name.as_deref()).await?;
     }
-    Ok(Json(load(&state, auth.user_id).await?.into()))
+    Ok(Json(response(&state, auth.user_id).await?))
 }
 
 /// Change password. Signs out every other session.
@@ -178,6 +221,22 @@ pub async fn delete_me(
     tx.commit().await?;
     let jar = jar.add(session::removal(state.config.cookie_secure || client.https));
     Ok((StatusCode::NO_CONTENT, jar))
+}
+
+/// The user with their storage usage, as every route that returns an account does.
+pub async fn response(state: &AppState, user_id: Uuid) -> Result<UserResponse, ApiError> {
+    let user = load(state, user_id).await?;
+    let usage = usage_of(state, user_id).await?;
+    Ok(UserResponse::new(user, usage))
+}
+
+/// The account's quota and what it stores. For callers that already hold the user
+/// row (sign-in, registration) and need not read it again.
+pub async fn usage_of(state: &AppState, user_id: Uuid) -> Result<files::Usage, ApiError> {
+    let mut conn = state.db.acquire().await?;
+    files::usage(&mut conn, user_id, false)
+        .await?
+        .ok_or_else(|| Error::unauthorized("account no longer exists").into())
 }
 
 async fn load(state: &AppState, user_id: Uuid) -> Result<users::User, ApiError> {

@@ -7,7 +7,7 @@ use serde::Deserialize;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use super::me::UserResponse;
+use super::me::{UserResponse, usage_of};
 use crate::{
     activity::{self, ActivityKind, Actor, ClientMeta},
     auth::{SessionUser, password, session},
@@ -65,7 +65,12 @@ pub async fn register(
     let mut ev = activity::event(Actor::session(user.id), ActivityKind::AccountCreated);
     client.apply(&mut ev);
     activity::record_best_effort(&state.db, &ev).await;
-    Ok((StatusCode::CREATED, jar, Json(user.into())))
+    let usage = usage_of(&state, user.id).await?;
+    Ok((
+        StatusCode::CREATED,
+        jar,
+        Json(UserResponse::new(user, usage)),
+    ))
 }
 
 /// Sign in with email and password.
@@ -112,7 +117,8 @@ pub async fn login(
     let mut ev = activity::event(Actor::session(user.id), ActivityKind::SignedIn);
     client.apply(&mut ev);
     activity::record_best_effort(&state.db, &ev).await;
-    Ok((jar, Json(user.into())))
+    let usage = usage_of(&state, user.id).await?;
+    Ok((jar, Json(UserResponse::new(user, usage))))
 }
 
 /// End the current session.

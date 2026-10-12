@@ -6041,6 +6041,36 @@
           "error"
         ]
       },
+      "StorageResponse": {
+        "type": "object",
+        "description": "What the account's files take up, and the limit the owner set for themselves.",
+        "required": [
+          "used_bytes"
+        ],
+        "properties": {
+          "quota_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The limit the owner set for themselves; `null` means no limit."
+          },
+          "remaining_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "How much of the limit is left, never below zero; `null` with no limit. Zero\nmeans uploads are refused until something is deleted or the limit is raised."
+          },
+          "used_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes held by this account's files. Re-uploading bytes the account already\nhas costs nothing, so they are counted once."
+          }
+        }
+      },
       "SystemStatus": {
         "type": "object",
         "required": [
@@ -6430,6 +6460,15 @@
               "null"
             ],
             "description": "Keep a history of your searches (with the query text) in the activity\ntimeline. Turning it off stops recording; existing entries stay until\nyou clear them."
+          },
+          "storage_quota_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Your own storage limit in bytes; `null` removes it, absent keeps it. A limit\nbelow what you already store is allowed: nothing is deleted, but uploads are\nrefused until you free space or raise it again.",
+            "minimum": 0
           }
         }
       },
@@ -6506,7 +6545,8 @@
           "id",
           "email",
           "created_at",
-          "record_search_history"
+          "record_search_history",
+          "storage"
         ],
         "properties": {
           "created_at": {
@@ -6529,6 +6569,9 @@
           "record_search_history": {
             "type": "boolean",
             "description": "Searches (with their query) appear in the activity timeline."
+          },
+          "storage": {
+            "$ref": "#/components/schemas/StorageResponse"
           }
         }
       },

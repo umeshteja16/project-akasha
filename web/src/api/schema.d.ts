@@ -1638,6 +1638,26 @@ export interface components {
          * @enum {string}
          */
         SourceStatus: "pending" | "scanning" | "ok" | "error";
+        /** @description What the account's files take up, and the limit the owner set for themselves. */
+        StorageResponse: {
+            /**
+             * Format: int64
+             * @description The limit the owner set for themselves; `null` means no limit.
+             */
+            quota_bytes?: number | null;
+            /**
+             * Format: int64
+             * @description How much of the limit is left, never below zero; `null` with no limit. Zero
+             *     means uploads are refused until something is deleted or the limit is raised.
+             */
+            remaining_bytes?: number | null;
+            /**
+             * Format: int64
+             * @description Bytes held by this account's files. Re-uploading bytes the account already
+             *     has costs nothing, so they are counted once.
+             */
+            used_bytes: number;
+        };
         SystemStatus: {
             chat: components["schemas"]["ChatModelStatus"];
             embedding: components["schemas"]["EmbeddingStatus"];
@@ -1792,6 +1812,13 @@ export interface components {
              *     you clear them.
              */
             record_search_history?: boolean | null;
+            /**
+             * Format: int64
+             * @description Your own storage limit in bytes; `null` removes it, absent keeps it. A limit
+             *     below what you already store is allowed: nothing is deleted, but uploads are
+             *     refused until you free space or raise it again.
+             */
+            storage_quota_bytes?: number | null;
         };
         UpdateSource: {
             /** @description `false` pauses syncing, `true` resumes it (and scans). */
@@ -1819,6 +1846,7 @@ export interface components {
             id: string;
             /** @description Searches (with their query) appear in the activity timeline. */
             record_search_history: boolean;
+            storage: components["schemas"]["StorageResponse"];
         };
         /**
          * @description `ok`: working through jobs or nothing to do; `stalled`: jobs wait and no

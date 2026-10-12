@@ -32,6 +32,7 @@ export const USER = {
   display_name: "Ada Lovelace",
   created_at: "2026-10-01T10:00:00Z",
   record_search_history: true,
+  storage: { used_bytes: 0, quota_bytes: null, remaining_bytes: null },
 };
 
 export const META = {
