@@ -3,8 +3,9 @@ name: Portability (no AVX)
 # The portable x86-64 build on a CPU without AVX (QEMU's Nehalem model enforces the
 # CPUID feature bits): the dispatcher must keep the SSE4.2 build and Whisper must run.
 # The AVX2 build on the same emulated CPU is expected to crash, which shows the
-# emulation really rejects AVX. Emulated inference takes 30+ minutes, so this runs
-# weekly, on release tags and on demand instead of on every push.
+# emulation really rejects AVX. Emulated inference is slow (its real run time is still
+# unknown: the first two runs were cut off with no output), so this runs weekly, on
+# release tags and on demand instead of on every push.
 on:
   schedule:
     - cron: "17 3 * * 0"
@@ -39,10 +40,29 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y qemu-user-static
           QEMU="-v /usr/bin/qemu-x86_64-static:/qemu:ro --entrypoint /qemu"
-          timeout 90m docker run --rm $MODELS $QEMU akasha:ci -cpu Nehalem \
-            /usr/local/bin/akasha models check | tee check.txt
-          grep -q "cpu build baseline" check.txt
-          if timeout 10m docker run --rm $MODELS $QEMU akasha:ci -cpu Nehalem \
-            /usr/local/bin/akasha-avx2 models check; then
+          # `timeout docker run` only kills the client: the container keeps running and
+          # the step overran to the job's cap with no output (runs 1 and 2). Run detached,
+          # stream the stage lines so a hang shows which model it got stuck on, and kill
+          # the container ourselves when the bound is up.
+          bounded() { # bounded <name> <bound> <binary>
+            docker rm -f "$1" >/dev/null 2>&1 || true
+            docker run -d --name "$1" $MODELS $QEMU akasha:ci -cpu Nehalem "$3" models check >/dev/null
+            timeout "$2" docker logs -f "$1" 2>&1 | tee "$1.txt" || true
+            if [ "$(docker inspect -f '{{.State.Running}}' "$1")" = true ]; then
+              docker kill "$1" >/dev/null
+              status=124
+            else
+              status=$(docker inspect -f '{{.State.ExitCode}}' "$1")
+            fi
+            docker rm -f "$1" >/dev/null 2>&1 || true
+            return "$status"
+          }
+          if ! bounded portable 90m /usr/local/bin/akasha; then
+            echo "::error::the portable build did not pass 'models check' within 90m on an"\
+                 "emulated CPU without AVX; the stages above show how far it got"
+            exit 1
+          fi
+          grep -q "cpu build baseline" portable.txt
+          if bounded avx2 10m /usr/local/bin/akasha-avx2; then
             echo "::warning::the AVX2 build ran on an emulated CPU without AVX"
           fi

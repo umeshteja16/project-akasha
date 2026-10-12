@@ -17,23 +17,31 @@ Claude Code cloud sessions run steps 2–3 automatically (`.claude/hooks/session
 
 | | |
 |---|---|
-| **Current step** | Step 7: Release v0.1 (step 6 complete) |
-| **Last updated** | 2026-10-10 |
+| **Current step** | Step 7 complete: v0.1.0 released. Step 8 (desktop) is next |
+| **Last updated** | 2026-10-12 |
 | **`just check`** | passing (359 Rust tests + 6 ignored OCR/real-model/Whisper tests, 108 web tests, bundle budget 174/180 kB); `just e2e` 11 Playwright tests (incl. axe on every screen, tokens + `/mcp`, collections + sessions, recordings, watched folder) |
 | **Old code** | removed in step 7 (parity audit done; lives on in git history) |
 
 ## Next up
 
-**Step 7: release v0.1.** Step 6 is complete (MCP + tokens, collections/activity/audit
-log, trusted proxies, transcription, portable multi-arch image, watched folders,
-metrics + traces). In order; each ends with `just check` green, `just e2e` green and a
-PROGRESS.md update:
+**v0.1.0 is released.** `release.yml` built both architectures, merged the manifest and
+created the [GitHub release](https://github.com/umeshteja16/project-akasha/releases/tag/v0.1.0)
+from the CHANGELOG section. `ghcr.io/umeshteja16/project-akasha` is public (verified with an
+anonymous pull token) and `latest`, `0.1` and `0.1.0` all resolve to an OCI index with
+`linux/amd64` + `linux/arm64`.
 
-1. **Release mechanics**: version 0.1.0 and `CHANGELOG.md` are in; `release.yml` also
-   creates the GitHub release from the CHANGELOG section. Left: push the `v0.1.0` tag once
-   CI is green on `master`, check the ghcr.io manifest (amd64 + arm64) and the release, and
-   make the ghcr package public (new packages start private; owner action in GitHub
-   package settings).
+Step 8 (Tauri desktop) is the next step of the roadmap, but the self-hosting walkthrough
+below is the more useful next task now that the image is public, and the no-AVX smoke test
+(below) is the one known-unverified claim in the release.
+
+**No-AVX portability is still unverified.** `portability.yml` has never completed: both runs
+(the `v0.1.0` tag and the first weekly) sat at the job's 120-minute cap and were cancelled
+with no output, because `timeout 90m docker run ...` only kills the docker client while the
+container keeps running. Fixed on 2026-10-12: the emulated runs are now detached, their logs
+streamed so a hang shows which model it stuck on, and the container is killed when the bound
+is up (the step fails with an annotation instead of overrunning). Its real run time is still
+unknown; `workflow_dispatch` it, then either record the time here or raise the 90-minute
+bound.
 
 Transcription follow-ups: run a real Whisper model on real speech (only the fake model ran
 here: Hugging Face is blocked in cloud sessions; CI's Docker smoke test runs `tiny` on a
@@ -57,6 +65,8 @@ Open follow-ups:
   JSON-RPC and the stdio bridge against a local server were exercised here).
 - Chat: `no_llm` fallback on a provider outage. PWA offline shell (service worker) was
   deferred: the app is installable (manifest + icons) but needs the server to work.
+- Portability: the amd64 image's "runs on any SSE4.2 CPU" claim is untested end to end
+  (see "No-AVX portability" above).
 
 ## Roadmap
 
@@ -134,7 +144,8 @@ Legend: `[x]` done, `[~]` in progress, `[ ]` not started. Each step ends with `j
 - [x] Feature parity with `legacy/` confirmed (see "Parity result" below); `legacy/` deleted
 - [x] Self-hosting guide `docs/self-hosting.md` (Compose quick start with the ghcr image, bare binary + systemd, first run, LLM choice, HTTPS proxies, troubleshooting), README slimmed to intro + reference, `docs/README.md` index; first-run polish done
 - [x] Operations docs: backup/restore (`scripts/backup.sh`, `restore.sh`, `just backup-test`), upgrade notes, configuration reference in `docs/operations.md`
-- [ ] Tagged release with Docker image (release mechanics)
+- [x] Tagged release with Docker image: `v0.1.0`, multi-arch manifest on ghcr.io (public),
+      GitHub release generated from `CHANGELOG.md`
 
 ### Step 8: Desktop (after server is stable)
 - [ ] Tauri 2 app reusing the crates; storage backend decision (embedded Postgres vs SQLite) in an ADR
@@ -588,6 +599,8 @@ Newest first. One line per session: date · who · what changed · anything left
 - 2026-10-10 · Claude (cloud) · Trusted reverse proxies: `AKASHA_TRUSTED_PROXIES`, one client-IP resolver (rightmost untrusted XFF hop / `Forwarded`, `X-Forwarded-Proto` → `Secure` cookies) used by the auth rate limiter, security log and sessions; tests for spoofing, chains and per-client limits; README Caddy/nginx notes.
 - 2026-10-10 · Claude (cloud) · Step 6b screens: Collections in the sidebar (+ phone account menu, palette, `g o`/`g a`), collections list and collection page (header with swatch mark, add-files picker, remove from collection, edit/delete, search in it, ask), "Add to collection" in library multi-select and on file pages (membership checkboxes), collection search chip and chat collection scope bar, `/activity` timeline (day groups, filters, links, clear history), Settings → Security (sessions with sign-out, sign out others, recent sign-ins, search-history toggle), "Recently opened" sort, open tracking; fixed a mobile overflow in the library/search filter rows. Vitest 99, e2e 10 (collections → search within → activity → revoke a session; axe over the new screens). Screenshots `p6-*` in the scratchpad.
 - 2026-10-10 · Claude (cloud) · Step 6b API: migrations 0013 (collections, collection_files, conversation collection scope, open tracking) and 0014 (activity_events, search-history preference, session IP); collections CRUD + add/remove files, `collection_id` on files/search/chat, MCP `collection` filters + `list_collections`; activity recording for files/search/chat/collections/tokens/sign-ins/password/sessions/rate limits, `GET/DELETE /activity`, `/me/sessions` list/revoke/revoke-others, `POST /files/{id}/open`, `sort=opened`, daily `prune_activity` (`AKASHA_ACTIVITY_RETENTION_DAYS`), ADR 0016. Tests: db (collections/activity/sessions) and HTTP (collections, activity, sessions) incl. owner isolation, scopes, retention. Screens follow in the next commit.
+
+- 2026-10-12 · Claude (cloud) · Step 7 closed: v0.1.0 is tagged and released (multi-arch manifest on ghcr.io, package public, release notes from the CHANGELOG). Fixed `portability.yml`, which had never completed: `timeout 90m docker run` only kills the docker client, so the emulated run outlived its bound and the job was cancelled at its 120-minute cap with no output. The emulated runs are now detached, `docker logs -f` streams the stage lines so a hang shows which model it stuck on, and the container is killed at the bound with the step failing on an `::error::` annotation; the exit-status plumbing (clean, crash, timeout) was exercised against a stub docker. The no-AVX claim itself is still unverified until a dispatched run finishes.
 
 - 2026-10-10 · Claude (cloud) · Step 6a: personal API tokens (migration 0012, `/me/tokens` GET/POST/DELETE, Bearer auth in `AuthUser` with read/write scopes, cookie-only `SessionUser` for account and token management, Settings → Access tokens with copy-once dialog and Claude Code command) and the MCP server (`rmcp` 3.5.1, stateless Streamable HTTP at `/mcp`: search, get_file, read_file, list_files, ask, add_note, tag_file, `akasha://file/{id}` resources; `akasha mcp` stdio bridge), ADR 0015, README "Use Akasha from Claude / AI agents". Tests: Rust token + MCP suites (handshake, tools, scopes, owner isolation, 401), Vitest tokens panel, e2e creates a token in the UI and calls `/mcp`. Resumed twice after interruptions (container restart, usage limit).
 
