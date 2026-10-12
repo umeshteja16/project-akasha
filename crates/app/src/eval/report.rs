@@ -23,6 +23,9 @@ pub struct Report {
     /// Refusal-gate calibration (left out of baselines; needs a reranker).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gate: Option<super::gate::GateReport>,
+    /// Relevance-floor calibration (left out of baselines).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub floor: Option<super::floor::FloorReport>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,6 +81,7 @@ impl Report {
         Self {
             per_query: Vec::new(),
             gate: None,
+            floor: None,
             ..self.clone()
         }
     }
@@ -182,6 +186,7 @@ mod tests {
             modes: BTreeMap::from([("hybrid".to_owned(), mode)]),
             per_query: Vec::new(),
             gate: None,
+            floor: None,
         }
     }
 

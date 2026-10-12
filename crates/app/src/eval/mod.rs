@@ -11,6 +11,7 @@
 //! `overlap` reranker (no downloads; also run by `cargo test`, guarding fusion
 //! and ranking code); `--real-models` uses the configured models.
 
+pub mod floor;
 pub mod gate;
 mod ingest;
 pub mod metrics;
@@ -99,6 +100,9 @@ pub async fn run_cli(config: Config, opts: EvalOptions) -> anyhow::Result<()> {
     if let Some(gate) = &report.gate {
         println!("{}", gate.table());
     }
+    if let Some(floor) = &report.floor {
+        println!("{}", floor.table());
+    }
     let out = opts
         .out
         .unwrap_or_else(|| PathBuf::from(format!("target/eval/{key}.json")));
@@ -178,6 +182,7 @@ pub async fn evaluate(
         modes: BTreeMap::new(),
         per_query: Vec::new(),
         gate: None,
+        floor: None,
     };
     for (name, mode, rerank) in modes {
         let (mode_report, outcomes) = run_mode(&pool, owner, suite, &models, name, mode, rerank)
@@ -197,6 +202,11 @@ pub async fn evaluate(
             .context("gate calibration")?;
         report.gate = Some(gate);
     }
+    report.floor = Some(
+        floor::run(&pool, owner, &models, &state.config, suite)
+            .await
+            .context("relevance-floor calibration")?,
+    );
     Ok(report)
 }
 

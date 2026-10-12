@@ -50,15 +50,23 @@ speaker turns, and an optional ffmpeg fallback for AC-3/AVI/WMA.
 
 Open follow-ups:
 - Self-hosting: after the `v0.1.0` release, walk `docs/self-hosting.md` end to end on a clean host with the real ghcr image (the Compose flow, `COMPOSE_PROFILES`, `AKASHA_TRUSTED_PROXIES=172.16.0.0/12` behind a host proxy); the image has no container healthcheck (distroless has no curl: would need an `akasha healthcheck` subcommand); RAM needs per model are unmeasured.
-- Parity gaps found by the audit: (a) per-user storage quota has no API or UI (only
-  `users.storage_quota_bytes` in the DB, enforced on upload; legacy had a usage bar and a
-  self-service limit in Settings): add usage + quota to `/me` and a Settings card;
+- Parity gaps found by the audit: (a) **done** 2026-10-12: `/me` reports
+  `storage { used_bytes, quota_bytes, remaining_bytes }`, `PATCH /me` takes
+  `storage_quota_bytes` (null clears it) and Settings → Account shows usage with a limit
+  you can set. A limit below current usage is allowed on purpose: nothing is deleted,
+  uploads are refused until space is freed, and the card says so;
   (b) note capture from a URL (legacy fetched and stored the page text) is not built, on
   purpose pending an SSRF-safe fetcher and the offline stance; plain-text notes are covered
   by Library → New note.
 - Tune the unmeasured relevance floors (e5-small 0.80, bge 0.55, nomic/bge-m3 0.45, ONNX
-  rerankers -2.0) from the nightly `eval.yml` real-model artifact (it now reports P@10 and
-  `negative_clean`); calibrate the real-reranker refusal threshold the same way.
+  rerankers -2.0). `akasha eval` now reports the calibration (2026-10-12): the score
+  distributions of relevant vs irrelevant semantic hits, what the floor in effect keeps and
+  rejects, and the best-balance floor (`floor` in the JSON report, `eval/README.md`). Left:
+  read the suggested floors off a real-model run and put them in `akasha_ml::catalog`. The
+  deterministic pair needs no change (0.25 keeps 95% / rejects 95%, already the best split).
+- Calibrate the real-reranker refusal threshold from the nightly `eval.yml` artifact (the
+  `gate` report has had the numbers since step 4.4; nothing has read them yet). Downloading
+  an artifact needs `actions: read` on a token, which cloud sessions do not have.
 - Commit a real-model eval baseline for the default models; consider an OR fallback for
   keyword search (it ANDs every word).
 - MCP follow-ups: try the HTTP endpoint with real Claude Code / Claude Desktop (only raw
@@ -599,6 +607,8 @@ Newest first. One line per session: date · who · what changed · anything left
 - 2026-10-10 · Claude (cloud) · Trusted reverse proxies: `AKASHA_TRUSTED_PROXIES`, one client-IP resolver (rightmost untrusted XFF hop / `Forwarded`, `X-Forwarded-Proto` → `Secure` cookies) used by the auth rate limiter, security log and sessions; tests for spoofing, chains and per-client limits; README Caddy/nginx notes.
 - 2026-10-10 · Claude (cloud) · Step 6b screens: Collections in the sidebar (+ phone account menu, palette, `g o`/`g a`), collections list and collection page (header with swatch mark, add-files picker, remove from collection, edit/delete, search in it, ask), "Add to collection" in library multi-select and on file pages (membership checkboxes), collection search chip and chat collection scope bar, `/activity` timeline (day groups, filters, links, clear history), Settings → Security (sessions with sign-out, sign out others, recent sign-ins, search-history toggle), "Recently opened" sort, open tracking; fixed a mobile overflow in the library/search filter rows. Vitest 99, e2e 10 (collections → search within → activity → revoke a session; axe over the new screens). Screenshots `p6-*` in the scratchpad.
 - 2026-10-10 · Claude (cloud) · Step 6b API: migrations 0013 (collections, collection_files, conversation collection scope, open tracking) and 0014 (activity_events, search-history preference, session IP); collections CRUD + add/remove files, `collection_id` on files/search/chat, MCP `collection` filters + `list_collections`; activity recording for files/search/chat/collections/tokens/sign-ins/password/sessions/rate limits, `GET/DELETE /activity`, `/me/sessions` list/revoke/revoke-others, `POST /files/{id}/open`, `sort=opened`, daily `prune_activity` (`AKASHA_ACTIVITY_RETENTION_DAYS`), ADR 0016. Tests: db (collections/activity/sessions) and HTTP (collections, activity, sessions) incl. owner isolation, scopes, retention. Screens follow in the next commit.
+
+- 2026-10-12 · Claude (cloud) · Storage usage and the relevance-floor report. `/me` now carries `storage { used_bytes, quota_bytes, remaining_bytes }` (sign-in and registration too), `PATCH /me` takes `storage_quota_bytes` (null clears it, a limit below current usage is allowed and blocks uploads without deleting anything), and Settings → Account has a Storage card with a usage bar, an over-limit warning and a GB box; file upload and delete invalidate the `me` query so the bar stays current. `users.storage_quota_bytes` was enforced on upload but unsettable outside the database until now. `akasha eval` gained `eval/floor.rs`: relevance-floor calibration (relevant vs irrelevant semantic-hit score distributions, what the floor in effect keeps/rejects, best-balance floor), because the report recorded no scores and the floors could not actually be tuned from it. Tests: 6 Rust HTTP (`tests/storage.rs`), 5 floor unit tests, 7 Vitest (`storage-section.test.tsx`).
 
 - 2026-10-12 · Claude (cloud) · Step 7 closed: v0.1.0 is tagged and released (multi-arch manifest on ghcr.io, package public, release notes from the CHANGELOG). Fixed `portability.yml`, which had never completed: `timeout 90m docker run` only kills the docker client, so the emulated run outlived its bound and the job was cancelled at its 120-minute cap with no output. The emulated runs are now detached, `docker logs -f` streams the stage lines so a hang shows which model it stuck on, and the container is killed at the bound with the step failing on an `::error::` annotation; the exit-status plumbing (clean, crash, timeout) was exercised against a stub docker. The no-AVX claim itself is still unverified until a dispatched run finishes.
 

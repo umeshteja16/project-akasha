@@ -73,7 +73,7 @@ pub struct ScoreStats {
 }
 
 impl ScoreStats {
-    fn of(scores: &[f32]) -> Self {
+    pub(crate) fn of(scores: &[f32]) -> Self {
         if scores.is_empty() {
             return Self::default();
         }

@@ -89,5 +89,33 @@ suggested one (refusing a real question is worse than a weak answer, which the m
 still decline), set it as the default for that model in `chat::evidence::default_min_score`
 and note the numbers here.
 
+## Relevance-floor calibration
+
+The relevance floor decides whether a passage that *only* vector search found counts as a
+match or is listed as "loosely related" (ADR 0014): its reranker score when a reranker
+with a floor is configured, otherwise its cosine similarity. Every run scores the
+benchmark queries in semantic mode with `include_weak` (where every hit is such a passage
+and nothing is filtered yet) and splits the scores by whether the file answers the query —
+every hit for a `negative` query counts as irrelevant.
+
+The report (`floor` in the JSON; never gated, not in baselines) prints both distributions,
+what the floor in effect keeps and rejects, and the floor with the best balance of the two.
+It balances rather than maximises plain accuracy because the irrelevant group is ~20x
+bigger, so "reject everything" would otherwise score best. Deterministic tier (`hash-384`
++ `overlap`, 2026-10-12):
+
+| passages   | n    | min   | p10   | median | p90   | max   |
+|------------|------|-------|-------|--------|-------|-------|
+| relevant   | 55   | 0.000 | 0.250 | 1.000  | 1.000 | 1.000 |
+| irrelevant | 1065 | 0.000 | 0.000 | 0.000  | 0.000 | 0.500 |
+
+Floor 0.25 (the `overlap` default) keeps 95% of relevant passages and rejects 95% of
+irrelevant ones, which is also the best balance available here. To set a real model's floor:
+run `akasha eval --real-models` (or take the `eval.yml` artifact), then put the suggested
+value in that model's `min_similarity` (`catalog::EMBED_MODELS`) or `min_score`
+(`catalog::RERANK_MODELS`) and note the numbers here. Prefer a floor slightly below the
+suggested one: hiding a real match is worse than listing one loose result, which the UI
+collapses anyway.
+
 Adding corpus files or queries changes every number: re-record all baselines in the
 same commit and update the tables above.

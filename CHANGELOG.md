@@ -4,6 +4,22 @@ All notable changes to Akasha. The format follows [Keep a Changelog](https://kee
 and versions follow [Semantic Versioning](https://semver.org/) (before 1.0, minor versions may
 break compatibility; upgrade notes are in [`docs/operations.md`](docs/operations.md)).
 
+## [Unreleased]
+
+### Added
+- **Storage usage**: `GET /api/v1/me` reports what your files take up and your own storage
+  limit, and Settings → Account shows usage against it with a limit you can set or clear.
+  The limit was already enforced on upload but could only be set in the database.
+- **Relevance-floor calibration** in `akasha eval`: the score distributions of relevant and
+  irrelevant semantic hits, what the floor in effect keeps and rejects, and the floor with
+  the best balance of the two (`floor` in the JSON report). The per-model floors could not
+  be set from measurement before, because the report recorded no scores.
+
+### Fixed
+- The weekly no-AVX portability check no longer outlives its time bound: `timeout` was
+  killing the docker client while the emulated container kept running, so the job was
+  cancelled at its cap with no output.
+
 ## [0.1.0] - 2026-10-10
 
 First release of the rewrite: a single Rust binary with the web UI embedded, backed by
